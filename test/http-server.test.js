@@ -317,6 +317,15 @@ describe("http-server", () => {
         repos: ["self"]
       }
     });
+    const duplicateFieldWithEmptyStringResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "duplicate with empty repoNames",
+        repoNames: "",
+        repos: ["self"]
+      }
+    });
     const invalidRepoNamesResponse = await performRequest(handler, {
       method: "POST",
       path: "/ask",
@@ -351,6 +360,8 @@ describe("http-server", () => {
     expect(JSON.parse(goodResponse.body).request.repoNames).toEqual(["archa", "self"]);
     expect(duplicateFieldResponse.statusCode).toBe(400);
     expect(JSON.parse(duplicateFieldResponse.body).error).toContain("either \"repoNames\" or \"repos\"");
+    expect(duplicateFieldWithEmptyStringResponse.statusCode).toBe(400);
+    expect(JSON.parse(duplicateFieldWithEmptyStringResponse.body).error).toContain("either \"repoNames\" or \"repos\"");
     expect(invalidRepoNamesResponse.statusCode).toBe(400);
     expect(JSON.parse(invalidRepoNamesResponse.body).error).toContain("comma-separated string");
     expect(invalidModelResponse.statusCode).toBe(400);
@@ -427,6 +438,18 @@ describe("http-server", () => {
     expect(JSON.parse(response.body)).toEqual({
       error: "boom"
     });
+  });
+
+  it("rejects malformed request urls without crashing the handler", async () => {
+    const handler = createValidationHandler(10);
+
+    const response = await performRequest(handler, {
+      method: "GET",
+      path: "http://%"
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).error).toContain("Invalid request URL");
   });
 
   it("does not write SSE events after the response is already destroyed", async () => {

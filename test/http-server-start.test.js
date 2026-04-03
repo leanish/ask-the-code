@@ -79,7 +79,7 @@ describe("http-server startup", () => {
         ARCHA_SERVER_PORT: "wat"
       },
       jobManager
-    })).rejects.toThrow("Invalid ARCHA_SERVER_PORT: wat. Use a positive integer.");
+    })).rejects.toThrow("Invalid ARCHA_SERVER_PORT: wat. Use a TCP port between 0 and 65535.");
 
     await expect(startHttpServer({
       env: {
@@ -101,6 +101,31 @@ describe("http-server startup", () => {
       },
       jobManager
     })).rejects.toThrow("Invalid ARCHA_SERVER_JOB_RETENTION_MS: wat. Use a positive integer.");
+  });
+
+  it("accepts port zero from the environment", async () => {
+    const server = createServerDouble({
+      addressValue: {
+        family: "IPv4",
+        address: "127.0.0.1",
+        port: 0
+      }
+    });
+    const jobManager = {
+      close: vi.fn()
+    };
+    mocks.createServer.mockReturnValue(server);
+
+    const handle = await startHttpServer({
+      env: {
+        ARCHA_SERVER_PORT: "0"
+      },
+      jobManager
+    });
+
+    expect(server.listen).toHaveBeenCalledWith(0, "127.0.0.1", expect.any(Function));
+
+    await handle.close();
   });
 });
 

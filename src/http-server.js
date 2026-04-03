@@ -17,7 +17,7 @@ export async function startHttpServer({
   jobRetentionMs = null
 } = {}) {
   const resolvedHost = host || env.ARCHA_SERVER_HOST || DEFAULT_HOST;
-  const resolvedPort = port ?? getOptionalPositiveInteger(env.ARCHA_SERVER_PORT, "ARCHA_SERVER_PORT") ?? DEFAULT_PORT;
+  const resolvedPort = port ?? getOptionalPort(env.ARCHA_SERVER_PORT, "ARCHA_SERVER_PORT") ?? DEFAULT_PORT;
   const resolvedBodyLimitBytes = bodyLimitBytes
     ?? getOptionalPositiveInteger(env.ARCHA_SERVER_BODY_LIMIT_BYTES, "ARCHA_SERVER_BODY_LIMIT_BYTES")
     ?? DEFAULT_BODY_LIMIT_BYTES;
@@ -97,9 +97,9 @@ async function handleRequest({ request, response, jobManager, bodyLimitBytes }) 
     return;
   }
 
-  const url = new URL(request.url || "/", "http://archa.local");
-
   try {
+    const url = parseRequestUrl(request.url);
+
     if (request.method === "GET" && url.pathname === "/") {
       writeJson(response, 200, {
         service: "archa-server",
@@ -287,7 +287,7 @@ function normalizeAskRequest(body) {
     throw new HttpError(400, "Request body must be a JSON object.");
   }
 
-  if (body.repoNames && body.repos) {
+  if (hasOwn(body, "repoNames") && hasOwn(body, "repos")) {
     throw new HttpError(400, 'Use either "repoNames" or "repos", not both.');
   }
 
@@ -402,6 +402,36 @@ function formatServerUrl(server) {
 
   const host = address.family === "IPv6" ? `[${address.address}]` : address.address;
   return `http://${host}:${address.port}`;
+}
+
+function parseRequestUrl(value) {
+  try {
+    return new URL(value || "/", "http://archa.local");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new HttpError(400, `Invalid request URL: ${message}`);
+  }
+}
+
+function hasOwn(object, property) {
+  return Object.prototype.hasOwnProperty.call(object, property);
+}
+
+function getOptionalPort(value, label) {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  if (!/^\d+$/u.test(String(value))) {
+    throw new Error(`Invalid ${label}: ${value}. Use a TCP port between 0 and 65535.`);
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65_535) {
+    throw new Error(`Invalid ${label}: ${value}. Use a TCP port between 0 and 65535.`);
+  }
+
+  return parsed;
 }
 
 function getOptionalPositiveInteger(value, label) {

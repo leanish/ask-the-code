@@ -10,6 +10,13 @@ describe("server-args", () => {
     });
   });
 
+  it("accepts port zero for ephemeral binding", () => {
+    expect(parseServerArgs(["--port", "0"])).toEqual({
+      host: "127.0.0.1",
+      port: 0
+    });
+  });
+
   it("uses environment defaults when flags are absent", () => {
     expect(parseServerArgs([], {
       ARCHA_SERVER_HOST: "localhost",
