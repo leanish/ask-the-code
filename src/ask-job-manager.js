@@ -24,6 +24,7 @@ export function createAskJobManager({
   const cleanupTimers = new Map();
   const pendingJobIds = [];
   let runningJobs = 0;
+  let closed = false;
 
   return {
     createJob,
@@ -33,6 +34,10 @@ export function createAskJobManager({
   };
 
   function createJob(request) {
+    if (closed) {
+      throw new Error("Ask job manager is closed.");
+    }
+
     const job = {
       id: generateJobId(),
       status: "queued",
@@ -61,6 +66,10 @@ export function createAskJobManager({
   }
 
   function subscribe(jobId, listener) {
+    if (closed) {
+      return null;
+    }
+
     const listeners = subscribers.get(jobId);
     if (!listeners) {
       return null;
@@ -74,15 +83,23 @@ export function createAskJobManager({
   }
 
   function close() {
+    closed = true;
+    pendingJobIds.length = 0;
+
     for (const timer of cleanupTimers.values()) {
       clearTimeout(timer);
     }
 
     cleanupTimers.clear();
     subscribers.clear();
+    jobs.clear();
   }
 
   function drainQueue() {
+    if (closed) {
+      return;
+    }
+
     while (runningJobs < maxConcurrentJobs && pendingJobIds.length > 0) {
       const nextJobId = pendingJobIds.shift();
       if (!nextJobId) {
@@ -124,6 +141,11 @@ export function createAskJobManager({
       appendEvent(job, "failed", job.error);
     }).finally(() => {
       runningJobs -= 1;
+
+      if (closed) {
+        return;
+      }
+
       scheduleCleanup(job.id);
       drainQueue();
     });

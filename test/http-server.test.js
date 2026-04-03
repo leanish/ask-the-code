@@ -1,12 +1,12 @@
 import { PassThrough } from "node:stream";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAskJobManager } from "../src/ask-job-manager.js";
 import { createHttpHandler } from "../src/http-server.js";
 
-describe("http-server", () => {
-  const managers = [];
+const managers = [];
 
+describe("http-server", () => {
   afterEach(async () => {
     while (managers.length > 0) {
       managers.pop().close();
@@ -361,49 +361,43 @@ describe("http-server", () => {
     expect(JSON.parse(invalidBodyResponse.body).error).toContain("JSON object");
   });
 
-  it("rejects empty, malformed, and oversized request bodies", async () => {
-    const manager = createAskJobManager({
-      answerQuestionFn: async () => ({
-        mode: "answer",
-        question: "ignored",
-        selectedRepos: [],
-        syncReport: [],
-        synthesis: {
-          text: "ignored"
-        }
-      }),
-      jobRetentionMs: 60_000
-    });
-    managers.push(manager);
-    const handler = createHttpHandler({
-      bodyLimitBytes: 10,
-      jobManager: manager
-    });
+  it("rejects an empty request body", async () => {
+    const handler = createValidationHandler(10);
 
-    const emptyResponse = await performRequest(handler, {
+    const response = await performRequest(handler, {
       method: "POST",
       path: "/ask",
       skipAutoEndWrite: true
     });
-    const malformedResponse = await performRequest(handler, {
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).error).toContain("valid JSON");
+  });
+
+  it("rejects malformed json request bodies", async () => {
+    const handler = createValidationHandler(10);
+
+    const response = await performRequest(handler, {
       method: "POST",
       path: "/ask",
       rawBody: "{bad"
     });
-    const oversizedResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      rawBody: JSON.stringify({
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).error).toContain("valid JSON");
+  });
+
+  it("rejects oversized request bodies", async () => {
+    const handler = createValidationHandler(10);
+
+    const response = await performManualRequest(handler, request => {
+      request.emit("data", Buffer.from(JSON.stringify({
         question: "this body is too large"
-      })
+      })));
     });
 
-    expect(emptyResponse.statusCode).toBe(400);
-    expect(JSON.parse(emptyResponse.body).error).toContain("valid JSON");
-    expect(malformedResponse.statusCode).toBe(400);
-    expect(JSON.parse(malformedResponse.body).error).toContain("valid JSON");
-    expect(oversizedResponse.statusCode).toBe(413);
-    expect(JSON.parse(oversizedResponse.body).error).toContain("exceeds 10 bytes");
+    expect(response.statusCode).toBe(413);
+    expect(JSON.parse(response.body).error).toContain("exceeds 10 bytes");
   });
 
   it("returns a 500 response for unexpected errors", async () => {
@@ -433,6 +427,91 @@ describe("http-server", () => {
     expect(JSON.parse(response.body)).toEqual({
       error: "boom"
     });
+  });
+
+  it("does not write SSE events after the response is already destroyed", async () => {
+    let listener;
+    const unsubscribe = vi.fn();
+    const jobManager = {
+      createJob: vi.fn(),
+      getJob: vi.fn(() => ({
+        id: "job-1",
+        status: "running",
+        request: {
+          question: "ignored",
+          repoNames: null,
+          model: null,
+          reasoningEffort: null,
+          noSync: false,
+          noSynthesis: false
+        },
+        createdAt: "2026-04-03T00:00:00.000Z",
+        startedAt: "2026-04-03T00:00:00.000Z",
+        finishedAt: null,
+        error: null,
+        result: null,
+        events: []
+      })),
+      subscribe: vi.fn((jobId, callback) => {
+        listener = callback;
+        return unsubscribe;
+      })
+    };
+    const handler = createHttpHandler({ jobManager });
+    const exchange = startRequest(handler, {
+      method: "GET",
+      path: "/jobs/job-1/events"
+    });
+
+    await Promise.resolve();
+    const initialBody = exchange.response.body;
+    exchange.response.destroyed = true;
+
+    listener({
+      sequence: 1,
+      type: "status",
+      message: "after close",
+      timestamp: "2026-04-03T00:00:01.000Z"
+    });
+
+    expect(exchange.response.body).toBe(initialBody);
+
+    exchange.response.emit("close");
+    expect(unsubscribe).toHaveBeenCalled();
+  });
+
+  it("does not parse truncated bodies after the request was already rejected for size", async () => {
+    const parseSpy = vi.spyOn(JSON, "parse");
+    const jobManager = {
+      createJob: vi.fn(),
+      getJob: vi.fn(),
+      subscribe: vi.fn()
+    };
+    const handler = createHttpHandler({
+      bodyLimitBytes: 5,
+      jobManager
+    });
+    const request = createManualRequest({
+      method: "POST",
+      path: "/ask"
+    });
+    const response = createMockResponse();
+    const completed = new Promise((resolve, reject) => {
+      response.on("finish", resolve);
+      response.on("error", reject);
+    });
+
+    void handler(request, response);
+    request.emit("data", Buffer.from("123456"));
+    request.emit("end");
+
+    await completed;
+
+    expect(response.statusCode).toBe(413);
+    expect(jobManager.createJob).not.toHaveBeenCalled();
+    expect(parseSpy).not.toHaveBeenCalled();
+
+    parseSpy.mockRestore();
   });
 });
 
@@ -593,4 +672,68 @@ function createMockResponse() {
   });
 
   return response;
+}
+
+function createManualRequest({ method, path, headers = {} }) {
+  const handlers = new Map();
+
+  return {
+    method,
+    url: path,
+    headers,
+    destroyed: false,
+    on(event, handler) {
+      const current = handlers.get(event) || [];
+      current.push(handler);
+      handlers.set(event, current);
+      return this;
+    },
+    destroy() {
+      this.destroyed = true;
+    },
+    emit(event, ...args) {
+      for (const handler of handlers.get(event) || []) {
+        handler(...args);
+      }
+    }
+  };
+}
+
+async function performManualRequest(handler, emitEvents) {
+  const request = createManualRequest({
+    method: "POST",
+    path: "/ask"
+  });
+  const response = createMockResponse();
+  const completed = new Promise((resolve, reject) => {
+    response.on("finish", resolve);
+    response.on("error", reject);
+  });
+
+  void handler(request, response);
+  emitEvents(request);
+  await completed;
+
+  return response;
+}
+
+function createValidationHandler(bodyLimitBytes) {
+  const manager = createAskJobManager({
+    answerQuestionFn: async () => ({
+      mode: "answer",
+      question: "ignored",
+      selectedRepos: [],
+      syncReport: [],
+      synthesis: {
+        text: "ignored"
+      }
+    }),
+    jobRetentionMs: 60_000
+  });
+  managers.push(manager);
+
+  return createHttpHandler({
+    bodyLimitBytes,
+    jobManager: manager
+  });
 }

@@ -157,47 +157,72 @@ async function streamJobEvents(response, jobManager, jobId) {
     throw new HttpError(404, `Unknown job: ${jobId}`);
   }
 
+  let streamClosed = false;
+  let keepAliveTimer = null;
+  let unsubscribe = null;
+
   response.writeHead(200, {
     "Content-Type": "text/event-stream; charset=utf-8",
     "Cache-Control": "no-cache, no-transform",
     Connection: "keep-alive"
   });
 
-  response.write("retry: 1000\n\n");
-  writeSseEvent(response, "snapshot", withJobLinks(job));
-
-  if (isTerminalStatus(job.status)) {
-    writeSseEvent(response, job.status, withJobLinks(job));
-    response.end();
+  if (!writeResponseChunk(response, "retry: 1000\n\n", () => streamClosed)) {
     return;
   }
 
-  const keepAliveTimer = setInterval(() => {
-    response.write(": keep-alive\n\n");
+  if (!writeSseEvent(response, "snapshot", withJobLinks(job), () => streamClosed)) {
+    return;
+  }
+
+  if (isTerminalStatus(job.status)) {
+    writeSseEvent(response, job.status, withJobLinks(job), () => streamClosed);
+    endSseStream(response, cleanupStream, () => streamClosed);
+    return;
+  }
+
+  keepAliveTimer = setInterval(() => {
+    if (!writeResponseChunk(response, ": keep-alive\n\n", () => streamClosed)) {
+      cleanupStream();
+    }
   }, 15_000);
   keepAliveTimer.unref?.();
 
-  const unsubscribe = jobManager.subscribe(jobId, event => {
-    writeSseEvent(response, event.type, event);
+  unsubscribe = jobManager.subscribe(jobId, event => {
+    if (!writeSseEvent(response, event.type, event, () => streamClosed)) {
+      cleanupStream();
+      return;
+    }
 
     if (!isTerminalStatus(event.type)) {
       return;
     }
 
     const currentJob = jobManager.getJob(jobId);
-    if (currentJob) {
-      writeSseEvent(response, "snapshot", withJobLinks(currentJob));
+    if (currentJob && !writeSseEvent(response, "snapshot", withJobLinks(currentJob), () => streamClosed)) {
+      cleanupStream();
+      return;
     }
 
-    clearInterval(keepAliveTimer);
-    unsubscribe?.();
-    response.end();
+    endSseStream(response, cleanupStream, () => streamClosed);
   });
+  if (!unsubscribe) {
+    endSseStream(response, cleanupStream, () => streamClosed);
+    return;
+  }
 
-  response.on("close", () => {
+  response.on("close", cleanupStream);
+  response.on("error", cleanupStream);
+
+  function cleanupStream() {
+    if (streamClosed) {
+      return;
+    }
+
+    streamClosed = true;
     clearInterval(keepAliveTimer);
     unsubscribe?.();
-  });
+  }
 }
 
 async function readJsonBody(request, bodyLimitBytes) {
@@ -205,10 +230,16 @@ async function readJsonBody(request, bodyLimitBytes) {
   let totalBytes = 0;
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+
     request.on("data", chunk => {
+      if (settled) {
+        return;
+      }
+
       totalBytes += chunk.length;
       if (totalBytes > bodyLimitBytes) {
-        reject(new HttpError(413, `Request body exceeds ${bodyLimitBytes} bytes.`));
+        settleReject(new HttpError(413, `Request body exceeds ${bodyLimitBytes} bytes.`));
         request.destroy();
         return;
       }
@@ -217,22 +248,37 @@ async function readJsonBody(request, bodyLimitBytes) {
     });
 
     request.on("end", () => {
+      if (settled) {
+        return;
+      }
+
       if (chunks.length === 0) {
-        reject(new HttpError(400, "Request body must be valid JSON."));
+        settleReject(new HttpError(400, "Request body must be valid JSON."));
         return;
       }
 
       try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        const parsedBody = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        settled = true;
+        resolve(parsedBody);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        reject(new HttpError(400, `Request body must be valid JSON: ${message}`));
+        settleReject(new HttpError(400, `Request body must be valid JSON: ${message}`));
       }
     });
 
     request.on("error", error => {
-      reject(error);
+      settleReject(error);
     });
+
+    function settleReject(error) {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      reject(error);
+    }
   });
 }
 
@@ -340,9 +386,12 @@ function writeJson(response, statusCode, payload) {
   response.end(`${JSON.stringify(payload, null, 2)}\n`);
 }
 
-function writeSseEvent(response, type, payload) {
-  response.write(`event: ${type}\n`);
-  response.write(`data: ${JSON.stringify(payload)}\n\n`);
+function writeSseEvent(response, type, payload, isClosed = () => false) {
+  return writeResponseChunk(
+    response,
+    `event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`,
+    isClosed
+  );
 }
 
 function formatServerUrl(server) {
@@ -374,6 +423,29 @@ function getOptionalPositiveInteger(value, label) {
 
 function isTerminalStatus(status) {
   return status === "completed" || status === "failed";
+}
+
+function writeResponseChunk(response, chunk, isClosed) {
+  if (isResponseClosed(response, isClosed)) {
+    return false;
+  }
+
+  response.write(chunk);
+  return !isResponseClosed(response, isClosed);
+}
+
+function endSseStream(response, cleanup, isClosed) {
+  if (isResponseClosed(response, isClosed)) {
+    cleanup();
+    return;
+  }
+
+  cleanup();
+  response.end();
+}
+
+function isResponseClosed(response, isClosed) {
+  return isClosed() || response.destroyed || response.writableEnded;
 }
 
 class HttpError extends Error {

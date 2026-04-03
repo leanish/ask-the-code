@@ -146,6 +146,56 @@ describe("ask-job-manager", () => {
       "Invalid maxConcurrentJobs: -1. Use a positive integer."
     );
   });
+
+  it("stops queued work and avoids cleanup timers after close", async () => {
+    let finishFirstJob;
+    const firstJobDone = new Promise(resolve => {
+      finishFirstJob = resolve;
+    });
+    const answerQuestionFn = vi.fn(async ({ question }) => {
+      if (question === "first") {
+        await firstJobDone;
+      }
+
+      return {
+        mode: "answer",
+        question,
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: question
+        }
+      };
+    });
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const manager = createAskJobManager({
+      answerQuestionFn,
+      generateJobId: createSequenceIdGenerator(),
+      maxConcurrentJobs: 1,
+      jobRetentionMs: 60_000
+    });
+
+    const firstJob = manager.createJob({ question: "first" });
+    const secondJob = manager.createJob({ question: "second" });
+
+    await Promise.resolve();
+    expect(answerQuestionFn).toHaveBeenCalledTimes(1);
+
+    manager.close();
+
+    finishFirstJob();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(answerQuestionFn).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    expect(manager.getJob(firstJob.id)).toBeNull();
+    expect(manager.getJob(secondJob.id)).toBeNull();
+    expect(manager.subscribe(firstJob.id, vi.fn())).toBeNull();
+    expect(() => manager.createJob({ question: "after-close" })).toThrow("Ask job manager is closed.");
+
+    setTimeoutSpy.mockRestore();
+  });
 });
 
 function createSequenceIdGenerator() {
