@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { initializeConfig, loadConfig } from "../src/config.js";
 import { getConfigPath, getDefaultManagedReposRoot } from "../src/config-paths.js";
@@ -33,6 +33,15 @@ describe("config", () => {
       ...env,
       ARCHA_CONFIG_PATH: "/tmp/custom-archa-config.json"
     })).toBe("/tmp/custom-archa-config.json");
+  });
+
+  it("falls back to home-based paths when xdg env vars are absent", () => {
+    const homedirSpy = vi.spyOn(os, "homedir").mockReturnValue("/tmp/home");
+
+    expect(getConfigPath({})).toBe("/tmp/home/.config/archa/config.json");
+    expect(getDefaultManagedReposRoot({})).toBe("/tmp/home/.local/share/archa/repos");
+
+    homedirSpy.mockRestore();
   });
 
   it("initializes an empty config with the default managed repos root", async () => {

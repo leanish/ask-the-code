@@ -1,0 +1,222 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createAskJobManager } from "../src/ask-job-manager.js";
+
+describe("ask-job-manager", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("queues jobs, streams status updates, and respects the concurrency limit", async () => {
+    let finishFirstJob;
+    const firstJobDone = new Promise(resolve => {
+      finishFirstJob = resolve;
+    });
+    const answerQuestionFn = vi.fn(async ({ question }, { statusReporter }) => {
+      statusReporter.info(`processing ${question}`);
+
+      if (question === "first") {
+        await firstJobDone;
+      }
+
+      statusReporter.info(`finished ${question}`);
+
+      return {
+        mode: "answer",
+        question,
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: `answer:${question}`
+        }
+      };
+    });
+    const manager = createAskJobManager({
+      answerQuestionFn,
+      generateJobId: createSequenceIdGenerator(),
+      maxConcurrentJobs: 1,
+      jobRetentionMs: 60_000
+    });
+    const firstEvents = [];
+    const secondEvents = [];
+
+    const firstJob = manager.createJob({ question: "first" });
+    const secondJob = manager.createJob({ question: "second" });
+    manager.subscribe(firstJob.id, event => {
+      firstEvents.push(event);
+    });
+    manager.subscribe(secondJob.id, event => {
+      secondEvents.push(event);
+    });
+
+    expect(manager.getJob(firstJob.id)?.status).toBe("running");
+    expect(manager.getJob(secondJob.id)?.status).toBe("queued");
+    await Promise.resolve();
+    expect(answerQuestionFn).toHaveBeenCalledTimes(1);
+
+    finishFirstJob();
+
+    await waitFor(() => manager.getJob(firstJob.id)?.status === "completed");
+    await waitFor(() => manager.getJob(secondJob.id)?.status === "completed");
+
+    expect(answerQuestionFn).toHaveBeenCalledTimes(2);
+    expect(firstEvents.map(event => event.type)).toContain("completed");
+    expect(secondEvents.map(event => event.type)).toContain("started");
+    expect(secondEvents.find(event => event.type === "status")?.message).toBe("processing second");
+    expect(manager.getJob(secondJob.id)?.result?.synthesis.text).toBe("answer:second");
+
+    manager.close();
+  });
+
+  it("captures job failures as failed jobs", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: vi.fn(async () => {
+        throw new Error("boom");
+      }),
+      generateJobId: createSequenceIdGenerator(),
+      jobRetentionMs: 60_000
+    });
+
+    const job = manager.createJob({ question: "explode" });
+
+    await waitFor(() => manager.getJob(job.id)?.status === "failed");
+
+    expect(manager.getJob(job.id)).toMatchObject({
+      id: "job-1",
+      status: "failed",
+      error: "boom"
+    });
+
+    manager.close();
+  });
+
+  it("returns null when subscribing to an unknown job", () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: vi.fn(async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }))
+    });
+
+    expect(manager.subscribe("missing", vi.fn())).toBeNull();
+
+    manager.close();
+  });
+
+  it("expires completed jobs after the retention timeout", async () => {
+    vi.useFakeTimers();
+    const manager = createAskJobManager({
+      answerQuestionFn: vi.fn(async () => ({
+        mode: "answer",
+        question: "cleanup",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "done"
+        }
+      })),
+      generateJobId: createSequenceIdGenerator(),
+      jobRetentionMs: 1_000
+    });
+
+    const job = manager.createJob({ question: "cleanup" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(manager.getJob(job.id)?.status).toBe("completed");
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(manager.getJob(job.id)).toBeNull();
+    expect(manager.subscribe(job.id, vi.fn())).toBeNull();
+
+    manager.close();
+  });
+
+  it("rejects invalid numeric manager options", () => {
+    expect(() => createAskJobManager({ jobRetentionMs: 0 })).toThrow(
+      "Invalid jobRetentionMs: 0. Use a positive integer."
+    );
+    expect(() => createAskJobManager({ maxConcurrentJobs: -1 })).toThrow(
+      "Invalid maxConcurrentJobs: -1. Use a positive integer."
+    );
+  });
+
+  it("stops queued work and avoids cleanup timers after close", async () => {
+    let finishFirstJob;
+    const firstJobDone = new Promise(resolve => {
+      finishFirstJob = resolve;
+    });
+    const answerQuestionFn = vi.fn(async ({ question }) => {
+      if (question === "first") {
+        await firstJobDone;
+      }
+
+      return {
+        mode: "answer",
+        question,
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: question
+        }
+      };
+    });
+    const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    const manager = createAskJobManager({
+      answerQuestionFn,
+      generateJobId: createSequenceIdGenerator(),
+      maxConcurrentJobs: 1,
+      jobRetentionMs: 60_000
+    });
+
+    const firstJob = manager.createJob({ question: "first" });
+    const secondJob = manager.createJob({ question: "second" });
+
+    await Promise.resolve();
+    expect(answerQuestionFn).toHaveBeenCalledTimes(1);
+
+    manager.close();
+
+    finishFirstJob();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(answerQuestionFn).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    expect(manager.getJob(firstJob.id)).toBeNull();
+    expect(manager.getJob(secondJob.id)).toBeNull();
+    expect(manager.subscribe(firstJob.id, vi.fn())).toBeNull();
+    expect(() => manager.createJob({ question: "after-close" })).toThrow("Ask job manager is closed.");
+
+    setTimeoutSpy.mockRestore();
+  });
+});
+
+function createSequenceIdGenerator() {
+  let counter = 0;
+
+  return () => {
+    counter += 1;
+    return `job-${counter}`;
+  };
+}
+
+async function waitFor(predicate) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (predicate()) {
+      return;
+    }
+
+    await new Promise(resolve => {
+      setTimeout(resolve, 0);
+    });
+  }
+
+  throw new Error("Condition not met in time.");
+}

@@ -1,0 +1,828 @@
+import { PassThrough } from "node:stream";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createAskJobManager } from "../src/ask-job-manager.js";
+import { createHttpHandler } from "../src/http-server.js";
+
+const managers = [];
+
+describe("http-server", () => {
+  afterEach(async () => {
+    while (managers.length > 0) {
+      managers.pop().close();
+    }
+  });
+
+  it("creates async ask jobs and exposes them over HTTP", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async ({ question }, { statusReporter }) => {
+        statusReporter.info("selected repos");
+
+        return {
+          mode: "answer",
+          question,
+          selectedRepos: [{ name: "archa" }],
+          syncReport: [{ name: "archa", action: "skipped" }],
+          synthesis: {
+            text: "Final answer"
+          }
+        };
+      },
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    const createResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "How does archa work?",
+        repoNames: ["archa"],
+        noSync: true
+      }
+    });
+    const createdJob = JSON.parse(createResponse.body);
+
+    expect(createResponse.statusCode).toBe(202);
+    expect(["queued", "running"]).toContain(createdJob.status);
+    expect(createdJob.links.self).toBe(`/jobs/${createdJob.id}`);
+
+    await waitFor(async () => {
+      const jobResponse = await performRequest(handler, {
+        method: "GET",
+        path: createdJob.links.self
+      });
+      const job = JSON.parse(jobResponse.body);
+      return job.status === "completed";
+    });
+
+    const finalResponse = await performRequest(handler, {
+      method: "GET",
+      path: createdJob.links.self
+    });
+    const finalJob = JSON.parse(finalResponse.body);
+
+    expect(finalResponse.statusCode).toBe(200);
+    expect(finalJob).toMatchObject({
+      id: createdJob.id,
+      status: "completed",
+      result: {
+        synthesis: {
+          text: "Final answer"
+        }
+      }
+    });
+  });
+
+  it("serves the index, health, and options endpoints", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    const indexResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/"
+    });
+    const healthResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/health"
+    });
+    const optionsResponse = await performRequest(handler, {
+      method: "OPTIONS",
+      path: "/ask"
+    });
+
+    expect(indexResponse.statusCode).toBe(200);
+    expect(JSON.parse(indexResponse.body)).toMatchObject({
+      service: "archa-server"
+    });
+    expect(healthResponse.statusCode).toBe(200);
+    expect(JSON.parse(healthResponse.body)).toEqual({ status: "ok" });
+    expect(optionsResponse.statusCode).toBe(204);
+    expect(optionsResponse.headers["access-control-allow-methods"]).toContain("POST");
+  });
+
+  it("streams job events over server-sent events", async () => {
+    let releaseJob;
+    const jobReleased = new Promise(resolve => {
+      releaseJob = resolve;
+    });
+    const manager = createAskJobManager({
+      answerQuestionFn: async ({ question }, { statusReporter }) => {
+        statusReporter.info(`running ${question}`);
+        await jobReleased;
+        statusReporter.info(`done ${question}`);
+
+        return {
+          mode: "answer",
+          question,
+          selectedRepos: [],
+          syncReport: [],
+          synthesis: {
+            text: "streamed answer"
+          }
+        };
+      },
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    const createResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/jobs",
+      body: {
+        question: "stream this"
+      }
+    });
+    const createdJob = JSON.parse(createResponse.body);
+    const sseRequest = startRequest(handler, {
+      method: "GET",
+      path: createdJob.links.events,
+      headers: {
+        Accept: "text/event-stream"
+      }
+    });
+    const eventsPromise = collectSseEvents(sseRequest.response, "completed");
+
+    releaseJob();
+
+    const events = await eventsPromise;
+
+    expect(sseRequest.response.statusCode).toBe(200);
+    expect(events.map(event => event.type)).toContain("snapshot");
+    expect(events.map(event => event.type)).toContain("status");
+    expect(events.map(event => event.type)).toContain("completed");
+    expect(events.find(event => event.type === "snapshot")?.data.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "status",
+          message: "running stream this"
+        })
+      ])
+    );
+    expect(events.filter(event => event.type === "status").map(event => event.data.message)).toContain("done stream this");
+  });
+
+  it("rejects invalid ask payloads", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      })
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: ""
+      }
+    });
+    const body = JSON.parse(response.body);
+
+    expect(response.statusCode).toBe(400);
+    expect(body.error).toContain("non-empty \"question\"");
+  });
+
+  it("returns not found for unknown routes and unknown jobs", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    const routeResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/missing"
+    });
+    const jobResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/jobs/missing"
+    });
+    const eventsResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/jobs/missing/events"
+    });
+
+    expect(routeResponse.statusCode).toBe(404);
+    expect(JSON.parse(routeResponse.body).error).toContain("No route");
+    expect(jobResponse.statusCode).toBe(404);
+    expect(JSON.parse(jobResponse.body).error).toContain("Unknown job");
+    expect(eventsResponse.statusCode).toBe(404);
+    expect(JSON.parse(eventsResponse.body).error).toContain("Unknown job");
+  });
+
+  it("streams an immediate terminal snapshot for completed jobs", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async ({ question }) => ({
+        mode: "answer",
+        question,
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "terminal"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    const createResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/jobs",
+      body: {
+        question: "terminal"
+      }
+    });
+    const createdJob = JSON.parse(createResponse.body);
+
+    await waitFor(async () => {
+      const response = await performRequest(handler, {
+        method: "GET",
+        path: createdJob.links.self
+      });
+
+      return JSON.parse(response.body).status === "completed";
+    });
+
+    const response = await performRequest(handler, {
+      method: "GET",
+      path: createdJob.links.events
+    });
+    const events = parseSseStreamBody(response.body);
+
+    expect(events.map(event => event.type)).toEqual(expect.arrayContaining(["snapshot", "completed"]));
+  });
+
+  it("accepts comma-separated repo names and rejects invalid request shapes", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async ({ question, repoNames }) => ({
+        mode: "answer",
+        question,
+        selectedRepos: repoNames?.map(name => ({ name })) || [],
+        syncReport: [],
+        synthesis: {
+          text: "ok"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    const goodResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "repo parsing",
+        repoNames: "archa, self"
+      }
+    });
+    const duplicateFieldResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "duplicate",
+        repoNames: ["archa"],
+        repos: ["self"]
+      }
+    });
+    const duplicateFieldWithEmptyStringResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "duplicate with empty repoNames",
+        repoNames: "",
+        repos: ["self"]
+      }
+    });
+    const invalidRepoNamesResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "bad repoNames",
+        repoNames: 42
+      }
+    });
+    const invalidModelResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "bad model",
+        model: ""
+      }
+    });
+    const invalidBooleanResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "bad bool",
+        noSync: "true"
+      }
+    });
+    const invalidBodyResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      rawBody: "[]"
+    });
+
+    expect(goodResponse.statusCode).toBe(202);
+    expect(JSON.parse(goodResponse.body).request.repoNames).toEqual(["archa", "self"]);
+    expect(duplicateFieldResponse.statusCode).toBe(400);
+    expect(JSON.parse(duplicateFieldResponse.body).error).toContain("either \"repoNames\" or \"repos\"");
+    expect(duplicateFieldWithEmptyStringResponse.statusCode).toBe(400);
+    expect(JSON.parse(duplicateFieldWithEmptyStringResponse.body).error).toContain("either \"repoNames\" or \"repos\"");
+    expect(invalidRepoNamesResponse.statusCode).toBe(400);
+    expect(JSON.parse(invalidRepoNamesResponse.body).error).toContain("comma-separated string");
+    expect(invalidModelResponse.statusCode).toBe(400);
+    expect(JSON.parse(invalidModelResponse.body).error).toContain("\"model\"");
+    expect(invalidBooleanResponse.statusCode).toBe(400);
+    expect(JSON.parse(invalidBooleanResponse.body).error).toContain("\"noSync\"");
+    expect(invalidBodyResponse.statusCode).toBe(400);
+    expect(JSON.parse(invalidBodyResponse.body).error).toContain("JSON object");
+  });
+
+  it("rejects an empty request body", async () => {
+    const handler = createValidationHandler(10);
+
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      skipAutoEndWrite: true
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).error).toContain("valid JSON");
+  });
+
+  it("rejects malformed json request bodies", async () => {
+    const handler = createValidationHandler(10);
+
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      rawBody: "{bad"
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).error).toContain("valid JSON");
+  });
+
+  it("rejects oversized request bodies", async () => {
+    const handler = createValidationHandler(10);
+
+    const response = await performManualRequest(handler, request => {
+      request.emit("data", Buffer.from(JSON.stringify({
+        question: "this body is too large"
+      })));
+    });
+
+    expect(response.statusCode).toBe(413);
+    expect(JSON.parse(response.body).error).toContain("exceeds 10 bytes");
+  });
+
+  it("returns a 500 response for unexpected errors", async () => {
+    const handler = createHttpHandler({
+      jobManager: {
+        createJob() {
+          throw new Error("boom");
+        },
+        getJob() {
+          return null;
+        },
+        subscribe() {
+          return null;
+        }
+      }
+    });
+
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "explode"
+      }
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({
+      error: "boom"
+    });
+  });
+
+  it("rejects malformed request urls without crashing the handler", async () => {
+    const handler = createValidationHandler(10);
+
+    const response = await performRequest(handler, {
+      method: "GET",
+      path: "http://%"
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).error).toContain("Invalid request URL");
+  });
+
+  it("does not write SSE events after the response is already destroyed", async () => {
+    let listener;
+    const unsubscribe = vi.fn();
+    const jobManager = {
+      createJob: vi.fn(),
+      getJob: vi.fn(() => ({
+        id: "job-1",
+        status: "running",
+        request: {
+          question: "ignored",
+          repoNames: null,
+          model: null,
+          reasoningEffort: null,
+          noSync: false,
+          noSynthesis: false
+        },
+        createdAt: "2026-04-03T00:00:00.000Z",
+        startedAt: "2026-04-03T00:00:00.000Z",
+        finishedAt: null,
+        error: null,
+        result: null,
+        events: []
+      })),
+      subscribe: vi.fn((jobId, callback) => {
+        listener = callback;
+        return unsubscribe;
+      })
+    };
+    const handler = createHttpHandler({ jobManager });
+    const exchange = startRequest(handler, {
+      method: "GET",
+      path: "/jobs/job-1/events"
+    });
+
+    await Promise.resolve();
+    const initialBody = exchange.response.body;
+    exchange.response.destroyed = true;
+
+    listener({
+      sequence: 1,
+      type: "status",
+      message: "after close",
+      timestamp: "2026-04-03T00:00:01.000Z"
+    });
+
+    expect(exchange.response.body).toBe(initialBody);
+
+    exchange.response.emit("close");
+    expect(unsubscribe).toHaveBeenCalled();
+  });
+
+  it("cleans up the SSE subscription when the terminal snapshot cannot be written", async () => {
+    let listener;
+    const unsubscribe = vi.fn();
+    const jobManager = {
+      createJob: vi.fn(),
+      getJob: vi.fn(() => ({
+        id: "job-1",
+        status: "running",
+        request: {
+          question: "ignored",
+          repoNames: null,
+          model: null,
+          reasoningEffort: null,
+          noSync: false,
+          noSynthesis: false
+        },
+        createdAt: "2026-04-03T00:00:00.000Z",
+        startedAt: "2026-04-03T00:00:00.000Z",
+        finishedAt: "2026-04-03T00:00:01.000Z",
+        error: null,
+        result: {
+          mode: "answer",
+          question: "ignored",
+          selectedRepos: [],
+          syncReport: [],
+          synthesis: {
+            text: "done"
+          }
+        },
+        events: []
+      })),
+      subscribe: vi.fn((jobId, callback) => {
+        listener = callback;
+        return unsubscribe;
+      })
+    };
+    const request = createManualRequest({
+      method: "GET",
+      path: "/jobs/job-1/events"
+    });
+    const response = createMockResponse();
+    const originalWrite = response.write.bind(response);
+    response.write = vi.fn(chunk => {
+      const text = chunk.toString("utf8");
+      const result = originalWrite(chunk);
+
+      if (text.startsWith("event: completed")) {
+        response.destroyed = true;
+      }
+
+      return result;
+    });
+    void createHttpHandler({ jobManager })(request, response);
+
+    listener({
+      sequence: 2,
+      type: "completed",
+      message: "done",
+      timestamp: "2026-04-03T00:00:01.000Z"
+    });
+
+    expect(unsubscribe).toHaveBeenCalled();
+    expect(response.body).toContain("event: completed");
+  });
+
+  it("does not parse truncated bodies after the request was already rejected for size", async () => {
+    const parseSpy = vi.spyOn(JSON, "parse");
+    const jobManager = {
+      createJob: vi.fn(),
+      getJob: vi.fn(),
+      subscribe: vi.fn()
+    };
+    const handler = createHttpHandler({
+      bodyLimitBytes: 5,
+      jobManager
+    });
+    const request = createManualRequest({
+      method: "POST",
+      path: "/ask"
+    });
+    const response = createMockResponse();
+    const completed = new Promise((resolve, reject) => {
+      response.on("finish", resolve);
+      response.on("error", reject);
+    });
+
+    void handler(request, response);
+    request.emit("data", Buffer.from("123456"));
+    request.emit("end");
+
+    await completed;
+
+    expect(response.statusCode).toBe(413);
+    expect(jobManager.createJob).not.toHaveBeenCalled();
+    expect(parseSpy).not.toHaveBeenCalled();
+
+    parseSpy.mockRestore();
+  });
+});
+
+async function waitFor(predicate) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (await predicate()) {
+      return;
+    }
+
+    await new Promise(resolve => {
+      setTimeout(resolve, 0);
+    });
+  }
+
+  throw new Error("Condition not met in time.");
+}
+
+async function collectSseEvents(response, untilType) {
+  const events = [];
+  let buffer = "";
+
+  return await new Promise((resolve, reject) => {
+    response.on("data", chunk => {
+      buffer += chunk.toString("utf8");
+
+      let delimiterIndex = buffer.indexOf("\n\n");
+      while (delimiterIndex >= 0) {
+        const rawEvent = buffer.slice(0, delimiterIndex);
+        buffer = buffer.slice(delimiterIndex + 2);
+
+        const event = parseSseEvent(rawEvent);
+        if (event) {
+          events.push(event);
+          if (event.type === untilType) {
+            resolve(events);
+            return;
+          }
+        }
+
+        delimiterIndex = buffer.indexOf("\n\n");
+      }
+    });
+
+    response.on("end", () => {
+      resolve(events);
+    });
+    response.on("error", reject);
+  });
+}
+
+function parseSseEvent(rawEvent) {
+  const lines = rawEvent.split("\n");
+  let type = "message";
+  let data = "";
+
+  for (const line of lines) {
+    if (!line || line.startsWith(":")) {
+      continue;
+    }
+
+    if (line.startsWith("event:")) {
+      type = line.slice("event:".length).trim();
+      continue;
+    }
+
+    if (line.startsWith("data:")) {
+      data += line.slice("data:".length).trim();
+    }
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    type,
+    data: JSON.parse(data)
+  };
+}
+
+function parseSseStreamBody(body) {
+  return body
+    .split("\n\n")
+    .map(chunk => chunk.trim())
+    .filter(Boolean)
+    .map(parseSseEvent)
+    .filter(Boolean);
+}
+
+async function performRequest(handler, options) {
+  const exchange = startRequest(handler, options);
+  await exchange.completed;
+  return exchange.response;
+}
+
+function startRequest(handler, { method, path, headers = {}, body = null, rawBody = null, skipAutoEndWrite = false }) {
+  const request = new PassThrough();
+  request.method = method;
+  request.url = path;
+  request.headers = headers;
+
+  const response = createMockResponse();
+  const completed = new Promise((resolve, reject) => {
+    response.on("finish", () => {
+      resolve();
+    });
+    response.on("error", reject);
+  });
+
+  void handler(request, response);
+
+  queueMicrotask(() => {
+    if (rawBody != null) {
+      request.write(rawBody);
+    } else if (body != null) {
+      request.write(JSON.stringify(body));
+    }
+
+    if (!skipAutoEndWrite) {
+      request.end();
+      return;
+    }
+
+    request.end("");
+  });
+
+  return {
+    request,
+    response,
+    completed
+  };
+}
+
+function createMockResponse() {
+  const response = new PassThrough();
+
+  response.statusCode = 200;
+  response.headers = {};
+  response.body = "";
+  response.setHeader = (name, value) => {
+    response.headers[name.toLowerCase()] = value;
+  };
+  response.writeHead = (statusCode, headers = {}) => {
+    response.statusCode = statusCode;
+
+    for (const [name, value] of Object.entries(headers)) {
+      response.setHeader(name, value);
+    }
+
+    return response;
+  };
+
+  response.on("data", chunk => {
+    response.body += chunk.toString("utf8");
+  });
+  response.on("finish", () => {
+    response.emit("close");
+  });
+  response.destroyed = false;
+
+  return response;
+}
+
+function createManualRequest({ method, path, headers = {} }) {
+  const handlers = new Map();
+
+  return {
+    method,
+    url: path,
+    headers,
+    destroyed: false,
+    on(event, handler) {
+      const current = handlers.get(event) || [];
+      current.push(handler);
+      handlers.set(event, current);
+      return this;
+    },
+    destroy() {
+      this.destroyed = true;
+    },
+    emit(event, ...args) {
+      for (const handler of handlers.get(event) || []) {
+        handler(...args);
+      }
+    }
+  };
+}
+
+async function performManualRequest(handler, emitEvents) {
+  const request = createManualRequest({
+    method: "POST",
+    path: "/ask"
+  });
+  const response = createMockResponse();
+  const completed = new Promise((resolve, reject) => {
+    response.on("finish", resolve);
+    response.on("error", reject);
+  });
+
+  void handler(request, response);
+  emitEvents(request);
+  await completed;
+
+  return response;
+}
+
+function createValidationHandler(bodyLimitBytes) {
+  const manager = createAskJobManager({
+    answerQuestionFn: async () => ({
+      mode: "answer",
+      question: "ignored",
+      selectedRepos: [],
+      syncReport: [],
+      synthesis: {
+        text: "ignored"
+      }
+    }),
+    jobRetentionMs: 60_000
+  });
+  managers.push(manager);
+
+  return createHttpHandler({
+    bodyLimitBytes,
+    jobManager: manager
+  });
+}

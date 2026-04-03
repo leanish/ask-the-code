@@ -4,7 +4,8 @@
   "description": "Your personal code archaeologist for repo-aware engineering Q&A",
   "type": "module",
   "bin": {
-    "archa": "./bin/archa.js"
+    "archa": "./bin/archa.js",
+    "archa-server": "./bin/archa-server.js"
   },
   "scripts": {
     "test": "vitest run",

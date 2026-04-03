@@ -128,8 +128,10 @@ describe("cli", () => {
       expect.objectContaining({
         question: "What is x-codec-meta?"
       }),
-      process.env,
-      expect.any(Object)
+      expect.objectContaining({
+        env: process.env,
+        statusReporter: expect.any(Object)
+      })
     );
   });
 

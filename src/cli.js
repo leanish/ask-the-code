@@ -7,6 +7,7 @@ import { parseArgs } from "./parse-args.js";
 import { answerQuestion } from "./question-answering.js";
 import { renderAnswer, renderRepoList, renderRetrievalOnly, renderSyncReport } from "./render.js";
 import { syncRepos } from "./repo-sync.js";
+import { createStreamStatusReporter } from "./status-reporter.js";
 
 export async function main(argv) {
   const options = parseArgs(argv, process.env);
@@ -40,7 +41,10 @@ export async function main(argv) {
     }
     case "ask": {
       const resolvedOptions = await resolveAskOptions(options);
-      const result = await answerQuestion(resolvedOptions, process.env, createStatusReporter());
+      const result = await answerQuestion(resolvedOptions, {
+        env: process.env,
+        statusReporter: createStreamStatusReporter(process.stderr)
+      });
       if (result.mode === "retrieval-only") {
         process.stdout.write(`${renderRetrievalOnly(result)}\n`);
         return;
@@ -91,17 +95,6 @@ function repoMatchesAnyName(repo, requestedNames) {
   }
 
   return (repo.aliases || []).some(alias => requestedNames.has(alias.toLowerCase()));
-}
-
-function createStatusReporter(stream = process.stderr) {
-  return {
-    info(message) {
-      if (!message) {
-        return;
-      }
-      stream.write(`[archa] ${message}\n`);
-    }
-  };
 }
 
 async function resolveAskOptions(options) {
