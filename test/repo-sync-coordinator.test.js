@@ -55,4 +55,24 @@ describe("repo-sync-coordinator", () => {
       detail: "main"
     });
   });
+
+  it("starts a fresh sync after the previous coordinated sync has finished", async () => {
+    const syncRepoFn = vi.fn(async repo => ({
+      name: repo.name,
+      directory: repo.directory,
+      action: "updated",
+      detail: "main"
+    }));
+    const coordinator = createRepoSyncCoordinator({ syncRepoFn });
+    const repo = {
+      name: "archa",
+      directory: "/workspace/repos/archa",
+      defaultBranch: "main"
+    };
+
+    await coordinator.syncRepos([repo]);
+    await coordinator.syncRepos([repo]);
+
+    expect(syncRepoFn).toHaveBeenCalledTimes(2);
+  });
 });

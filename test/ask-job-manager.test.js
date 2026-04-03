@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAskJobManager } from "../src/ask-job-manager.js";
 
 describe("ask-job-manager", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("queues jobs, streams status updates, and respects the concurrency limit", async () => {
     let finishFirstJob;
     const firstJobDone = new Promise(resolve => {
@@ -84,6 +88,63 @@ describe("ask-job-manager", () => {
     });
 
     manager.close();
+  });
+
+  it("returns null when subscribing to an unknown job", () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: vi.fn(async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }))
+    });
+
+    expect(manager.subscribe("missing", vi.fn())).toBeNull();
+
+    manager.close();
+  });
+
+  it("expires completed jobs after the retention timeout", async () => {
+    vi.useFakeTimers();
+    const manager = createAskJobManager({
+      answerQuestionFn: vi.fn(async () => ({
+        mode: "answer",
+        question: "cleanup",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "done"
+        }
+      })),
+      generateJobId: createSequenceIdGenerator(),
+      jobRetentionMs: 1_000
+    });
+
+    const job = manager.createJob({ question: "cleanup" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(manager.getJob(job.id)?.status).toBe("completed");
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(manager.getJob(job.id)).toBeNull();
+    expect(manager.subscribe(job.id, vi.fn())).toBeNull();
+
+    manager.close();
+  });
+
+  it("rejects invalid numeric manager options", () => {
+    expect(() => createAskJobManager({ jobRetentionMs: 0 })).toThrow(
+      "Invalid jobRetentionMs: 0. Use a positive integer."
+    );
+    expect(() => createAskJobManager({ maxConcurrentJobs: -1 })).toThrow(
+      "Invalid maxConcurrentJobs: -1. Use a positive integer."
+    );
   });
 });
 

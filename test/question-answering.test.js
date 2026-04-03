@@ -202,4 +202,79 @@ describe("answerQuestion", () => {
 
     expect(mocks.runCodexQuestion).not.toHaveBeenCalled();
   });
+
+  it("supports injected execution options and relays sync plus codex status messages", async () => {
+    const statusReporter = {
+      info: vi.fn()
+    };
+    const loadConfigFn = vi.fn().mockResolvedValue({
+      managedReposRoot: "/workspace/repos",
+      repos: []
+    });
+    const selectReposFn = vi.fn().mockReturnValue(selectedRepos);
+    const syncReposFn = vi.fn(async (repos, callbacks) => {
+      callbacks.onRepoStart(repos[0], "update", "main");
+      callbacks.onRepoWait(repos[0], "main");
+      callbacks.onRepoResult({
+        name: "sqs-codec",
+        directory: "/workspace/repos/sqs-codec",
+        action: "updated",
+        detail: "main"
+      });
+
+      return [
+        {
+          name: "sqs-codec",
+          directory: "/workspace/repos/sqs-codec",
+          action: "updated",
+          detail: "main"
+        }
+      ];
+    });
+    const runCodexQuestionFn = vi.fn(async ({ onStatus }) => {
+      onStatus("Synthesizing...");
+
+      return {
+        text: "Injected answer"
+      };
+    });
+
+    const result = await answerQuestion({
+      question: "How does x-codec-meta work?",
+      model: "gpt-5.4",
+      reasoningEffort: "low",
+      noSync: false,
+      noSynthesis: false,
+      repoNames: null
+    }, {
+      env: { ARCHA_CODEX_TIMEOUT_MS: "12345" },
+      statusReporter,
+      loadConfigFn,
+      selectReposFn,
+      syncReposFn,
+      existsSyncFn: vi.fn(() => true),
+      getCodexTimeoutMsFn: vi.fn(() => 12_345),
+      runCodexQuestionFn
+    });
+
+    expect(result).toMatchObject({
+      mode: "answer",
+      synthesis: {
+        text: "Injected answer"
+      }
+    });
+    expect(loadConfigFn).toHaveBeenCalledWith({ ARCHA_CODEX_TIMEOUT_MS: "12345" });
+    expect(selectReposFn).toHaveBeenCalled();
+    expect(syncReposFn).toHaveBeenCalled();
+    expect(runCodexQuestionFn).toHaveBeenCalledWith(expect.objectContaining({
+      timeoutMs: 12_345
+    }));
+    expect(statusReporter.info.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
+      "Selected repos: sqs-codec",
+      "Updating sqs-codec (main)...",
+      "Waiting for sqs-codec (main) sync already in progress...",
+      "sqs-codec: updated (main)",
+      "Synthesizing..."
+    ]));
+  });
 });
