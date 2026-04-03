@@ -96,6 +96,8 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
   Maintains in-memory async jobs, per-job event history, and bounded execution concurrency.
 - `src/http-server.js`
   Exposes the HTTP API, request validation, polling responses, and SSE streams.
+- `src/ui.html.js`
+  Self-contained HTML, CSS, and JavaScript for the browser-based question UI, exported as a string constant.
 - `src/render.js`
   Converts results into simple CLI output.
 - `src/status-reporter.js`

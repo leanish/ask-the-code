@@ -114,6 +114,58 @@ describe("http-server", () => {
     expect(optionsResponse.headers["access-control-allow-methods"]).toContain("POST");
   });
 
+  it("serves the web UI when the client accepts text/html", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: { text: "ignored" }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    const htmlResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/",
+      headers: { accept: "text/html,application/xhtml+xml" }
+    });
+
+    expect(htmlResponse.statusCode).toBe(200);
+    expect(htmlResponse.headers["content-type"]).toContain("text/html");
+    expect(htmlResponse.body).toContain("<!DOCTYPE html>");
+    expect(htmlResponse.body).toContain("archa");
+    expect(htmlResponse.body).toContain("EventSource");
+    expect(htmlResponse.body).toContain("/ask");
+  });
+
+  it("serves JSON at / when the client does not accept text/html", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: { text: "ignored" }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    const jsonResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/",
+      headers: { accept: "application/json" }
+    });
+
+    expect(jsonResponse.statusCode).toBe(200);
+    expect(JSON.parse(jsonResponse.body)).toMatchObject({ service: "archa-server" });
+  });
+
   it("streams job events over server-sent events", async () => {
     let releaseJob;
     const jobReleased = new Promise(resolve => {

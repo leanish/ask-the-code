@@ -4,6 +4,13 @@ The optional `archa-server` adapter exposes the repo-aware question-answering fl
 
 ## Endpoints
 
+### `GET /`
+
+Content-negotiated:
+
+- Browsers (`Accept` includes `text/html`): serves the built-in web UI
+- API clients: returns the JSON endpoint listing
+
 ### `GET /health`
 
 Returns:

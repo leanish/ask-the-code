@@ -1,6 +1,7 @@
 import http from "node:http";
 
 import { createAskJobManager } from "./ask-job-manager.js";
+import { HTML_UI } from "./ui.html.js";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8787;
@@ -101,6 +102,15 @@ async function handleRequest({ request, response, jobManager, bodyLimitBytes }) 
     const url = parseRequestUrl(request.url);
 
     if (request.method === "GET" && url.pathname === "/") {
+      if (prefersHtml(request)) {
+        response.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache"
+        });
+        response.end(HTML_UI);
+        return;
+      }
+
       writeJson(response, 200, {
         service: "archa-server",
         endpoints: {
@@ -476,6 +486,11 @@ function endSseStream(response, cleanup, isClosed) {
 
 function isResponseClosed(response, isClosed) {
   return isClosed() || response.destroyed || response.writableEnded;
+}
+
+function prefersHtml(request) {
+  const accept = request.headers?.accept || "";
+  return accept.includes("text/html");
 }
 
 class HttpError extends Error {

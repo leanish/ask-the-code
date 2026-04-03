@@ -221,6 +221,12 @@ Available endpoints:
 
 HTTP jobs keep an in-memory event history, run with bounded concurrency, and share a per-process repo sync coordinator. If two jobs need the same repo sync at the same time, one sync runs and the other job waits for the same result.
 
+### Web UI
+
+Open `http://127.0.0.1:8787` in a browser to use the built-in web UI. The UI streams job status updates in real time using server-sent events.
+
+Programmatic clients that do not send `Accept: text/html` continue to receive the JSON endpoint listing at `GET /`.
+
 ## Configuration overrides
 
 - `ARCHA_MODEL`: overrides the default Codex model (`gpt-5.4`)
