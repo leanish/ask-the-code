@@ -203,6 +203,11 @@ describe("http-server", () => {
     expect(htmlResponse.body).toContain("/repos");
     expect(htmlResponse.body).toContain("Search configured repos");
     expect(htmlResponse.body).toContain("all projects");
+    expect(htmlResponse.body).toContain('id="advanced-options" hidden');
+    expect(htmlResponse.body).toContain('params.get("admin")');
+    expect(htmlResponse.body).toContain('<option value="gpt-5.4" selected>gpt-5.4</option>');
+    expect(htmlResponse.body).toContain('<option value="gpt-5.4-mini">gpt-5.4-mini</option>');
+    expect(htmlResponse.body).toContain('<option value="low" selected>low</option>');
     expect(htmlResponse.body).not.toContain("repo-picker-toggle");
     expect(htmlResponse.body).not.toContain("e.g. archa, playcart");
     expect(htmlResponse.body).not.toContain('id="no-synthesis"');

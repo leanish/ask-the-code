@@ -36,7 +36,7 @@ label {
   color: #7d8590;
   margin-bottom: 0.25rem;
 }
-textarea, input[type="text"] {
+textarea, input[type="text"], select {
   width: 100%;
   background: #161b22;
   color: #c9d1d9;
@@ -48,7 +48,7 @@ textarea, input[type="text"] {
   outline: none;
   transition: border-color 0.15s;
 }
-textarea:focus, input[type="text"]:focus {
+textarea:focus, input[type="text"]:focus, select:focus {
   border-color: #58a6ff;
 }
 textarea {
@@ -248,16 +248,26 @@ button[type="submit"]:disabled {
         Leave it on <code>all projects</code> to let Archa choose likely repos, or search to narrow the scope.
       </div>
     </div>
-    <details>
+    <details id="advanced-options" hidden>
       <summary>Advanced options</summary>
       <div class="options-grid">
         <div class="field">
           <label for="model">Model</label>
-          <input type="text" id="model" name="model" placeholder="default">
+          <select id="model" name="model">
+            <option value="gpt-5.4" selected>gpt-5.4</option>
+            <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+          </select>
         </div>
         <div class="field">
           <label for="reasoning-effort">Reasoning effort</label>
-          <input type="text" id="reasoning-effort" name="reasoningEffort" placeholder="default">
+          <select id="reasoning-effort" name="reasoningEffort">
+            <option value="none">none</option>
+            <option value="minimal">minimal</option>
+            <option value="low" selected>low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+            <option value="xhigh">xhigh</option>
+          </select>
         </div>
         <label class="checkbox-field">
           <input type="checkbox" id="no-sync" name="noSync"> Skip repo sync
@@ -282,6 +292,7 @@ button[type="submit"]:disabled {
   const statusLog = document.getElementById("status-log");
   const answerBox = document.getElementById("answer");
   const errorBox = document.getElementById("error-box");
+  const advancedOptions = document.getElementById("advanced-options");
   const repoSelected = document.getElementById("repo-selected");
   const repoOptions = document.getElementById("repo-options");
   const repoFilter = document.getElementById("repo-filter");
@@ -296,6 +307,7 @@ button[type="submit"]:disabled {
 
   let eventSource = null;
 
+  revealAdvancedOptionsWhenAllowed();
   renderRepoPicker();
   void initializeRepoPicker();
 
@@ -414,6 +426,13 @@ button[type="submit"]:disabled {
     if (reasoningEffort) payload.reasoningEffort = reasoningEffort;
     if (noSync) payload.noSync = true;
     return payload;
+  }
+
+  function revealAdvancedOptionsWhenAllowed() {
+    const params = new URLSearchParams(window.location.search);
+    if ((params.get("admin") || "").toLowerCase() === "true") {
+      advancedOptions.hidden = false;
+    }
   }
 
   async function initializeRepoPicker() {

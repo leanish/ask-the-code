@@ -228,6 +228,8 @@ HTTP jobs keep an in-memory event history, run with bounded concurrency, and sha
 
 Open `http://127.0.0.1:8787` in a browser to use the built-in web UI. The UI streams job status updates in real time using server-sent events and loads the configured repo catalog so the repo filter can be selected from a searchable multi-select instead of typed manually.
 
+Advanced web UI controls are hidden by default and only shown when the page is opened with `?admin=true`, for example `http://127.0.0.1:8787/?admin=true`. In admin mode, model is constrained to `gpt-5.4` or `gpt-5.4-mini` and reasoning effort is chosen from the supported enum values.
+
 Programmatic clients that do not send `Accept: text/html` continue to receive the JSON endpoint listing at `GET /`.
 
 ## Configuration overrides
