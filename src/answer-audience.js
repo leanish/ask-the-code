@@ -6,5 +6,5 @@ export function isSupportedAnswerAudience(value) {
 }
 
 export function resolveAnswerAudience(value) {
-  return value || DEFAULT_ANSWER_AUDIENCE;
+  return value ?? DEFAULT_ANSWER_AUDIENCE;
 }
