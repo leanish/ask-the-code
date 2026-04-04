@@ -52,6 +52,31 @@ describe("selectRepos", () => {
     expect(repos.map(repo => repo.name)).toEqual(["sqs-codec", "archa", "java-conventions"]);
   });
 
+  it("still falls back to all configured repos when only alwaysSelect repos are in scope", () => {
+    const repos = selectRepos({
+      repos: [
+        {
+          name: "foundation",
+          description: "Cross-cutting shared base functionality",
+          topics: [],
+          alwaysSelect: true
+        },
+        {
+          name: "archa",
+          description: "Repo-aware CLI for engineering Q&A with local Codex",
+          topics: ["cli", "codex", "qa"]
+        },
+        {
+          name: "java-conventions",
+          description: "Java conventions and build defaults",
+          topics: ["java", "conventions"]
+        }
+      ]
+    }, "totally unrelated question", null);
+
+    expect(repos.map(repo => repo.name)).toEqual(["foundation", "archa", "java-conventions"]);
+  });
+
   it("preserves configured repo order in the all-repos fallback", () => {
     const repos = selectRepos({
       repos: [

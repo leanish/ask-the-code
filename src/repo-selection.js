@@ -30,7 +30,7 @@ export function selectRepos(config, question, requestedRepoNames) {
     .slice(0, MAX_AUTOMATIC_REPOS)
     .map(entry => entry.repo);
 
-  if (scoredRepos.length === 0 && alwaysSelectedRepos.length === 0) {
+  if (scoredRepos.length === 0) {
     return [...config.repos];
   }
 
