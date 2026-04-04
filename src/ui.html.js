@@ -196,12 +196,40 @@ button[type="submit"]:disabled {
   border-bottom: 1px solid #30363d;
 }
 #status-log:empty { display: none; }
-#status-log:empty + #answer { border-top: none; }
+.answer-pane {
+  display: none;
+  border-top: 1px solid #30363d;
+}
+.answer-pane.visible {
+  display: block;
+}
+#status-log:empty + .answer-pane {
+  border-top: none;
+}
+.answer-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0.75rem 0;
+}
+.answer-copy {
+  border: 0;
+  background: transparent;
+  color: #58a6ff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.answer-copy:hover {
+  color: #79c0ff;
+}
+.answer-copy:disabled {
+  color: #484f58;
+  cursor: not-allowed;
+}
 #answer {
   display: none;
   width: 100%;
   min-height: 10rem;
-  padding: 1rem;
+  padding: 0.75rem 1rem 1rem;
   background: #0f1117;
   border: 0;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
@@ -292,7 +320,12 @@ button[type="submit"]:disabled {
 
   <div id="result">
     <div id="status-log"></div>
-    <textarea id="answer" readonly spellcheck="false"></textarea>
+    <div id="answer-pane" class="answer-pane">
+      <div class="answer-toolbar">
+        <button type="button" id="copy-answer" class="answer-copy" disabled>Copy</button>
+      </div>
+      <textarea id="answer" readonly spellcheck="false"></textarea>
+    </div>
     <div id="error-box"></div>
   </div>
 </main>
@@ -303,7 +336,9 @@ button[type="submit"]:disabled {
   const submitBtn = document.getElementById("submit-btn");
   const resultBox = document.getElementById("result");
   const statusLog = document.getElementById("status-log");
+  const answerPane = document.getElementById("answer-pane");
   const answerBox = document.getElementById("answer");
+  const copyAnswerButton = document.getElementById("copy-answer");
   const errorBox = document.getElementById("error-box");
   const advancedOptions = document.getElementById("advanced-options");
   const repoSelected = document.getElementById("repo-selected");
@@ -319,6 +354,7 @@ button[type="submit"]:disabled {
   };
 
   let eventSource = null;
+  let copyFeedbackTimer = null;
 
   revealAdvancedOptionsWhenAllowed();
   renderRepoPicker();
@@ -392,6 +428,19 @@ button[type="submit"]:disabled {
 
     repoState.selected.delete(repoName);
     renderRepoPicker();
+  });
+
+  copyAnswerButton.addEventListener("click", async () => {
+    if (!answerBox.value) {
+      return;
+    }
+
+    try {
+      await copyText(answerBox.value);
+      setCopyButtonLabel("Copied");
+    } catch (error) {
+      setCopyButtonLabel("Copy failed");
+    }
   });
 
   form.addEventListener("submit", async (e) => {
@@ -660,9 +709,40 @@ button[type="submit"]:disabled {
 
   function setAnswerText(text) {
     answerBox.value = text;
+    answerPane.classList.add("visible");
     answerBox.classList.add("visible");
     answerBox.style.height = "auto";
     answerBox.style.height = answerBox.scrollHeight + "px";
+    copyAnswerButton.disabled = false;
+    setCopyButtonLabel("Copy", false);
+  }
+
+  async function copyText(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    answerBox.focus();
+    answerBox.select();
+    answerBox.setSelectionRange(0, answerBox.value.length);
+
+    if (!document.execCommand("copy")) {
+      throw new Error("Copy command failed.");
+    }
+  }
+
+  function setCopyButtonLabel(label, reset = true) {
+    clearTimeout(copyFeedbackTimer);
+    copyAnswerButton.textContent = label;
+
+    if (!reset || label === "Copy") {
+      return;
+    }
+
+    copyFeedbackTimer = setTimeout(() => {
+      copyAnswerButton.textContent = "Copy";
+    }, 1_500);
   }
 
   function appendStatus(msg) {
@@ -677,10 +757,14 @@ button[type="submit"]:disabled {
   }
 
   function resetResult() {
+    clearTimeout(copyFeedbackTimer);
     statusLog.textContent = "";
     answerBox.value = "";
     answerBox.style.height = "";
+    answerPane.classList.remove("visible");
     answerBox.classList.remove("visible");
+    copyAnswerButton.disabled = true;
+    copyAnswerButton.textContent = "Copy";
     errorBox.textContent = "";
     errorBox.classList.remove("visible");
     resultBox.classList.remove("visible");
