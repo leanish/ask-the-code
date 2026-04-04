@@ -254,7 +254,7 @@ Programmatic clients that do not send `Accept: text/html` continue to receive th
 - `ARCHA_SERVER_HOST`: overrides the HTTP bind host (`127.0.0.1`)
 - `ARCHA_SERVER_PORT`: overrides the HTTP bind port (`8787`)
 - `ARCHA_SERVER_BODY_LIMIT_BYTES`: overrides the max HTTP request body size (`65536`)
-- `ARCHA_SERVER_MAX_CONCURRENT_JOBS`: overrides the max concurrent HTTP jobs (`1`)
+- `ARCHA_SERVER_MAX_CONCURRENT_JOBS`: overrides the max concurrent HTTP jobs (`3`)
 - `ARCHA_SERVER_JOB_RETENTION_MS`: overrides how long completed HTTP jobs stay in memory (`3600000`)
 
 You can also override ask settings on the command line:

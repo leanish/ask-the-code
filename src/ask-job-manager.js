@@ -6,7 +6,7 @@ import { createRepoSyncCoordinator } from "./repo-sync-coordinator.js";
 import { createCallbackStatusReporter } from "./status-reporter.js";
 
 const DEFAULT_JOB_RETENTION_MS = 3_600_000;
-const DEFAULT_MAX_CONCURRENT_JOBS = 1;
+const DEFAULT_MAX_CONCURRENT_JOBS = 3;
 
 export function createAskJobManager({
   env = process.env,

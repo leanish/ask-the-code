@@ -75,6 +75,53 @@ describe("ask-job-manager", () => {
     manager.close();
   });
 
+  it("runs up to three jobs concurrently by default", async () => {
+    let releaseJobs;
+    const jobsReleased = new Promise(resolve => {
+      releaseJobs = resolve;
+    });
+    const answerQuestionFn = vi.fn(async ({ question }) => {
+      if (question !== "fourth") {
+        await jobsReleased;
+      }
+
+      return {
+        mode: "answer",
+        question,
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: `answer:${question}`
+        }
+      };
+    });
+    const manager = createAskJobManager({
+      answerQuestionFn,
+      generateJobId: createSequenceIdGenerator(),
+      jobRetentionMs: 60_000
+    });
+
+    const firstJob = manager.createJob({ question: "first" });
+    const secondJob = manager.createJob({ question: "second" });
+    const thirdJob = manager.createJob({ question: "third" });
+    const fourthJob = manager.createJob({ question: "fourth" });
+
+    await Promise.resolve();
+
+    expect(manager.getJob(firstJob.id)?.status).toBe("running");
+    expect(manager.getJob(secondJob.id)?.status).toBe("running");
+    expect(manager.getJob(thirdJob.id)?.status).toBe("running");
+    expect(manager.getJob(fourthJob.id)?.status).toBe("queued");
+    expect(answerQuestionFn).toHaveBeenCalledTimes(3);
+
+    releaseJobs();
+
+    await waitFor(() => manager.getJob(fourthJob.id)?.status === "completed");
+    expect(answerQuestionFn).toHaveBeenCalledTimes(4);
+
+    manager.close();
+  });
+
   it("preserves an explicit request audience on the job snapshot", () => {
     const manager = createAskJobManager({
       answerQuestionFn: vi.fn(async () => ({
