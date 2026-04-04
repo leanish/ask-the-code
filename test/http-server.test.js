@@ -371,8 +371,8 @@ describe("http-server", () => {
 
     expect(routeResponse.statusCode).toBe(404);
     expect(JSON.parse(routeResponse.body).error).toContain("No route");
-    expect(removedCreateAliasResponse.statusCode).toBe(404);
-    expect(JSON.parse(removedCreateAliasResponse.body).error).toContain("No route for POST /jobs");
+    expect(removedCreateAliasResponse.statusCode).toBe(410);
+    expect(JSON.parse(removedCreateAliasResponse.body).error).toContain("POST /jobs was removed. Use POST /ask.");
     expect(jobResponse.statusCode).toBe(404);
     expect(JSON.parse(jobResponse.body).error).toContain("Unknown job");
     expect(eventsResponse.statusCode).toBe(404);

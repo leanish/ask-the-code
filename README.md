@@ -188,7 +188,7 @@ ARCHA_SERVER_HOST=127.0.0.1 ARCHA_SERVER_PORT=8787 archa-server
 When both are provided, command-line flags override the environment values.
 Server startup validates the active config eagerly and fails before binding the port if `config.json` is invalid.
 
-The server exposes async jobs over HTTP. Submit a new question with `POST /ask`, then use the returned `/jobs/:id` and `/jobs/:id/events` links to poll or stream progress.
+The server exposes async jobs over HTTP. Submit a new question with `POST /ask`, then use the returned `/jobs/:id` and `/jobs/:id/events` links to poll or stream progress. Legacy clients using `POST /jobs` must switch to `POST /ask`.
 
 Create a job:
 

@@ -161,6 +161,10 @@ async function handleRequest({ request, response, jobManager, bodyLimitBytes, en
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/jobs") {
+      throw new HttpError(410, "POST /jobs was removed. Use POST /ask.");
+    }
+
     const jobId = matchJobPath(url.pathname, "/events");
     if (request.method === "GET" && jobId) {
       await streamJobEvents(response, jobManager, jobId);

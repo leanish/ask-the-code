@@ -44,6 +44,10 @@ Response:
 
 Creates a new async job.
 
+Legacy note:
+
+- `POST /jobs` is no longer accepted; clients must use `POST /ask`
+
 Request body:
 
 ```json
