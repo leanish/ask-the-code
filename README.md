@@ -248,8 +248,8 @@ Programmatic clients that do not send `Accept: text/html` continue to receive th
 
 ## Configuration overrides
 
-- `ARCHA_MODEL`: overrides the default Codex model (`gpt-5.4`)
-- `ARCHA_REASONING_EFFORT`: overrides the default reasoning effort (`low`)
+- `ARCHA_DEFAULT_MODEL`: overrides the default Codex model (`gpt-5.4`)
+- `ARCHA_DEFAULT_REASONING_EFFORT`: overrides the default reasoning effort (`low`)
 - `ARCHA_CODEX_TIMEOUT_MS`: overrides the Codex execution timeout (default `300000`)
 - `ARCHA_SERVER_HOST`: overrides the HTTP bind host (`127.0.0.1`)
 - `ARCHA_SERVER_PORT`: overrides the HTTP bind port (`8787`)
@@ -268,6 +268,8 @@ For the HTTP server, the equivalent command-line overrides are:
 ```bash
 archa-server --host 127.0.0.1 --port 8787
 ```
+
+Legacy aliases `ARCHA_MODEL` and `ARCHA_REASONING_EFFORT` are still accepted for compatibility, but the `ARCHA_DEFAULT_*` names are preferred.
 
 ## Install locally
 

@@ -26,8 +26,10 @@ function parseAskCommand(argv, env) {
   let questionParts = [];
   let questionFile = null;
   let audience = DEFAULT_ANSWER_AUDIENCE;
-  let model = env.ARCHA_MODEL || DEFAULT_CODEX_MODEL;
-  let reasoningEffort = env.ARCHA_REASONING_EFFORT || DEFAULT_CODEX_REASONING_EFFORT;
+  let model = env.ARCHA_DEFAULT_MODEL || env.ARCHA_MODEL || DEFAULT_CODEX_MODEL;
+  let reasoningEffort = env.ARCHA_DEFAULT_REASONING_EFFORT
+    || env.ARCHA_REASONING_EFFORT
+    || DEFAULT_CODEX_REASONING_EFFORT;
   let noSync = false;
   let noSynthesis = false;
   let repoNames = null;
@@ -241,8 +243,8 @@ function helpText() {
     "",
     "Config:",
     "  ARCHA_CONFIG_PATH             Override config file location",
-    "  ARCHA_MODEL                   Override default model",
-    "  ARCHA_REASONING_EFFORT        Override default reasoning effort",
+    "  ARCHA_DEFAULT_MODEL           Override default model",
+    "  ARCHA_DEFAULT_REASONING_EFFORT Override default reasoning effort",
     "",
     "  -h, --help                    Show help"
   ].join("\n");
