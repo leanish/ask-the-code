@@ -54,6 +54,7 @@ Request body:
 {
   "question": "How does archa choose the Codex working directory when one repo matches versus several?",
   "repoNames": ["archa"],
+  "audience": "general",
   "model": "gpt-5.4",
   "reasoningEffort": "low",
   "noSync": false,
@@ -67,6 +68,8 @@ Rules:
 - `repoNames` may be an array of repo names or a comma-separated string
 - `repos` is accepted as an alias of `repoNames`
 - `repoNames` and `repos` must not be provided together
+- `audience` is optional and must be one of `general` or `codebase`
+- omitted `audience` defaults to `general`
 - `model` and `reasoningEffort` are optional strings
 - omitted `model` and `reasoningEffort` use the same execution defaults as the CLI: `gpt-5.4` and `low`
 - `noSync` and `noSynthesis` are optional booleans
@@ -80,6 +83,7 @@ Response:
   "request": {
     "question": "How does archa choose the Codex working directory when one repo matches versus several?",
     "repoNames": ["archa"],
+    "audience": "general",
     "model": null,
     "reasoningEffort": null,
     "noSync": false,
@@ -145,4 +149,4 @@ Event types:
 - completed jobs expire after a retention timeout
 - job execution concurrency is bounded per process
 - repo sync coordination is per process and deduplicates overlapping syncs for the same repo directory
-- the built-in web UI loads repo choices from `GET /repos` and falls back to manual repo entry if that request fails
+- the built-in web UI loads repo choices from `GET /repos`, exposes audience/model/reasoning controls only in admin mode, and falls back to asking across all projects if the repo catalog is unavailable

@@ -39,6 +39,7 @@ describe("http-server", () => {
       body: {
         question: "How does archa work?",
         repoNames: ["archa"],
+        audience: "codebase",
         noSync: true
       }
     });
@@ -47,6 +48,7 @@ describe("http-server", () => {
     expect(createResponse.statusCode).toBe(202);
     expect(["queued", "running"]).toContain(createdJob.status);
     expect(createdJob.links.self).toBe(`/jobs/${createdJob.id}`);
+    expect(createdJob.request.audience).toBe("codebase");
 
     await waitFor(async () => {
       const jobResponse = await performRequest(handler, {
@@ -206,6 +208,8 @@ describe("http-server", () => {
     expect(htmlResponse.body).toContain('id="advanced-options" hidden');
     expect(htmlResponse.body).toContain('params.get("admin")');
     expect(htmlResponse.body).toContain("if (!advancedOptions.hidden)");
+    expect(htmlResponse.body).toContain('<option value="general" selected>general</option>');
+    expect(htmlResponse.body).toContain('<option value="codebase">codebase</option>');
     expect(htmlResponse.body).toContain('<option value="gpt-5.4" selected>gpt-5.4</option>');
     expect(htmlResponse.body).toContain('<option value="gpt-5.4-mini">gpt-5.4-mini</option>');
     expect(htmlResponse.body).toContain('<option value="low" selected>low</option>');
@@ -429,7 +433,8 @@ describe("http-server", () => {
       path: "/ask",
       body: {
         question: "repo parsing",
-        repoNames: "archa, self"
+        repoNames: "archa, self",
+        audience: "codebase"
       }
     });
     const duplicateFieldResponse = await performRequest(handler, {
@@ -466,6 +471,14 @@ describe("http-server", () => {
         model: ""
       }
     });
+    const invalidAudienceResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "bad audience",
+        audience: "internal"
+      }
+    });
     const invalidBooleanResponse = await performRequest(handler, {
       method: "POST",
       path: "/ask",
@@ -482,6 +495,7 @@ describe("http-server", () => {
 
     expect(goodResponse.statusCode).toBe(202);
     expect(JSON.parse(goodResponse.body).request.repoNames).toEqual(["archa", "self"]);
+    expect(JSON.parse(goodResponse.body).request.audience).toBe("codebase");
     expect(duplicateFieldResponse.statusCode).toBe(400);
     expect(JSON.parse(duplicateFieldResponse.body).error).toContain("either \"repoNames\" or \"repos\"");
     expect(duplicateFieldWithEmptyStringResponse.statusCode).toBe(400);
@@ -490,6 +504,8 @@ describe("http-server", () => {
     expect(JSON.parse(invalidRepoNamesResponse.body).error).toContain("comma-separated string");
     expect(invalidModelResponse.statusCode).toBe(400);
     expect(JSON.parse(invalidModelResponse.body).error).toContain("\"model\"");
+    expect(invalidAudienceResponse.statusCode).toBe(400);
+    expect(JSON.parse(invalidAudienceResponse.body).error).toContain("\"audience\"");
     expect(invalidBooleanResponse.statusCode).toBe(400);
     expect(JSON.parse(invalidBooleanResponse.body).error).toContain("\"noSync\"");
     expect(invalidBodyResponse.statusCode).toBe(400);

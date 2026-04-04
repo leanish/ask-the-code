@@ -3,6 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
+import {
+  isSupportedAnswerAudience,
+  resolveAnswerAudience,
+  SUPPORTED_ANSWER_AUDIENCES
+} from "./answer-audience.js";
 import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "./codex-defaults.js";
 
 const DEFAULT_CODEX_TIMEOUT_MS = 300_000;
@@ -11,6 +16,7 @@ const HEARTBEAT_INTERVAL_MS = 10_000;
 
 export async function runCodexQuestion({
   question,
+  audience,
   model,
   reasoningEffort,
   selectedRepos,
@@ -22,7 +28,7 @@ export async function runCodexQuestion({
     os.tmpdir(),
     `archa-codex-${process.pid}-${Date.now()}.txt`
   );
-  const executionContext = getCodexExecutionContext({ question, selectedRepos, workspaceRoot });
+  const executionContext = getCodexExecutionContext({ question, audience, selectedRepos, workspaceRoot });
   const resolvedModel = model || DEFAULT_CODEX_MODEL;
   const resolvedReasoningEffort = reasoningEffort || DEFAULT_CODEX_REASONING_EFFORT;
 
@@ -67,23 +73,29 @@ export function getCodexTimeoutMs(env = process.env) {
   return timeoutMs;
 }
 
-export function getCodexExecutionContext({ question, selectedRepos, workspaceRoot }) {
+export function getCodexExecutionContext({ question, audience, selectedRepos, workspaceRoot }) {
   const workingDirectory = selectedRepos.length === 1 ? selectedRepos[0].directory : workspaceRoot;
 
   return {
     workingDirectory,
-    prompt: buildPrompt(question, selectedRepos)
+    prompt: buildPrompt(question, selectedRepos, audience)
   };
 }
 
-function buildPrompt(question, selectedRepos) {
+function buildPrompt(question, selectedRepos, audience) {
+  const resolvedAudience = resolveAnswerAudience(audience);
+  if (!isSupportedAnswerAudience(resolvedAudience)) {
+    throw new Error(
+      `Unsupported answer audience: ${resolvedAudience}. Use one of: ${SUPPORTED_ANSWER_AUDIENCES.join(", ")}.`
+    );
+  }
+
   const repoNames = selectedRepos.map(repo => repo.name).join(", ");
 
   return [
-    "Answer using the code in the current workspace, but write for someone who does not have access to the codebase.",
-    "Code snippets are allowed when they help explain how to integrate with the service or API.",
+    "Answer using the code in the current workspace.",
+    ...getAudiencePromptLines(resolvedAudience),
     `These repo candidates look most relevant for answering the question: ${repoNames}.`,
-    "Do not mention file paths or line numbers unless they are necessary.",
     "Answer the question directly and stop. Do not offer follow-up help or ask whether you should rewrite the answer.",
     "",
     "I got the question:",
@@ -91,6 +103,21 @@ function buildPrompt(question, selectedRepos) {
     question,
     '"""'
   ].join("\n");
+}
+
+function getAudiencePromptLines(audience) {
+  if (audience === "codebase") {
+    return [
+      "Write for an engineer who can inspect this workspace. Be concrete about the implementation and mention relevant files, symbols, and execution flow when useful.",
+      "Use code snippets when they help explain behavior or where to make changes."
+    ];
+  }
+
+  return [
+    "Write for a general engineering reader. Keep the answer self-contained and do not assume the reader can inspect this workspace.",
+    "Use code snippets only when they help explain integration or behavior.",
+    "Mention file paths or line numbers only when they are necessary."
+  ];
 }
 
 async function runCodexExec({ prompt, model, reasoningEffort, outputFile, workingDirectory, onStatus, timeoutMs }) {

@@ -70,6 +70,7 @@ describe("answerQuestion", () => {
 
     const result = await answerQuestion({
       question: "How does x-codec-meta work?",
+      audience: "codebase",
       model: "gpt-5.4",
       reasoningEffort: "low",
       noSync: false,
@@ -80,6 +81,7 @@ describe("answerQuestion", () => {
     expect(result.mode).toBe("answer");
     expect(mocks.runCodexQuestion).toHaveBeenCalledWith({
       question: "How does x-codec-meta work?",
+      audience: "codebase",
       model: "gpt-5.4",
       reasoningEffort: "low",
       selectedRepos,
@@ -267,6 +269,7 @@ describe("answerQuestion", () => {
     expect(selectReposFn).toHaveBeenCalled();
     expect(syncReposFn).toHaveBeenCalled();
     expect(runCodexQuestionFn).toHaveBeenCalledWith(expect.objectContaining({
+      audience: "general",
       timeoutMs: 12_345
     }));
     expect(statusReporter.info.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([

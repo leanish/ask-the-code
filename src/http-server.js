@@ -1,5 +1,10 @@
 import http from "node:http";
 
+import {
+  DEFAULT_ANSWER_AUDIENCE,
+  isSupportedAnswerAudience,
+  SUPPORTED_ANSWER_AUDIENCES
+} from "./answer-audience.js";
 import { loadConfig } from "./config.js";
 import { createAskJobManager } from "./ask-job-manager.js";
 import { HTML_UI } from "./ui.html.js";
@@ -326,6 +331,7 @@ function normalizeAskRequest(body) {
   return {
     question: body.question,
     repoNames: normalizeRepoNames(body.repoNames ?? body.repos),
+    audience: normalizeAudience(body.audience),
     model: normalizeOptionalString(body.model, "model"),
     reasoningEffort: normalizeOptionalString(body.reasoningEffort, "reasoningEffort"),
     noSync: normalizeOptionalBoolean(body.noSync, "noSync"),
@@ -352,6 +358,23 @@ function normalizeRepoNames(value) {
   }
 
   throw new HttpError(400, '"repoNames" must be a comma-separated string or an array of non-empty strings.');
+}
+
+function normalizeAudience(value) {
+  if (value == null) {
+    return DEFAULT_ANSWER_AUDIENCE;
+  }
+
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new HttpError(400, `"audience" must be one of: ${SUPPORTED_ANSWER_AUDIENCES.join(", ")}.`);
+  }
+
+  const audience = value.trim();
+  if (!isSupportedAnswerAudience(audience)) {
+    throw new HttpError(400, `"audience" must be one of: ${SUPPORTED_ANSWER_AUDIENCES.join(", ")}.`);
+  }
+
+  return audience;
 }
 
 function normalizeOptionalString(value, label) {

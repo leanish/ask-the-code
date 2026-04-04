@@ -252,6 +252,14 @@ button[type="submit"]:disabled {
       <summary>Advanced options</summary>
       <div class="options-grid">
         <div class="field">
+          <label for="audience">Audience</label>
+          <select id="audience" name="audience">
+            <option value="general" selected>general</option>
+            <option value="codebase">codebase</option>
+          </select>
+          <div class="field-hint">General keeps the answer self-contained. Codebase mode can reference implementation details directly.</div>
+        </div>
+        <div class="field">
           <label for="model">Model</label>
           <select id="model" name="model">
             <option value="gpt-5.4" selected>gpt-5.4</option>
@@ -421,8 +429,10 @@ button[type="submit"]:disabled {
     const selectedRepoNames = Array.from(repoState.selected);
     if (selectedRepoNames.length > 0) payload.repoNames = selectedRepoNames;
     if (!advancedOptions.hidden) {
+      const audience = document.getElementById("audience").value.trim() || null;
       const model = document.getElementById("model").value.trim() || null;
       const reasoningEffort = document.getElementById("reasoning-effort").value.trim() || null;
+      if (audience) payload.audience = audience;
       if (model) payload.model = model;
       if (reasoningEffort) payload.reasoningEffort = reasoningEffort;
       if (noSync) payload.noSync = true;

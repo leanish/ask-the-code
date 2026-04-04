@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { resolveAnswerAudience } from "./answer-audience.js";
 import { answerQuestion } from "./question-answering.js";
 import { createRepoSyncCoordinator } from "./repo-sync-coordinator.js";
 import { createCallbackStatusReporter } from "./status-reporter.js";
@@ -196,6 +197,7 @@ function normalizeRequest(request) {
   return {
     question: request.question,
     repoNames: request.repoNames ? [...request.repoNames] : null,
+    audience: resolveAnswerAudience(request.audience),
     model: request.model || null,
     reasoningEffort: request.reasoningEffort || null,
     noSync: Boolean(request.noSync),

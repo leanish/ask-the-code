@@ -121,7 +121,7 @@ Ask a question. By default `archa` will:
 2. clone or pull them
 3. run `codex exec` with `gpt-5.4` and `low` reasoning effort
 
-`archa` passes your question through to Codex verbatim. It only adds a minimal instruction to answer for someone who does not have access to the source code, while still allowing code snippets when they help explain how to integrate with the service or API, plus the resolved repo candidate names. It does not rewrite or polish the question text.
+By default, answers target a general engineering reader. When the reader can inspect the repositories directly, use `--audience codebase` to get a more implementation-oriented answer.
 
 While it runs, `archa` prints only high-level stage updates to `stderr`, including a heartbeat every 10 seconds during long Codex runs. Raw nested Codex logs are suppressed unless the command fails.
 
@@ -144,10 +144,16 @@ archa --repo sqs-codec "What does skipCompressionWhenLarger do when compression 
 
 When only one repo is selected, Codex runs with that repo as its working directory. Otherwise it runs from the configured managed repos workspace root.
 
-Read the question from a file verbatim:
+Read the question from a file:
 
 ```bash
 archa --repo java-conventions --question-file /path/to/question.txt
+```
+
+Switch the answer audience when you want repo-level implementation detail:
+
+```bash
+archa --repo archa --audience codebase "Which modules shape the Codex prompt and pick the working directory?"
 ```
 
 Skip repo sync first:
@@ -200,6 +206,7 @@ The response includes a job id plus links:
 ```
 
 When `model` or `reasoningEffort` are omitted from the HTTP request, the server uses the same defaults as the CLI: `gpt-5.4` and `low`.
+When `audience` is omitted, the server defaults to `general`. Use `codebase` when the reader can inspect the managed repos directly and wants file- and symbol-level detail.
 
 Poll job state:
 
@@ -228,7 +235,7 @@ HTTP jobs keep an in-memory event history, run with bounded concurrency, and sha
 
 Open `http://127.0.0.1:8787` in a browser to use the built-in web UI. The UI streams job status updates in real time using server-sent events and loads the configured repo catalog so the repo filter can be selected from a searchable multi-select instead of typed manually.
 
-Advanced web UI controls are hidden by default and only shown when the page is opened with `?admin=true`, for example `http://127.0.0.1:8787/?admin=true`. In admin mode, model is constrained to `gpt-5.4` or `gpt-5.4-mini` and reasoning effort is chosen from the supported enum values.
+Advanced web UI controls are hidden by default and only shown when the page is opened with `?admin=true`, for example `http://127.0.0.1:8787/?admin=true`. In admin mode, you can choose the answer audience, model, and reasoning effort. The default audience is `general`.
 
 Programmatic clients that do not send `Accept: text/html` continue to receive the JSON endpoint listing at `GET /`.
 
@@ -246,7 +253,7 @@ Programmatic clients that do not send `Accept: text/html` continue to receive th
 You can also override them on the command line:
 
 ```bash
-archa --model gpt-5.4 --reasoning-effort low "..."
+archa --audience codebase --model gpt-5.4 --reasoning-effort low "..."
 ```
 
 ## Install locally

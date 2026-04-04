@@ -31,7 +31,7 @@ flowchart LR
 
 ## High-level flow
 
-1. A transport adapter receives a request.
+1. A transport adapter receives a request, including the question plus optional audience and execution overrides.
 2. Config is loaded from the user config path.
 3. Repo selection chooses explicit repos or heuristic candidates.
 4. Repo sync clones or fast-forwards the selected repos.
@@ -91,7 +91,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/repo-sync-coordinator.js`
   Deduplicates concurrent syncs for the same repo within a single server process.
 - `src/codex-runner.js`
-  Wraps `codex exec`, manages the prompt, heartbeats, execution timeout, and final-message capture.
+  Wraps `codex exec`, manages the audience-aware prompt, heartbeats, execution timeout, and final-message capture.
 - `src/ask-job-manager.js`
   Maintains in-memory async jobs, per-job event history, and bounded execution concurrency.
 - `src/http-server.js`

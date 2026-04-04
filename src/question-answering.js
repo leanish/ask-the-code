@@ -1,5 +1,6 @@
 import fs from "node:fs";
 
+import { resolveAnswerAudience } from "./answer-audience.js";
 import { loadConfig } from "./config.js";
 import { getCodexTimeoutMs, runCodexQuestion } from "./codex-runner.js";
 import { selectRepos } from "./repo-selection.js";
@@ -9,6 +10,7 @@ export async function answerQuestion(options, envOrExecution = process.env, lega
   const execution = normalizeExecutionOptions(envOrExecution, legacyStatusReporter);
   const config = await execution.loadConfigFn(execution.env);
   const selectedRepos = execution.selectReposFn(config, options.question, options.repoNames);
+  const audience = resolveAnswerAudience(options.audience);
 
   if (selectedRepos.length === 0) {
     throw new Error("No managed repositories matched the question. Use --repo <name> or update the Archa config.");
@@ -60,6 +62,7 @@ export async function answerQuestion(options, envOrExecution = process.env, lega
 
   const synthesis = await execution.runCodexQuestionFn({
     question: options.question,
+    audience,
     model: options.model,
     reasoningEffort: options.reasoningEffort,
     selectedRepos,

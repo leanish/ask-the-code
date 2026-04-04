@@ -7,6 +7,7 @@ describe("parseArgs", () => {
     const parsed = parseArgs(["How", "is", "x-codec-meta", "implemented?"], {});
 
     expect(parsed.command).toBe("ask");
+    expect(parsed.audience).toBe("general");
     expect(parsed.model).toBe("gpt-5.4");
     expect(parsed.reasoningEffort).toBe("low");
     expect(parsed.question).toBe("How is x-codec-meta implemented?");
@@ -32,7 +33,7 @@ describe("parseArgs", () => {
 
   it("parses ask options and env overrides", () => {
     const parsed = parseArgs(
-      ["--repo", "sqs-codec,java-conventions", "--model", "gpt-5.4", "--reasoning-effort", "high", "--no-sync", "--no-synthesis", "How", "does", "it", "work?"],
+      ["--repo", "sqs-codec,java-conventions", "--audience", "codebase", "--model", "gpt-5.4", "--reasoning-effort", "high", "--no-sync", "--no-synthesis", "How", "does", "it", "work?"],
       {
         ARCHA_MODEL: "ignored",
         ARCHA_REASONING_EFFORT: "low"
@@ -40,6 +41,7 @@ describe("parseArgs", () => {
     );
 
     expect(parsed.repoNames).toEqual(["sqs-codec", "java-conventions"]);
+    expect(parsed.audience).toBe("codebase");
     expect(parsed.model).toBe("gpt-5.4");
     expect(parsed.reasoningEffort).toBe("high");
     expect(parsed.noSync).toBe(true);
@@ -95,6 +97,11 @@ describe("parseArgs", () => {
   it("throws when both a positional question and question file are provided", () => {
     expect(() => parseArgs(["--question-file", "/tmp/question.txt", "How", "does", "it", "work?"], {}))
       .toThrow("Use either a positional question or --question-file, not both");
+  });
+
+  it("throws for unsupported audiences", () => {
+    expect(() => parseArgs(["--audience", "internal", "How", "does", "it", "work?"], {}))
+      .toThrow("Unsupported audience: internal. Use one of: general, codebase.");
   });
 
   it("throws help text for repos help flag", () => {

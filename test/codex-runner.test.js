@@ -48,6 +48,7 @@ describe("codex-runner", () => {
     ].join("\n");
     const context = getCodexExecutionContext({
       question,
+      audience: "general",
       workspaceRoot: "/workspace/archa/repos",
       selectedRepos: [
         {
@@ -60,10 +61,11 @@ describe("codex-runner", () => {
     });
 
     expect(context.workingDirectory).toBe("/workspace/archa/repos/sqs-codec");
-    expect(context.prompt).toContain("Answer using the code in the current workspace, but write for someone who does not have access to the codebase.");
-    expect(context.prompt).toContain("Code snippets are allowed when they help explain how to integrate with the service or API.");
+    expect(context.prompt).toContain("Answer using the code in the current workspace.");
+    expect(context.prompt).toContain("Write for a general engineering reader. Keep the answer self-contained and do not assume the reader can inspect this workspace.");
+    expect(context.prompt).toContain("Use code snippets only when they help explain integration or behavior.");
     expect(context.prompt).toContain("These repo candidates look most relevant for answering the question: sqs-codec.");
-    expect(context.prompt).toContain("Do not mention file paths or line numbers unless they are necessary.");
+    expect(context.prompt).toContain("Mention file paths or line numbers only when they are necessary.");
     expect(context.prompt).toContain("Answer the question directly and stop. Do not offer follow-up help or ask whether you should rewrite the answer.");
     expect(context.prompt).toContain('I got the question:\n"""\n');
     expect(context.prompt).toContain(question);
@@ -72,6 +74,7 @@ describe("codex-runner", () => {
   it("uses the workspace root when multiple repos are selected", () => {
     const context = getCodexExecutionContext({
       question: "How do sqs-codec and java-conventions relate?",
+      audience: "codebase",
       workspaceRoot: "/workspace/archa/repos",
       selectedRepos: [
         {
@@ -90,6 +93,8 @@ describe("codex-runner", () => {
     });
 
     expect(context.workingDirectory).toBe("/workspace/archa/repos");
+    expect(context.prompt).toContain("Write for an engineer who can inspect this workspace. Be concrete about the implementation and mention relevant files, symbols, and execution flow when useful.");
+    expect(context.prompt).toContain("Use code snippets when they help explain behavior or where to make changes.");
     expect(context.prompt).toContain("These repo candidates look most relevant for answering the question: sqs-codec, java-conventions.");
   });
 
@@ -101,6 +106,7 @@ describe("codex-runner", () => {
 
     const result = await runCodexQuestion({
       question: "How does x-codec-meta work?",
+      audience: "codebase",
       model: "gpt-5.4",
       reasoningEffort: "low",
       selectedRepos: [
@@ -118,6 +124,9 @@ describe("codex-runner", () => {
     expect(onStatus).toHaveBeenCalledWith(
       "Running Codex in /workspace/archa/repos/sqs-codec with gpt-5.4 (low)..."
     );
+    expect(child.stdin.write).toHaveBeenCalledWith(expect.stringContaining(
+      "Write for an engineer who can inspect this workspace."
+    ));
     expect(child.stdin.write).toHaveBeenCalledWith(expect.stringContaining('I got the question:\n"""\nHow does x-codec-meta work?\n"""'));
     expect(child.stdin.end).toHaveBeenCalled();
     expect(mocks.spawn).toHaveBeenCalledWith(

@@ -53,6 +53,13 @@ describe("ask-job-manager", () => {
     expect(manager.getJob(secondJob.id)?.status).toBe("queued");
     await Promise.resolve();
     expect(answerQuestionFn).toHaveBeenCalledTimes(1);
+    expect(answerQuestionFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        question: "first",
+        audience: "general"
+      }),
+      expect.any(Object)
+    );
 
     finishFirstJob();
 
@@ -64,6 +71,31 @@ describe("ask-job-manager", () => {
     expect(secondEvents.map(event => event.type)).toContain("started");
     expect(secondEvents.find(event => event.type === "status")?.message).toBe("processing second");
     expect(manager.getJob(secondJob.id)?.result?.synthesis.text).toBe("answer:second");
+
+    manager.close();
+  });
+
+  it("preserves an explicit request audience on the job snapshot", () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: vi.fn(async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      })),
+      generateJobId: createSequenceIdGenerator(),
+      jobRetentionMs: 60_000
+    });
+
+    const job = manager.createJob({
+      question: "inspect implementation details",
+      audience: "codebase"
+    });
+
+    expect(manager.getJob(job.id)?.request.audience).toBe("codebase");
 
     manager.close();
   });

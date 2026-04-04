@@ -1,3 +1,4 @@
+import { DEFAULT_ANSWER_AUDIENCE, isSupportedAnswerAudience, SUPPORTED_ANSWER_AUDIENCES } from "./answer-audience.js";
 import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "./codex-defaults.js";
 
 export class HelpError extends Error {}
@@ -24,6 +25,7 @@ export function parseArgs(argv, env) {
 function parseAskCommand(argv, env) {
   let questionParts = [];
   let questionFile = null;
+  let audience = DEFAULT_ANSWER_AUDIENCE;
   let model = env.ARCHA_MODEL || DEFAULT_CODEX_MODEL;
   let reasoningEffort = env.ARCHA_REASONING_EFFORT || DEFAULT_CODEX_REASONING_EFFORT;
   let noSync = false;
@@ -51,6 +53,10 @@ function parseAskCommand(argv, env) {
         break;
       case "--question-file":
         questionFile = requireValue(arg, argv[index + 1]);
+        index += 1;
+        break;
+      case "--audience":
+        audience = parseAudience(requireValue(arg, argv[index + 1]));
         index += 1;
         break;
       case "--model":
@@ -91,6 +97,7 @@ function parseAskCommand(argv, env) {
     command: "ask",
     question,
     questionFile,
+    audience,
     model,
     reasoningEffort,
     noSync,
@@ -196,6 +203,16 @@ function splitRepoNames(value) {
     .filter(Boolean);
 }
 
+function parseAudience(value) {
+  if (!isSupportedAnswerAudience(value)) {
+    throw new Error(
+      `Unsupported audience: ${value}. Use one of: ${SUPPORTED_ANSWER_AUDIENCES.join(", ")}.`
+    );
+  }
+
+  return value;
+}
+
 function isHelpFlag(value) {
   return value === "-h" || value === "--help";
 }
@@ -214,7 +231,8 @@ function helpText() {
     "",
     "Ask Options:",
     "  --repo <names>                Limit to managed repo names",
-    "  --question-file <path>        Read the question from a file verbatim",
+    "  --question-file <path>        Read the question from a file",
+    `  --audience <mode>             Answer audience (${SUPPORTED_ANSWER_AUDIENCES.join("|")})`,
     "  --model <name>                Codex model for synthesis",
     "  --reasoning-effort <level>    Codex reasoning effort",
     "  --no-sync                     Skip clone/pull before asking",
