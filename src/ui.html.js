@@ -147,10 +147,9 @@ details summary {
   user-select: none;
 }
 details summary:hover { color: #c9d1d9; }
-.options-grid {
+.advanced-options-list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  gap: 0.75rem;
   margin-top: 0.5rem;
 }
 .checkbox-field {
@@ -250,7 +249,7 @@ button[type="submit"]:disabled {
     </div>
     <details id="advanced-options" hidden>
       <summary>Advanced options</summary>
-      <div class="options-grid">
+      <div class="advanced-options-list">
         <div class="field">
           <label for="audience">Audience</label>
           <select id="audience" name="audience">
