@@ -199,13 +199,19 @@ button[type="submit"]:disabled {
 #status-log:empty + #answer { border-top: none; }
 #answer {
   display: none;
+  width: 100%;
+  min-height: 10rem;
   padding: 1rem;
+  background: #0f1117;
+  border: 0;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   font-size: 0.85rem;
   color: #e6edf3;
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.6;
+  resize: vertical;
+  outline: none;
 }
 #answer.visible { display: block; }
 #error-box {
@@ -286,7 +292,7 @@ button[type="submit"]:disabled {
 
   <div id="result">
     <div id="status-log"></div>
-    <div id="answer"></div>
+    <textarea id="answer" readonly spellcheck="false"></textarea>
     <div id="error-box"></div>
   </div>
 </main>
@@ -644,14 +650,19 @@ button[type="submit"]:disabled {
 
   function renderCompleted(job) {
     if (job.result && job.result.synthesis && job.result.synthesis.text) {
-      answerBox.textContent = job.result.synthesis.text;
-      answerBox.classList.add("visible");
+      setAnswerText(job.result.synthesis.text);
     } else if (job.result && job.result.mode === "retrieval-only") {
       const repos = (job.result.selectedRepos || []).map(r => r.name).join(", ");
-      answerBox.textContent = "Retrieval only. Selected repos: " + (repos || "none");
-      answerBox.classList.add("visible");
+      setAnswerText("Retrieval only. Selected repos: " + (repos || "none"));
     }
     finish();
+  }
+
+  function setAnswerText(text) {
+    answerBox.value = text;
+    answerBox.classList.add("visible");
+    answerBox.style.height = "auto";
+    answerBox.style.height = answerBox.scrollHeight + "px";
   }
 
   function appendStatus(msg) {
@@ -667,7 +678,8 @@ button[type="submit"]:disabled {
 
   function resetResult() {
     statusLog.textContent = "";
-    answerBox.textContent = "";
+    answerBox.value = "";
+    answerBox.style.height = "";
     answerBox.classList.remove("visible");
     errorBox.textContent = "";
     errorBox.classList.remove("visible");
