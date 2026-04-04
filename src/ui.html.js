@@ -236,20 +236,20 @@ button[type="submit"]:disabled {
       <label for="question">Question</label>
       <textarea id="question" name="question" rows="4" placeholder="Ask your codebase a question..." required></textarea>
     </div>
-    <div class="field">
-      <label for="repo-filter">Repos <span style="color:#484f58">(optional)</span></label>
-      <div id="repo-picker" class="repo-picker">
-        <div id="repo-selected" class="repo-selected" aria-live="polite"></div>
-        <input type="text" id="repo-filter" placeholder="Loading configured repos..." disabled>
-        <div id="repo-options" class="repo-options" role="listbox" aria-multiselectable="true" hidden></div>
-      </div>
-      <div id="repo-help" class="field-hint">
-        Leave it on <code>all projects</code> to use every configured repo, or search to narrow the scope.
-      </div>
-    </div>
     <details id="advanced-options" hidden>
       <summary>Advanced options</summary>
       <div class="advanced-options-list">
+        <div class="field">
+          <label for="repo-filter">Repos <span style="color:#484f58">(optional)</span></label>
+          <div id="repo-picker" class="repo-picker">
+            <div id="repo-selected" class="repo-selected" aria-live="polite"></div>
+            <input type="text" id="repo-filter" placeholder="Loading configured repos..." disabled>
+            <div id="repo-options" class="repo-options" role="listbox" aria-multiselectable="true" hidden></div>
+          </div>
+          <div id="repo-help" class="field-hint">
+            Leave it on <code>all projects</code> to use every configured repo, or search to narrow the scope.
+          </div>
+        </div>
         <div class="field">
           <label for="audience">Audience</label>
           <select id="audience" name="audience">
