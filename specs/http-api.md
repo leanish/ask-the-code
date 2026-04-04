@@ -145,4 +145,4 @@ Event types:
 - completed jobs expire after a retention timeout
 - job execution concurrency is bounded per process and defaults to 3 concurrent jobs
 - repo sync coordination is per process and deduplicates overlapping syncs for the same repo directory
-- the built-in web UI loads repo choices from `GET /repos`, exposes audience/model/reasoning controls only in admin mode, and falls back to asking across all projects if the repo catalog is unavailable
+- the built-in web UI loads repo choices from `GET /repos`, exposes audience/model/reasoning controls only in admin mode, and falls back to automatic repo selection if the repo catalog is unavailable

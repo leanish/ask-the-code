@@ -33,7 +33,7 @@ flowchart LR
 
 1. A transport adapter receives a request, including the question plus optional audience and execution overrides.
 2. Config is loaded from the user config path.
-3. Repo selection chooses explicit repos or all configured repos by default.
+3. Repo selection chooses explicit repos or heuristic candidates, while keeping any pinned repos in scope.
 4. Repo sync clones or fast-forwards the selected repos.
 5. Codex runs against either the single selected repo or the managed repos root.
 6. The adapter renders the result:
@@ -85,7 +85,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/question-answering.js`
   Implements the transport-agnostic ask flow and accepts injectable adapters such as status reporters and sync functions.
 - `src/repo-selection.js`
-  Resolves explicit repo names and aliases, or returns all configured repos when no repo subset is requested.
+  Resolves explicit repo names and aliases, or scores likely repos from names, descriptions, and topics while keeping repos marked `alwaysSelect` in scope.
 - `src/repo-sync.js`
   Clones missing repos and fast-forwards existing repos to `main` or `master`.
 - `src/repo-sync-coordinator.js`
@@ -118,6 +118,7 @@ Repo definitions include:
 - `description`
 - `topics`
 - optional `aliases`
+- optional `alwaysSelect`
 
 ## HTTP runtime model
 

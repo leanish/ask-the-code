@@ -87,6 +87,7 @@ describe("config", () => {
         description: "SQS execution interceptor with compression and checksum metadata",
         topics: ["aws", "sqs"],
         aliases: ["codec"],
+        alwaysSelect: false,
         directory: "/workspace/managed-repos/sqs-codec"
       }
     ]);
@@ -213,6 +214,7 @@ describe("config", () => {
           description: "",
           topics: [],
           aliases: [],
+          alwaysSelect: false,
           directory: path.join(tempRoot, "data", "archa", "repos", "sqs-codec")
         }
       ]
@@ -220,5 +222,48 @@ describe("config", () => {
 
     const loaded = await loadConfig(env);
     expect(loaded.repos[0]).not.toHaveProperty("unexpectedField");
+  });
+
+  it("preserves alwaysSelect when loading and importing repos", async () => {
+    const catalogPath = path.join(tempRoot, "catalog.json");
+    await fs.writeFile(catalogPath, JSON.stringify({
+      repos: [
+        {
+          name: "foundation",
+          url: "https://github.com/leanish/foundation.git",
+          alwaysSelect: true
+        }
+      ]
+    }, null, 2));
+
+    await initializeConfig({
+      env,
+      catalogPath
+    });
+
+    await expect(loadConfig(env)).resolves.toMatchObject({
+      repos: [
+        {
+          name: "foundation",
+          alwaysSelect: true
+        }
+      ]
+    });
+  });
+
+  it("rejects non-boolean alwaysSelect values", async () => {
+    const configPath = getConfigPath(env);
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
+    await fs.writeFile(configPath, JSON.stringify({
+      repos: [
+        {
+          name: "foundation",
+          url: "https://github.com/leanish/foundation.git",
+          alwaysSelect: "yes"
+        }
+      ]
+    }));
+
+    await expect(loadConfig(env)).rejects.toThrow(/non-boolean "alwaysSelect"/);
   });
 });

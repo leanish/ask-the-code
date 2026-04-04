@@ -91,13 +91,18 @@ function normalizeRepoDefinition(repo, index, sourcePath) {
     throw new Error(`Invalid Archa config at ${sourcePath}: repo "${repo.name}" is missing a string "url".`);
   }
 
+  if (repo.alwaysSelect != null && typeof repo.alwaysSelect !== "boolean") {
+    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${repo.name}" has non-boolean "alwaysSelect".`);
+  }
+
   return {
     name: repo.name,
     url: repo.url,
     defaultBranch: repo.defaultBranch || repo.branch || "main",
     description: repo.description || "",
     topics: Array.isArray(repo.topics) ? repo.topics : [],
-    aliases: Array.isArray(repo.aliases) ? repo.aliases : []
+    aliases: Array.isArray(repo.aliases) ? repo.aliases : [],
+    alwaysSelect: repo.alwaysSelect === true
   };
 }
 
@@ -118,7 +123,8 @@ async function importCatalog(catalogPath) {
       defaultBranch: normalizedRepo.defaultBranch,
       description: normalizedRepo.description,
       topics: normalizedRepo.topics,
-      aliases: normalizedRepo.aliases
+      aliases: normalizedRepo.aliases,
+      alwaysSelect: normalizedRepo.alwaysSelect
     };
   });
 }

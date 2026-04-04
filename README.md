@@ -75,6 +75,8 @@ Example using a few public `leanish` repos:
 }
 ```
 
+Repos may also set `"alwaysSelect": true` to stay in scope during automatic repo selection. This is useful for foundational repos that should always be available when Archa narrows to likely matches.
+
 Bootstrap an empty config:
 
 ```bash
@@ -117,7 +119,7 @@ archa repos sync sqs-codec,java-conventions
 
 Ask a question. By default `archa` will:
 
-1. use all configured repos unless you narrow the scope with `--repo`
+1. choose likely repos from the configured repo list, while keeping any repos marked with `"alwaysSelect": true` in scope
 2. clone or pull them
 3. run `codex exec` with `gpt-5.4` and `low` reasoning effort
 
@@ -291,7 +293,7 @@ GitHub Actions CI runs `npm ci` and `npm test -- --coverage` on pull requests an
 
 ## Current limits
 
-- large managed repo sets may benefit from explicit narrowing with `--repo`
+- automatic repo selection is heuristic, based on repo names, descriptions, topics, and any repos pinned with `alwaysSelect`
 - syncing assumes the managed clones can fast-forward cleanly
 - the configured repo set is explicit and must be maintained in local config
 - HTTP job state is in-memory only and is lost when the server process restarts

@@ -205,7 +205,7 @@ describe("http-server", () => {
     expect(htmlResponse.body).toContain("/ask");
     expect(htmlResponse.body).toContain("/repos");
     expect(htmlResponse.body).toContain("Search configured repos");
-    expect(htmlResponse.body).toContain("all projects");
+    expect(htmlResponse.body).toContain("automatic");
     expect(htmlResponse.body).toContain('id="advanced-options" hidden');
     expect(htmlResponse.body).toContain('params.get("admin")');
     expect(htmlResponse.body).toContain("if (!advancedOptions.hidden)");
