@@ -129,7 +129,6 @@ async function handleRequest({ request, response, jobManager, bodyLimitBytes, en
         service: "archa-server",
         endpoints: {
           createJob: "POST /ask",
-          createJobAlias: "POST /jobs",
           getJob: "GET /jobs/:id",
           listRepos: "GET /repos",
           streamJob: "GET /jobs/:id/events",
@@ -152,7 +151,7 @@ async function handleRequest({ request, response, jobManager, bodyLimitBytes, en
       return;
     }
 
-    if (request.method === "POST" && (url.pathname === "/ask" || url.pathname === "/jobs")) {
+    if (request.method === "POST" && url.pathname === "/ask") {
       const payload = normalizeAskRequest(await readJsonBody(request, bodyLimitBytes));
       const job = jobManager.createJob(payload);
       writeJson(response, 202, withJobLinks(job));

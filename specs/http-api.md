@@ -1,6 +1,6 @@
 # HTTP API
 
-The optional `archa-server` adapter exposes the repo-aware question-answering flow as async HTTP jobs.
+The optional `archa-server` adapter exposes the repo-aware question-answering flow as async HTTP jobs. New jobs are created with `POST /ask`, then read back through `GET /jobs/:id` and `GET /jobs/:id/events`.
 
 ## Endpoints
 
@@ -41,10 +41,6 @@ Response:
 ```
 
 ### `POST /ask`
-
-Alias of `POST /jobs`.
-
-### `POST /jobs`
 
 Creates a new async job.
 

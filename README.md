@@ -186,7 +186,7 @@ ARCHA_SERVER_HOST=127.0.0.1 ARCHA_SERVER_PORT=8787 archa-server
 
 When both are provided, command-line flags override the environment values.
 
-The server exposes async jobs over HTTP. `POST /ask` and `POST /jobs` are equivalent.
+The server exposes async jobs over HTTP. Submit a new question with `POST /ask`, then use the returned `/jobs/:id` and `/jobs/:id/events` links to poll or stream progress.
 
 Create a job:
 
@@ -233,7 +233,6 @@ Available endpoints:
 - `GET /health`
 - `GET /repos`
 - `POST /ask`
-- `POST /jobs`
 - `GET /jobs/:id`
 - `GET /jobs/:id/events`
 

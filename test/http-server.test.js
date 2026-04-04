@@ -110,6 +110,7 @@ describe("http-server", () => {
     expect(JSON.parse(indexResponse.body)).toMatchObject({
       service: "archa-server",
       endpoints: {
+        createJob: "POST /ask",
         listRepos: "GET /repos"
       }
     });
@@ -270,7 +271,7 @@ describe("http-server", () => {
 
     const createResponse = await performRequest(handler, {
       method: "POST",
-      path: "/jobs",
+      path: "/ask",
       body: {
         question: "stream this"
       }
@@ -352,6 +353,13 @@ describe("http-server", () => {
       method: "GET",
       path: "/missing"
     });
+    const removedCreateAliasResponse = await performRequest(handler, {
+      method: "POST",
+      path: "/jobs",
+      body: {
+        question: "removed alias"
+      }
+    });
     const jobResponse = await performRequest(handler, {
       method: "GET",
       path: "/jobs/missing"
@@ -363,6 +371,8 @@ describe("http-server", () => {
 
     expect(routeResponse.statusCode).toBe(404);
     expect(JSON.parse(routeResponse.body).error).toContain("No route");
+    expect(removedCreateAliasResponse.statusCode).toBe(404);
+    expect(JSON.parse(removedCreateAliasResponse.body).error).toContain("No route for POST /jobs");
     expect(jobResponse.statusCode).toBe(404);
     expect(JSON.parse(jobResponse.body).error).toContain("Unknown job");
     expect(eventsResponse.statusCode).toBe(404);
@@ -387,7 +397,7 @@ describe("http-server", () => {
 
     const createResponse = await performRequest(handler, {
       method: "POST",
-      path: "/jobs",
+      path: "/ask",
       body: {
         question: "terminal"
       }
