@@ -96,6 +96,47 @@ describe("selectRepos", () => {
     expect(repos.map(repo => repo.name)).toEqual(["foundation", "java-conventions"]);
   });
 
+  it("does not let a matching alwaysSelect repo consume a scored selection slot", () => {
+    const repos = selectRepos({
+      repos: [
+        {
+          name: "foundation",
+          description: "Shared build defaults and base support",
+          topics: ["build", "defaults"],
+          alwaysSelect: true
+        },
+        {
+          name: "java-conventions",
+          description: "Java conventions and build defaults",
+          topics: ["java", "conventions", "build", "defaults"]
+        },
+        {
+          name: "gradle-rules",
+          description: "Gradle rules and plugin defaults",
+          topics: ["gradle", "build", "defaults"]
+        },
+        {
+          name: "release-tools",
+          description: "Release tooling and build defaults",
+          topics: ["release", "build", "defaults"]
+        },
+        {
+          name: "artifact-metadata",
+          description: "Artifact metadata and build defaults",
+          topics: ["artifact", "build", "defaults"]
+        }
+      ]
+    }, "Need build defaults details", null);
+
+    expect(repos.map(repo => repo.name)).toEqual([
+      "foundation",
+      "java-conventions",
+      "gradle-rules",
+      "release-tools",
+      "artifact-metadata"
+    ]);
+  });
+
   it("still respects explicit repo narrowing even when some repos are marked alwaysSelect", () => {
     const repos = selectRepos({
       repos: [

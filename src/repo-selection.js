@@ -25,12 +25,12 @@ export function selectRepos(config, question, requestedRepoNames) {
       index,
       score: scoreRepo(repo, questionTokens)
     }))
-    .filter(entry => entry.score > 0)
+    .filter(entry => entry.score > 0 && !entry.repo.alwaysSelect)
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .slice(0, MAX_AUTOMATIC_REPOS)
     .map(entry => entry.repo);
 
-  if (scoredRepos.length === 0) {
+  if (scoredRepos.length === 0 && alwaysSelectedRepos.length === 0) {
     return [...config.repos];
   }
 
