@@ -2,10 +2,8 @@ import fs from "node:fs/promises";
 import process from "node:process";
 
 import {
-  canPromptInteractively,
-  promptForGithubOwner,
-  promptToContinueGithubDiscovery,
-  promptToInitializeConfig
+  ensureInteractiveConfigSetup,
+  renderConfigInit as renderConfigInitSummary
 } from "./cli-bootstrap.js";
 import { applyGithubDiscoveryToConfig, loadConfig, initializeConfig } from "./config.js";
 import { getConfigPath } from "./config-paths.js";
@@ -42,7 +40,7 @@ export async function main(argv) {
         managedReposRoot: options.managedReposRoot,
         force: options.force
       });
-      process.stdout.write(`${renderConfigInit(result)}\n`);
+      process.stdout.write(`${renderConfigInitSummary(result)}\n`);
       return;
     }
     case "config-discover-github": {
@@ -78,30 +76,6 @@ export async function main(argv) {
     default:
       throw new Error(`Unsupported command: ${options.command}`);
   }
-}
-
-function renderConfigInit(result) {
-  return formatConfigInit(result, {
-    includeNextStepSuggestion: true
-  });
-}
-
-function formatConfigInit(result, {
-  includeNextStepSuggestion
-}) {
-  const lines = [
-    `Initialized config at ${result.configPath}`,
-    `Managed repos root: ${result.managedReposRoot}`,
-    `Repos imported: ${result.repoCount}`
-  ];
-
-  if (includeNextStepSuggestion && result.repoCount === 0) {
-    lines.push("");
-    lines.push('Next step: archa config discover-github --owner <github-user-or-org> --apply');
-    lines.push("That imports GitHub metadata and inferred classifications into your config.");
-  }
-
-  return lines.join("\n");
 }
 
 function filterRepos(repos, requestedNames) {
@@ -171,75 +145,15 @@ async function ensureCliConfig(options) {
     return true;
   }
 
-  try {
-    const config = await loadConfig(process.env);
-    return await maybeBootstrapZeroRepos(options, config);
-  } catch (error) {
-    if (!isMissingConfigError(error) || !canPromptInteractively()) {
-      throw error;
-    }
-
-    const shouldInitialize = await promptToInitializeConfig({
-      configPath: getConfigPath(process.env)
-    });
-
-    if (!shouldInitialize) {
-      process.stdout.write(
-        'Initialization skipped. Configure the config file yourself or run "archa config init" when you are ready.\n'
-      );
-      return false;
-    }
-
-    const result = await initializeConfig({
-      env: process.env
-    });
-    process.stdout.write(`${formatConfigInit(result, {
-      includeNextStepSuggestion: false
-    })}\n`);
-
-    if (options.command === "config-discover-github") {
-      return true;
-    }
-
-    const config = await loadConfig(process.env);
-    return await maybeBootstrapZeroRepos(options, config);
-  }
-}
-
-async function maybeBootstrapZeroRepos(options, config) {
-  if (config.repos.length > 0 || options.command === "config-discover-github" || !canPromptInteractively()) {
-    return true;
-  }
-
-  const shouldDiscover = await promptToContinueGithubDiscovery();
-
-  if (!shouldDiscover) {
-    process.stdout.write(
-      'GitHub discovery skipped. Add repos manually or run "archa config discover-github --owner <github-user-or-org> --apply" when you are ready.\n'
-    );
-    return options.command === "repos-list";
-  }
-
-  const owner = await promptForGithubOwner();
-  await runGithubDiscovery({
-    owner,
-    apply: true,
-    includeForks: true,
-    includeArchived: false,
-    addRepoNames: [],
-    overrideRepoNames: []
-  }, config);
-
-  const nextConfig = await loadConfig(process.env);
-
-  if (nextConfig.repos.length > 0) {
-    return true;
-  }
-
-  process.stdout.write(
-    'No repos were added. Configure repos manually or run "archa config discover-github --owner <github-user-or-org> --apply".\n'
-  );
-  return options.command === "repos-list";
+  return ensureInteractiveConfigSetup({
+    env: process.env,
+    loadConfigFn: loadConfig,
+    initializeConfigFn: initializeConfig,
+    getConfigPathFn: getConfigPath,
+    runDiscoveryFn: discoveryOptions => runGithubDiscovery(discoveryOptions),
+    allowProceedWithoutRepos: options.command === "repos-list",
+    skipDiscoveryPrompt: options.command === "config-discover-github"
+  });
 }
 
 async function runGithubDiscovery(options, config = null) {
@@ -294,8 +208,4 @@ function requiresConfig(command) {
     || command === "repos-list"
     || command === "repos-sync"
     || command === "ask";
-}
-
-function isMissingConfigError(error) {
-  return error instanceof Error && error.message.includes("Archa config not found at ");
 }

@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  startHttpServer: vi.fn()
+  startHttpServer: vi.fn(),
+  ensureInteractiveConfigSetup: vi.fn()
 }));
 
 vi.mock("../src/http-server.js", () => ({
   startHttpServer: mocks.startHttpServer
+}));
+
+vi.mock("../src/cli-bootstrap.js", () => ({
+  ensureInteractiveConfigSetup: mocks.ensureInteractiveConfigSetup
 }));
 
 import { main, setupShutdownHandlers } from "../src/server-main.js";
@@ -30,6 +35,7 @@ describe("server-main", () => {
       stderr.push(chunk);
       return true;
     });
+    mocks.ensureInteractiveConfigSetup.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -47,6 +53,7 @@ describe("server-main", () => {
     const result = await main([]);
 
     expect(result).toBe(serverHandle);
+    expect(mocks.ensureInteractiveConfigSetup).toHaveBeenCalled();
     expect(stdout.join("")).toBe("Archa server listening on http://127.0.0.1:8787\n");
     expect(stderr.join("")).toContain('Suggestion: run "archa config discover-github --owner <github-user-or-org> --apply".');
   });
@@ -60,6 +67,15 @@ describe("server-main", () => {
     await main([]);
 
     expect(stderr.join("")).toBe("");
+  });
+
+  it("does not start the server when interactive setup is declined", async () => {
+    mocks.ensureInteractiveConfigSetup.mockResolvedValue(false);
+
+    const result = await main([]);
+
+    expect(result).toBeNull();
+    expect(mocks.startHttpServer).not.toHaveBeenCalled();
   });
 });
 

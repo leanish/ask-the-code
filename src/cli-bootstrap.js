@@ -56,6 +56,121 @@ export async function promptForGithubOwner({
   ));
 }
 
+export async function ensureInteractiveConfigSetup({
+  env = process.env,
+  input = process.stdin,
+  output = process.stdout,
+  loadConfigFn,
+  initializeConfigFn,
+  getConfigPathFn,
+  runDiscoveryFn,
+  canPromptInteractivelyFn = canPromptInteractively,
+  promptToInitializeConfigFn = promptToInitializeConfig,
+  promptToContinueGithubDiscoveryFn = promptToContinueGithubDiscovery,
+  promptForGithubOwnerFn = promptForGithubOwner,
+  renderConfigInitFn = renderConfigInit,
+  allowProceedWithoutRepos = false,
+  skipDiscoveryPrompt = false
+} = {}) {
+  try {
+    const config = await loadConfigFn(env);
+    return await maybeContinueWithZeroRepos(config);
+  } catch (error) {
+    if (!isMissingConfigError(error) || !canPromptInteractivelyFn({ input, output })) {
+      throw error;
+    }
+
+    const shouldInitialize = await promptToInitializeConfigFn({
+      configPath: getConfigPathFn(env),
+      input,
+      output
+    });
+
+    if (!shouldInitialize) {
+      output.write(
+        'Initialization skipped. Configure the config file yourself or run "archa config init" when you are ready.\n'
+      );
+      return false;
+    }
+
+    const result = await initializeConfigFn({ env });
+    output.write(`${renderConfigInitFn(result, {
+      includeNextStepSuggestion: false
+    })}\n`);
+
+    if (skipDiscoveryPrompt) {
+      return true;
+    }
+
+    const config = await loadConfigFn(env);
+    return await maybeContinueWithZeroRepos(config);
+  }
+
+  async function maybeContinueWithZeroRepos(config) {
+    if (skipDiscoveryPrompt || config.repos.length > 0 || !canPromptInteractivelyFn({ input, output })) {
+      return true;
+    }
+
+    const shouldDiscover = await promptToContinueGithubDiscoveryFn({
+      input,
+      output
+    });
+
+    if (!shouldDiscover) {
+      output.write(
+        'GitHub discovery skipped. Add repos manually or run "archa config discover-github --owner <github-user-or-org> --apply" when you are ready.\n'
+      );
+      return allowProceedWithoutRepos;
+    }
+
+    const owner = await promptForGithubOwnerFn({
+      input,
+      output
+    });
+    await runDiscoveryFn({
+      owner,
+      apply: true,
+      includeForks: true,
+      includeArchived: false,
+      addRepoNames: [],
+      overrideRepoNames: []
+    });
+
+    const nextConfig = await loadConfigFn(env);
+
+    if (nextConfig.repos.length > 0) {
+      return true;
+    }
+
+    output.write(
+      'No repos were added. Configure repos manually or run "archa config discover-github --owner <github-user-or-org> --apply".\n'
+    );
+    return allowProceedWithoutRepos;
+  }
+}
+
+export function renderConfigInit(result, {
+  includeNextStepSuggestion = true
+} = {}) {
+  const lines = [
+    `Initialized config at ${result.configPath}`,
+    `Managed repos root: ${result.managedReposRoot}`,
+    `Repos imported: ${result.repoCount}`
+  ];
+
+  if (includeNextStepSuggestion && result.repoCount === 0) {
+    lines.push("");
+    lines.push('Next step: archa config discover-github --owner <github-user-or-org> --apply');
+    lines.push("That imports GitHub metadata and inferred classifications into your config.");
+  }
+
+  return lines.join("\n");
+}
+
+export function isMissingConfigError(error) {
+  return error instanceof Error && error.message.includes("Archa config not found at ");
+}
+
 async function withReadline({
   input,
   output,

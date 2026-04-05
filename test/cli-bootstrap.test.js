@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   canPromptInteractively,
+  ensureInteractiveConfigSetup,
   promptForGithubOwner,
   promptToContinueGithubDiscovery,
-  promptToInitializeConfig
+  promptToInitializeConfig,
+  renderConfigInit
 } from "../src/cli-bootstrap.js";
 
 describe("cli-bootstrap", () => {
@@ -60,6 +62,70 @@ describe("cli-bootstrap", () => {
 
     expect(result).toBe("leanish");
     expect(readline.write).toHaveBeenCalledWith("Please enter a value.\n");
+  });
+
+  it("initializes and continues into discovery when config is missing", async () => {
+    const loadConfigFn = vi.fn()
+      .mockRejectedValueOnce(new Error('Archa config not found at /tmp/archa-config.json. Run "archa config init" or set ARCHA_CONFIG_PATH.'))
+      .mockResolvedValueOnce({ repos: [] })
+      .mockResolvedValueOnce({ repos: [{ name: "archa" }] });
+    const initializeConfigFn = vi.fn(async () => ({
+      configPath: "/tmp/archa-config.json",
+      managedReposRoot: "/workspace/repos",
+      repoCount: 0
+    }));
+    const runDiscoveryFn = vi.fn(async () => {});
+    const output = { isTTY: true, write: vi.fn() };
+
+    const result = await ensureInteractiveConfigSetup({
+      env: process.env,
+      input: { isTTY: true },
+      output,
+      loadConfigFn,
+      initializeConfigFn,
+      getConfigPathFn: () => "/tmp/archa-config.json",
+      runDiscoveryFn,
+      canPromptInteractivelyFn: () => true,
+      promptToInitializeConfigFn: vi.fn(async () => true),
+      promptToContinueGithubDiscoveryFn: vi.fn(async () => true),
+      promptForGithubOwnerFn: vi.fn(async () => "leanish"),
+      renderConfigInitFn: renderConfigInit
+    });
+
+    expect(result).toBe(true);
+    expect(initializeConfigFn).toHaveBeenCalledWith({ env: process.env });
+    expect(runDiscoveryFn).toHaveBeenCalledWith({
+      owner: "leanish",
+      apply: true,
+      includeForks: true,
+      includeArchived: false,
+      addRepoNames: [],
+      overrideRepoNames: []
+    });
+    expect(output.write).toHaveBeenCalledWith(
+      "Initialized config at /tmp/archa-config.json\nManaged repos root: /workspace/repos\nRepos imported: 0\n"
+    );
+  });
+
+  it("stops when zero-repo discovery is declined and continuation is not allowed", async () => {
+    const output = { isTTY: true, write: vi.fn() };
+
+    const result = await ensureInteractiveConfigSetup({
+      env: process.env,
+      input: { isTTY: true },
+      output,
+      loadConfigFn: vi.fn(async () => ({ repos: [] })),
+      initializeConfigFn: vi.fn(),
+      getConfigPathFn: () => "/tmp/archa-config.json",
+      runDiscoveryFn: vi.fn(),
+      canPromptInteractivelyFn: () => true,
+      promptToContinueGithubDiscoveryFn: vi.fn(async () => false)
+    });
+
+    expect(result).toBe(false);
+    expect(output.write).toHaveBeenCalledWith(
+      'GitHub discovery skipped. Add repos manually or run "archa config discover-github --owner <github-user-or-org> --apply" when you are ready.\n'
+    );
   });
 });
 

@@ -1,10 +1,29 @@
 import process from "node:process";
 
+import { applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "./config.js";
+import { getConfigPath } from "./config-paths.js";
+import { ensureInteractiveConfigSetup } from "./cli-bootstrap.js";
+import { discoverGithubOwnerRepos, planGithubRepoDiscovery } from "./github-catalog.js";
+import { promptGithubDiscoverySelection } from "./github-discovery-selection.js";
 import { startHttpServer } from "./http-server.js";
+import { renderGithubDiscovery } from "./render.js";
 import { HelpError, parseServerArgs } from "./server-args.js";
 
 export async function main(argv) {
   const options = parseServerArgs(argv, process.env);
+  const shouldContinue = await ensureInteractiveConfigSetup({
+    env: process.env,
+    loadConfigFn: loadConfig,
+    initializeConfigFn: initializeConfig,
+    getConfigPathFn: getConfigPath,
+    runDiscoveryFn: discoveryOptions => runServerGithubDiscovery(discoveryOptions),
+    allowProceedWithoutRepos: false
+  });
+
+  if (!shouldContinue) {
+    return null;
+  }
+
   const serverHandle = await startHttpServer({
     env: process.env,
     host: options.host,
@@ -20,6 +39,40 @@ export async function main(argv) {
 
   setupShutdownHandlers(serverHandle);
   return serverHandle;
+}
+
+async function runServerGithubDiscovery(options) {
+  const config = await loadConfig(process.env);
+  const discovery = await discoverGithubOwnerRepos({
+    owner: options.owner,
+    env: process.env,
+    includeForks: options.includeForks,
+    includeArchived: options.includeArchived
+  });
+  const plan = planGithubRepoDiscovery(config, discovery);
+  const selection = await promptGithubDiscoverySelection(plan, {
+    input: process.stdin,
+    output: process.stdout
+  });
+  const applyResult = selection.reposToAdd.length > 0 || selection.reposToOverride.length > 0
+    ? await applyGithubDiscoveryToConfig({
+        env: process.env,
+        reposToAdd: selection.reposToAdd,
+        reposToOverride: selection.reposToOverride
+      })
+    : {
+        configPath: config.configPath,
+        addedCount: 0,
+        overriddenCount: 0
+      };
+
+  process.stdout.write(`${renderGithubDiscovery({
+    ...plan,
+    applied: true,
+    configPath: applyResult.configPath,
+    addedCount: applyResult.addedCount,
+    overriddenCount: applyResult.overriddenCount
+  })}\n`);
 }
 
 export function setupShutdownHandlers(serverHandle, { processRef = process } = {}) {

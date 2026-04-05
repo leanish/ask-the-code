@@ -76,10 +76,10 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 
 - `src/cli.js`
   Dispatches commands, resolves question files, prints output, and handles interactive CLI bootstrap when config is missing or freshly initialized without repos.
-- `src/cli-bootstrap.js`
-  Hosts the interactive CLI prompts for missing-config initialization and optional GitHub discovery continuation.
 - `src/server-main.js`
-  Parses server startup arguments and boots the HTTP adapter.
+  Parses server startup arguments, reuses the same interactive config bootstrap flow as `archa`, and then boots the HTTP adapter.
+- `src/cli-bootstrap.js`
+  Hosts the shared interactive CLI prompts and bootstrap flow for missing-config initialization and optional GitHub discovery continuation.
 - `src/config-paths.js`
   Resolves the active config path and default managed repos root.
 - `src/config.js`
