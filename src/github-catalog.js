@@ -70,6 +70,7 @@ export async function discoverGithubOwnerRepos({
   fetchFn = globalThis.fetch,
   inspectRepoFn = inspectRepoMetadata,
   curateWithCodex = true,
+  onProgress = null,
   includeForks = true,
   includeArchived = false
 }) {
@@ -127,15 +128,38 @@ export async function discoverGithubOwnerRepos({
     eligibleRepos.push(repo);
   }
 
+  onProgress?.({
+    type: "discovery-listed",
+    owner: normalizedOwner,
+    discoveredCount: discoveredRepos.length,
+    eligibleCount: eligibleRepos.length,
+    skippedForks,
+    skippedArchived
+  });
+
+  let processedCount = 0;
   const repos = await Promise.all(
-    eligibleRepos.map(repo => hydrateGithubRepoTopics({
-      owner: normalizedOwner,
-      repo,
-      env,
-      fetchFn,
-      inspectRepoFn,
-      curateWithCodex
-    }))
+    eligibleRepos.map(async repo => {
+      const hydratedRepo = await hydrateGithubRepoTopics({
+        owner: normalizedOwner,
+        repo,
+        env,
+        fetchFn,
+        inspectRepoFn,
+        curateWithCodex
+      });
+
+      processedCount += 1;
+      onProgress?.({
+        type: "repo-processed",
+        owner: normalizedOwner,
+        repoName: repo.name,
+        processedCount,
+        totalCount: eligibleRepos.length
+      });
+
+      return hydratedRepo;
+    })
   );
   repos.sort((left, right) => left.name.localeCompare(right.name));
 

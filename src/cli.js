@@ -9,6 +9,7 @@ import { applyGithubDiscoveryToConfig, loadConfig, initializeConfig } from "./co
 import { ensureCodexInstalled } from "./codex-installation.js";
 import { getConfigPath } from "./config-paths.js";
 import { discoverGithubOwnerRepos, planGithubRepoDiscovery } from "./github-catalog.js";
+import { createGithubDiscoveryProgressReporter } from "./github-discovery-progress.js";
 import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "./github-discovery-selection.js";
 import { parseArgs } from "./parse-args.js";
 import { answerQuestion } from "./question-answering.js";
@@ -167,13 +168,21 @@ async function ensureCliConfig(options) {
 
 async function runGithubDiscovery(options, config = null) {
   const resolvedConfig = config || await loadConfig(process.env);
-  const discovery = await discoverGithubOwnerRepos({
-    owner: options.owner,
-    env: process.env,
-    curateWithCodex: true,
-    includeForks: options.includeForks,
-    includeArchived: options.includeArchived
-  });
+  const progressReporter = createGithubDiscoveryProgressReporter();
+  progressReporter.start(options.owner);
+  let discovery;
+  try {
+    discovery = await discoverGithubOwnerRepos({
+      owner: options.owner,
+      env: process.env,
+      curateWithCodex: true,
+      onProgress: event => progressReporter.onProgress(event),
+      includeForks: options.includeForks,
+      includeArchived: options.includeArchived
+    });
+  } finally {
+    progressReporter.finish();
+  }
   const plan = planGithubRepoDiscovery(resolvedConfig, discovery);
 
   if (!options.apply) {

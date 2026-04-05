@@ -95,6 +95,59 @@ describe("github-catalog", () => {
     });
   });
 
+  it("emits progress updates while discovery inspects eligible repos", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const onProgress = vi.fn();
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
+        return createJsonResponse(200, [
+          {
+            name: "archa",
+            clone_url: "https://github.com/leanish/archa.git",
+            default_branch: "main",
+            description: "Repo-aware CLI for engineering Q&A with local Codex",
+            topics: ["cli", "codex", "qa"],
+            size: 6400,
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    await discoverGithubOwnerRepos({
+      owner: "leanish",
+      fetchFn,
+      inspectRepoFn,
+      onProgress
+    });
+
+    expect(onProgress).toHaveBeenNthCalledWith(1, {
+      type: "discovery-listed",
+      owner: "leanish",
+      discoveredCount: 1,
+      eligibleCount: 1,
+      skippedForks: 0,
+      skippedArchived: 0
+    });
+    expect(onProgress).toHaveBeenNthCalledWith(2, {
+      type: "repo-processed",
+      owner: "leanish",
+      repoName: "archa",
+      processedCount: 1,
+      totalCount: 1
+    });
+  });
+
   it("keeps inline repo topics without an extra topics request", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const fetchFn = vi.fn(async url => {

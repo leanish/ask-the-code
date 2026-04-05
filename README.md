@@ -119,6 +119,8 @@ Discover repos from a GitHub user or org and preview what could be added or over
 archa config discover-github --owner leanish
 ```
 
+While discovery runs, Archa prints progress updates so long repo inspection does not look stuck.
+
 Selectively apply additions or overrides from that owner into the active config:
 
 ```bash

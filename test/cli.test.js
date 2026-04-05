@@ -304,20 +304,38 @@ describe("cli", () => {
   });
 
   it("prints a GitHub discovery preview without changing config", async () => {
-    mocks.discoverGithubOwnerRepos.mockResolvedValue({
-      owner: "leanish",
-      ownerType: "User",
-      skippedForks: 1,
-      skippedArchived: 0,
-      repos: [
-        {
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
-          defaultBranch: "main",
-          description: "Repo-aware CLI for engineering Q&A with local Codex",
-          topics: ["cli", "codex", "qa"]
-        }
-      ]
+    mocks.discoverGithubOwnerRepos.mockImplementation(async ({ onProgress }) => {
+      onProgress?.({
+        type: "discovery-listed",
+        owner: "leanish",
+        discoveredCount: 2,
+        eligibleCount: 1,
+        skippedForks: 1,
+        skippedArchived: 0
+      });
+      onProgress?.({
+        type: "repo-processed",
+        owner: "leanish",
+        repoName: "archa",
+        processedCount: 1,
+        totalCount: 1
+      });
+
+      return {
+        owner: "leanish",
+        ownerType: "User",
+        skippedForks: 1,
+        skippedArchived: 0,
+        repos: [
+          {
+            name: "archa",
+            url: "https://github.com/leanish/archa.git",
+            defaultBranch: "main",
+            description: "Repo-aware CLI for engineering Q&A with local Codex",
+            topics: ["cli", "codex", "qa"]
+          }
+        ]
+      };
     });
     mocks.planGithubRepoDiscovery.mockReturnValue({
       owner: "leanish",
@@ -358,6 +376,9 @@ describe("cli", () => {
     expect(stdout.join("")).toContain("GitHub repo discovery for leanish (User):");
     expect(stdout.join("")).toContain("archa [new]");
     expect(stdout.join("")).toContain("Run: archa config discover-github --owner leanish --apply");
+    expect(stderr.join("")).toContain("Discovering GitHub repos for leanish...");
+    expect(stderr.join("")).toContain("Found 2 repo(s); inspecting 1 eligible repo(s)...");
+    expect(stderr.join("")).toContain("Inspecting repos: 1/1 (archa)");
     expect(mocks.applyGithubDiscoveryToConfig).not.toHaveBeenCalled();
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
   });

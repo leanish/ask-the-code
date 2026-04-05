@@ -5,6 +5,7 @@ import { ensureCodexInstalled } from "./codex-installation.js";
 import { getConfigPath } from "./config-paths.js";
 import { ensureInteractiveConfigSetup } from "./cli-bootstrap.js";
 import { discoverGithubOwnerRepos, planGithubRepoDiscovery } from "./github-catalog.js";
+import { createGithubDiscoveryProgressReporter } from "./github-discovery-progress.js";
 import { promptGithubDiscoverySelection } from "./github-discovery-selection.js";
 import { startHttpServer } from "./http-server.js";
 import { renderGithubDiscovery } from "./render.js";
@@ -45,13 +46,21 @@ export async function main(argv) {
 
 async function runServerGithubDiscovery(options) {
   const config = await loadConfig(process.env);
-  const discovery = await discoverGithubOwnerRepos({
-    owner: options.owner,
-    env: process.env,
-    curateWithCodex: true,
-    includeForks: options.includeForks,
-    includeArchived: options.includeArchived
-  });
+  const progressReporter = createGithubDiscoveryProgressReporter();
+  progressReporter.start(options.owner);
+  let discovery;
+  try {
+    discovery = await discoverGithubOwnerRepos({
+      owner: options.owner,
+      env: process.env,
+      curateWithCodex: true,
+      onProgress: event => progressReporter.onProgress(event),
+      includeForks: options.includeForks,
+      includeArchived: options.includeArchived
+    });
+  } finally {
+    progressReporter.finish();
+  }
   const plan = planGithubRepoDiscovery(config, discovery);
   const selection = await promptGithubDiscoverySelection(plan, {
     input: process.stdin,
