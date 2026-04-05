@@ -144,7 +144,7 @@ async function handleRequest({ request, response, jobManager, bodyLimitBytes, en
     if (request.method === "GET" && url.pathname === "/health") {
       writeJson(response, 200, {
         status: "ok",
-        jobs: jobManager.getStats()
+        jobs: typeof jobManager.getStats === "function" ? jobManager.getStats() : null
       });
       return;
     }

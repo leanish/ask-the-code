@@ -27,6 +27,12 @@ Returns the server status along with job counts by state:
 }
 ```
 
+Notes:
+
+- `jobs` is `null` when the server is using a custom job manager that does not expose stats
+- `completed` and `failed` reflect only the jobs still retained in memory, not cumulative historical totals
+- those counts reset after the job retention window expires and when the server process restarts
+
 ### `GET /repos`
 
 Returns the configured repo catalog for the built-in web UI repo picker.

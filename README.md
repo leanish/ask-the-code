@@ -240,6 +240,7 @@ Available endpoints:
 - `GET /jobs/:id/events`
 
 HTTP jobs keep an in-memory event history, run with bounded concurrency, and share a per-process repo sync coordinator. If two jobs need the same repo sync at the same time, one sync runs and the other job waits for the same result.
+`GET /health` reports only the currently retained in-memory job counts, so `completed` and `failed` reset after the retention window and on server restart.
 
 ### Web UI
 

@@ -123,6 +123,23 @@ describe("http-server", () => {
     expect(optionsResponse.headers["access-control-allow-methods"]).toContain("POST");
   });
 
+  it("returns ok health even when a custom job manager does not expose stats", async () => {
+    const handler = createHttpHandler({
+      jobManager: {}
+    });
+
+    const healthResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/health"
+    });
+
+    expect(healthResponse.statusCode).toBe(200);
+    expect(JSON.parse(healthResponse.body)).toEqual({
+      status: "ok",
+      jobs: null
+    });
+  });
+
   it("includes job stats in the health endpoint after creating jobs", async () => {
     let releaseJob;
     const jobReleased = new Promise(resolve => {
