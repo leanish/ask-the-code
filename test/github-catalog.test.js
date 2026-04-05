@@ -99,6 +99,77 @@ describe("github-catalog", () => {
     });
   });
 
+  it("includes private user repos when discovery is authenticated for the same owner", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/user") {
+        return createJsonResponse(200, {
+          login: "leanish"
+        });
+      }
+
+      if (url === "https://api.github.com/user/repos?per_page=100&page=1&sort=full_name&affiliation=owner&visibility=all") {
+        return createJsonResponse(200, [
+          {
+            name: "private-service",
+            clone_url: "https://github.com/leanish/private-service.git",
+            default_branch: "main",
+            description: "Private service implementation",
+            topics: [],
+            size: 2400,
+            fork: false,
+            archived: false,
+            private: true
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/leanish/private-service/topics") {
+        return createJsonResponse(200, {
+          names: ["service", "internal-api"]
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "leanish",
+      env: {
+        GH_TOKEN: "test-token"
+      },
+      fetchFn,
+      inspectRepoFn
+    });
+
+    expect(result.owner).toBe("leanish");
+    expect(result.ownerType).toBe("User");
+    expect(result.skippedForks).toBe(0);
+    expect(result.skippedArchived).toBe(0);
+    expect(result.repos).toHaveLength(1);
+    expect(result.repos[0]).toEqual(expect.objectContaining({
+      name: "private-service",
+      url: "https://github.com/leanish/private-service.git",
+      defaultBranch: "main",
+      description: "Private service implementation"
+    }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      "https://api.github.com/user",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token"
+        })
+      })
+    );
+  });
+
   it("emits progress updates while discovery inspects eligible repos", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const onProgress = vi.fn();

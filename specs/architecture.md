@@ -86,7 +86,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/config.js`
   Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and applies selected GitHub discovery additions or overrides into the active config.
 - `src/github-catalog.js`
-  Discovers repos from a GitHub user or org, normalizes them into repo definitions, produces a lightweight GitHub-metadata preview for selection, optionally refines only the selected repos with repo-content inspection plus a Codex cleanup pass, and compares the result with the current config to classify additions, conflicts, and metadata review suggestions.
+  Discovers repos from a GitHub user or org, including private repos visible to an authenticated GitHub token when available, normalizes them into repo definitions, produces a lightweight GitHub-metadata preview for selection, optionally refines only the selected repos with repo-content inspection plus a Codex cleanup pass, and compares the result with the current config to classify additions, conflicts, and metadata review suggestions.
 - `src/github-discovery-progress.js`
   Formats stderr progress updates for GitHub discovery so CLI and server bootstrap flows do not look stuck while GitHub metadata is loading or selected repos are being refined.
 - `src/github-discovery-selection.js`

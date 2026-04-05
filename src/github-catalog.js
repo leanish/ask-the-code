@@ -103,6 +103,12 @@ export async function discoverGithubOwnerRepos({
     notFoundMessage: `GitHub owner not found: ${normalizedOwner}.`
   });
   const ownerType = ownerSummary.type === "Organization" ? "Organization" : "User";
+  const reposPath = await resolveReposPath({
+    ownerType,
+    owner: normalizedOwner,
+    env,
+    fetchFn
+  });
   const discoveredRepos = [];
   let page = 1;
 
@@ -110,7 +116,7 @@ export async function discoverGithubOwnerRepos({
     const reposPage = await fetchGithubJson({
       fetchFn,
       env,
-      path: getReposPath(ownerType, normalizedOwner, page)
+      path: formatPagedReposPath(reposPath, page)
     });
 
     if (!Array.isArray(reposPage)) {
@@ -275,12 +281,39 @@ function normalizeOwner(owner) {
   return owner.trim();
 }
 
-function getReposPath(ownerType, owner, page) {
+async function resolveReposPath({ ownerType, owner, env, fetchFn }) {
   if (ownerType === "Organization") {
-    return `/orgs/${encodeURIComponent(owner)}/repos?per_page=${PAGE_SIZE}&page=${page}&sort=full_name&type=all`;
+    return `/orgs/${encodeURIComponent(owner)}/repos?sort=full_name&type=all`;
   }
 
-  return `/users/${encodeURIComponent(owner)}/repos?per_page=${PAGE_SIZE}&page=${page}&sort=full_name&type=owner`;
+  if (!hasGithubToken(env)) {
+    return `/users/${encodeURIComponent(owner)}/repos?sort=full_name&type=owner`;
+  }
+
+  const authenticatedUser = await fetchGithubJson({
+    fetchFn,
+    env,
+    path: "/user"
+  });
+  const authenticatedLogin = typeof authenticatedUser?.login === "string"
+    ? authenticatedUser.login.trim().toLowerCase()
+    : "";
+
+  if (authenticatedLogin === owner.toLowerCase()) {
+    return "/user/repos?sort=full_name&affiliation=owner&visibility=all";
+  }
+
+  return `/users/${encodeURIComponent(owner)}/repos?sort=full_name&type=owner`;
+}
+
+function formatPagedReposPath(basePath, page) {
+  const [path, query = ""] = basePath.split("?");
+  const querySuffix = query ? `&${query}` : "";
+  return `${path}?per_page=${PAGE_SIZE}&page=${page}${querySuffix}`;
+}
+
+function hasGithubToken(env) {
+  return Boolean(env.GH_TOKEN || env.GITHUB_TOKEN);
 }
 
 async function fetchGithubJson({ fetchFn, env, path, notFoundMessage = null }) {
