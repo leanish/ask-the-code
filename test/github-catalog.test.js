@@ -550,7 +550,7 @@ describe("github-catalog", () => {
         defaultBranch: "main",
         description: "Storefront frontend",
         topics: ["commerce", "storefront", "frontend"],
-        classifications: ["external", "frontend"]
+        classifications: ["frontend", "external"]
       }
     ]);
     expect(inspectRepoFn).toHaveBeenCalledWith(expect.objectContaining({
@@ -616,7 +616,7 @@ describe("github-catalog", () => {
     ]);
   });
 
-  it("infers high-signal classifications separately from generic topics", async () => {
+  it("does not infer external from generic graphql api wording alone", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const fetchFn = vi.fn(async url => {
       if (url === "https://api.github.com/users/leanish") {
@@ -657,7 +657,7 @@ describe("github-catalog", () => {
         defaultBranch: "main",
         description: "Billing microservice GraphQL API",
         topics: ["payments", "billing", "microservice", "graphql", "api"],
-        classifications: ["microservice", "external", "backend"]
+        classifications: ["microservice", "backend"]
       }
     ]);
   });

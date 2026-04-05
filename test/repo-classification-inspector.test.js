@@ -123,6 +123,34 @@ describe("repo-classification-inspector", () => {
     expect(classifications).toEqual(["library"]);
   });
 
+  it("does not infer external from api integration wording in shared libraries", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "sqs-codec");
+    await fs.mkdir(repoDirectory, { recursive: true });
+    await fs.writeFile(path.join(repoDirectory, "README.md"), [
+      "# sqs-codec",
+      "",
+      "Shared Java library for SQS message encoding.",
+      "",
+      "It is used by GraphQL and REST services to encode compression and checksum metadata."
+    ].join("\n"));
+    await fs.writeFile(path.join(repoDirectory, "build.gradle"), "plugins { id 'java-library' }\n");
+
+    const classifications = await inspectRepoClassifications({
+      repo: {
+        name: "sqs-codec",
+        url: "https://github.com/leanish/sqs-codec.git",
+        defaultBranch: "main",
+        description: "SQS execution interceptor with compression and checksum metadata",
+        topics: []
+      },
+      sourceRepo: {},
+      env,
+      curateMetadataFn
+    });
+
+    expect(classifications).toEqual(["library"]);
+  });
+
   it("infers description and topics from the repo readme when metadata is missing", async () => {
     const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "terminator");
     await fs.mkdir(repoDirectory, { recursive: true });

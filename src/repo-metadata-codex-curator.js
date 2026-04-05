@@ -13,6 +13,20 @@ const ALLOWED_CLASSIFICATIONS = new Set([
   "cli",
   "microservice"
 ]);
+const EXTERNAL_FACING_PHRASES = [
+  "external",
+  "customer-facing",
+  "user-facing",
+  "merchant-facing",
+  "partner-facing",
+  "storefront",
+  "checkout",
+  "onboarding",
+  "pricing",
+  "public api",
+  "public-api",
+  "public endpoint"
+];
 
 export async function curateRepoMetadataWithCodex({
   directory,
@@ -38,6 +52,8 @@ export async function curateRepoMetadataWithCodex({
     timeoutMs: DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS
   });
   const parsed = parseCuratedMetadata(result.text, {
+    repo,
+    sourceRepo,
     repoName: repo.name,
     inferredMetadata,
     sizeKb: sourceRepo.size
@@ -57,6 +73,8 @@ function buildRepoMetadataCurationPrompt({ repo, sourceRepo, inferredMetadata })
     `description: one sentence, <= ${MAX_DESCRIPTION_LENGTH} characters, concrete and neutral.`,
     `topics: 0-${topicLimit} lowercase terms or kebab-case phrases, useful for repo selection, no repo-name repetition, no duplicates.`,
     `classifications: zero or more of ${[...ALLOWED_CLASSIFICATIONS].join(", ")}.`,
+    'Use "external" only when the repo clearly exposes an outward-facing application or service surface consumed outside its owning service or runtime.',
+    'Do not use "external" for shared libraries, conventions, codecs, or repos that merely call or mention GraphQL, REST, or APIs.',
     "Keep accurate draft values when they are already good. Improve them when the repo content shows a better answer.",
     "",
     "Current draft metadata:",
@@ -73,7 +91,7 @@ function buildRepoMetadataCurationPrompt({ repo, sourceRepo, inferredMetadata })
   ].join("\n");
 }
 
-function parseCuratedMetadata(text, { repoName, inferredMetadata, sizeKb }) {
+function parseCuratedMetadata(text, { repo, sourceRepo, repoName, inferredMetadata, sizeKb }) {
   if (typeof text !== "string" || text.trim() === "") {
     return null;
   }
@@ -91,7 +109,13 @@ function parseCuratedMetadata(text, { repoName, inferredMetadata, sizeKb }) {
 
   const description = normalizeDescription(parsed.description) || inferredMetadata.description;
   const topics = normalizeTopics(parsed.topics, repoName, getTopicLimit(sizeKb));
-  const classifications = normalizeClassifications(parsed.classifications);
+  const classifications = normalizeClassifications(parsed.classifications, {
+    repo,
+    sourceRepo,
+    inferredMetadata,
+    description,
+    topics: topics ?? inferredMetadata.topics
+  });
 
   return {
     description,
@@ -162,7 +186,7 @@ function normalizeTopic(value) {
     .replace(/^-|-$/g, "");
 }
 
-function normalizeClassifications(value) {
+function normalizeClassifications(value, context) {
   if (!Array.isArray(value)) {
     return null;
   }
@@ -176,7 +200,11 @@ function normalizeClassifications(value) {
     }
 
     const normalized = item.trim().toLowerCase();
-    if (!ALLOWED_CLASSIFICATIONS.has(normalized) || seen.has(normalized)) {
+    if (
+      !ALLOWED_CLASSIFICATIONS.has(normalized)
+      || seen.has(normalized)
+      || !shouldKeepCuratedClassification(normalized, context)
+    ) {
       continue;
     }
 
@@ -185,6 +213,35 @@ function normalizeClassifications(value) {
   }
 
   return classifications;
+}
+
+function shouldKeepCuratedClassification(classification, {
+  repo,
+  sourceRepo,
+  inferredMetadata,
+  description,
+  topics
+}) {
+  if (classification !== "external") {
+    return true;
+  }
+
+  if (inferredMetadata.classifications.includes("external") || inferredMetadata.classifications.includes("frontend")) {
+    return true;
+  }
+
+  const haystack = [
+    repo?.name,
+    repo?.description,
+    typeof sourceRepo?.description === "string" ? sourceRepo.description : "",
+    inferredMetadata.description,
+    description,
+    ...(Array.isArray(sourceRepo?.topics) ? sourceRepo.topics : []),
+    ...(Array.isArray(inferredMetadata.topics) ? inferredMetadata.topics : []),
+    ...(Array.isArray(topics) ? topics : [])
+  ].join("\n").toLowerCase();
+
+  return EXTERNAL_FACING_PHRASES.some(phrase => haystack.includes(phrase));
 }
 
 function tokenizeRepoName(name) {

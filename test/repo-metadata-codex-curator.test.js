@@ -93,4 +93,39 @@ describe("repo-metadata-codex-curator", () => {
       classifications: []
     });
   });
+
+  it("drops Codex-invented external for shared libraries without outward-facing evidence", async () => {
+    const metadata = await curateRepoMetadataWithCodex({
+      directory: "/workspace/repos/java-conventions",
+      repo: {
+        name: "java-conventions",
+        url: "https://github.com/leanish/java-conventions.git",
+        defaultBranch: "main",
+        description: "Shared Gradle conventions for JDK-based projects"
+      },
+      sourceRepo: {
+        description: "Shared Gradle conventions for JDK-based projects",
+        topics: [],
+        size: 245
+      },
+      inferredMetadata: {
+        description: "Shared Gradle conventions for JDK-based projects",
+        topics: ["gradle", "conventions", "jdk"],
+        classifications: ["library"]
+      },
+      runCodexPromptFn: vi.fn(async () => ({
+        text: JSON.stringify({
+          description: "Shared Gradle conventions for JDK-based projects.",
+          topics: ["gradle-plugin", "conventions", "java"],
+          classifications: ["library", "external"]
+        })
+      }))
+    });
+
+    expect(metadata).toEqual({
+      description: "Shared Gradle conventions for JDK-based projects.",
+      topics: ["gradle-plugin"],
+      classifications: ["library"]
+    });
+  });
 });

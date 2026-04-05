@@ -105,23 +105,19 @@ const TOPIC_STOP_WORDS = new Set([
   "you",
   "your"
 ]);
-const EXTERNAL_TERMS = [
+const EXTERNAL_FACING_PHRASES = [
   "external",
-  "customer",
-  "shopper",
-  "checkout",
+  "customer-facing",
+  "user-facing",
+  "merchant-facing",
+  "partner-facing",
   "storefront",
+  "checkout",
   "onboarding",
   "pricing",
-  "catalog",
-  "merchant-facing",
-  "user-facing",
-  "customer-facing",
-  "product",
-  "public",
-  "api",
-  "graphql",
-  "rest"
+  "public api",
+  "public-api",
+  "public endpoint"
 ];
 const INTERNAL_TERMS = ["internal", "employee", "backoffice", "admin-only", "private"];
 const LIBRARY_TERMS = ["library", "sdk", "module", "plugin", "package"];
@@ -330,7 +326,12 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
     classifications.push("microservice");
   }
 
-  if ((hasFrontend || hasMobile || hasAnyTerm(signals, EXTERNAL_TERMS)) && !classifications.includes("internal")) {
+  if ((hasFrontend || hasMobile || hasExternalFacingEvidence([
+    repo.name,
+    repo.description,
+    readmeText,
+    packageJson?.keywords || []
+  ])) && !classifications.includes("internal")) {
     classifications.push("external");
   }
 
@@ -341,6 +342,16 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
     topics: inferTopicsFromSignals(topicCandidates, normalizedClassifications, tokenizeTerms(repo.name)),
     classifications: normalizedClassifications
   };
+}
+
+function hasExternalFacingEvidence(values) {
+  const haystack = values
+    .flatMap(value => Array.isArray(value) ? value : [value])
+    .filter(value => typeof value === "string" && value.trim() !== "")
+    .join("\n")
+    .toLowerCase();
+
+  return EXTERNAL_FACING_PHRASES.some(phrase => haystack.includes(phrase));
 }
 
 function inferDescriptionFromReadme(readmeText) {

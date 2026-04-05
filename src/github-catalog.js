@@ -10,11 +10,24 @@ const CLASSIFICATION_KEYWORDS = new Map([
   ["library", ["library", "lib", "sdk", "module", "plugin", "package"]],
   ["internal", ["internal", "private", "proprietary"]],
   ["microservice", ["microservice", "worker", "daemon"]],
-  ["external", ["external", "customer-facing", "product", "public", "user-facing", "customer", "shopper", "checkout", "storefront", "onboarding", "pricing", "api", "graphql", "rest"]],
   ["frontend", ["frontend", "ui", "browser", "react", "vue", "nextjs", "next"]],
   ["backend", ["backend", "server", "api", "graphql", "rest"]],
   ["cli", ["cli", "terminal", "command"]]
 ]);
+const EXTERNAL_FACING_PHRASES = [
+  "external",
+  "customer-facing",
+  "user-facing",
+  "merchant-facing",
+  "partner-facing",
+  "storefront",
+  "checkout",
+  "onboarding",
+  "pricing",
+  "public api",
+  "public-api",
+  "public endpoint"
+];
 const STOP_WORDS = new Set([
   "about",
   "after",
@@ -542,7 +555,23 @@ function inferRepoClassifications({ repo, sourceRepo, topics }) {
     }
   }
 
+  if (hasExternalFacingEvidence({ repo, sourceRepo, topics })) {
+    classifications.push("external");
+  }
+
   return pruneConflictingClassifications(classifications);
+}
+
+function hasExternalFacingEvidence({ repo, sourceRepo, topics }) {
+  const haystack = [
+    repo.name,
+    repo.description,
+    typeof sourceRepo?.description === "string" ? sourceRepo.description : "",
+    ...(Array.isArray(topics) ? topics : []),
+    ...(Array.isArray(sourceRepo?.topics) ? sourceRepo.topics : [])
+  ].join("\n").toLowerCase();
+
+  return EXTERNAL_FACING_PHRASES.some(phrase => haystack.includes(phrase));
 }
 
 function pruneConflictingClassifications(classifications) {
