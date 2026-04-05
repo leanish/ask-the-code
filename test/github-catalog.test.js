@@ -99,6 +99,117 @@ describe("github-catalog", () => {
     });
   });
 
+  it("includes private user repos when discovery is authenticated for the same owner", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/user") {
+        return createJsonResponse(200, {
+          login: "leanish"
+        });
+      }
+
+      if (url === "https://api.github.com/user/repos?per_page=100&page=1&sort=full_name&affiliation=owner&visibility=all") {
+        return createJsonResponse(200, [
+          {
+            name: "private-service",
+            clone_url: "https://github.com/leanish/private-service.git",
+            default_branch: "main",
+            description: "Private service implementation",
+            topics: [],
+            size: 2400,
+            fork: false,
+            archived: false,
+            private: true
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/leanish/private-service/topics") {
+        return createJsonResponse(200, {
+          names: ["service", "internal-api"]
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "leanish",
+      env: {
+        GH_TOKEN: "test-token"
+      },
+      fetchFn,
+      inspectRepoFn
+    });
+
+    expect(result.owner).toBe("leanish");
+    expect(result.ownerType).toBe("User");
+    expect(result.skippedForks).toBe(0);
+    expect(result.skippedArchived).toBe(0);
+    expect(result.repos).toHaveLength(1);
+    expect(result.repos[0]).toEqual(expect.objectContaining({
+      name: "private-service",
+      url: "https://github.com/leanish/private-service.git",
+      defaultBranch: "main",
+      description: "Private service implementation"
+    }));
+    expect(fetchFn).toHaveBeenCalledWith(
+      "https://api.github.com/user",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token"
+        })
+      })
+    );
+  });
+
+  it("falls back to gh auth when env tokens are absent", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const resolveGithubAuthTokenFn = vi.fn(async () => "gh-token");
+    const fetchFn = vi.fn(async (url, options) => {
+      if (url === "https://api.github.com/users/leanish") {
+        expect(options.headers.Authorization).toBe("Bearer gh-token");
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/user") {
+        expect(options.headers.Authorization).toBe("Bearer gh-token");
+        return createJsonResponse(200, {
+          login: "leanish"
+        });
+      }
+
+      if (url === "https://api.github.com/user/repos?per_page=100&page=1&sort=full_name&affiliation=owner&visibility=all") {
+        expect(options.headers.Authorization).toBe("Bearer gh-token");
+        return createJsonResponse(200, []);
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "leanish",
+      env: {},
+      fetchFn,
+      inspectRepoFn,
+      resolveGithubAuthTokenFn
+    });
+
+    expect(resolveGithubAuthTokenFn).toHaveBeenCalledTimes(1);
+    expect(result.ownerType).toBe("User");
+    expect(result.repos).toEqual([]);
+  });
+
   it("emits progress updates while discovery inspects eligible repos", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const onProgress = vi.fn();
@@ -204,7 +315,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/java-conventions.git",
         defaultBranch: "main",
         description: "Shared Gradle conventions for JDK-based projects",
-        topics: ["gradle", "conventions", "jdk"],
+        topics: ["gradle", "jdk"],
         classifications: []
       }
     ]);
@@ -395,9 +506,67 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/java-conventions.git",
         defaultBranch: "main",
         description: "Shared Gradle conventions for JDK-based projects",
-        topics: ["gradle", "conventions", "jdk"],
+        topics: ["gradle", "jdk"],
         classifications: []
       }
+    ]);
+  });
+
+  it("uses a larger fallback topic budget for massive repos and filters weak tokens", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/nosto") {
+        return createJsonResponse(200, {
+          login: "Nosto",
+          type: "Organization"
+        });
+      }
+
+      if (url === "https://api.github.com/orgs/nosto/repos?per_page=100&page=1&sort=full_name&type=all") {
+        return createJsonResponse(200, [
+          {
+            name: "playcart",
+            clone_url: "https://github.com/Nosto/playcart.git",
+            default_branch: "master",
+            description: "Nosto checkout storefront onboarding pricing personalization recommendations search analytics sessions campaigns catalogs products can setup https implementation",
+            topics: [],
+            size: 150000,
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/nosto/playcart/topics") {
+        return createJsonResponse(200, {
+          names: []
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "nosto",
+      fetchFn,
+      inspectRepoFn,
+      inspectRepos: false,
+      curateWithCodex: false
+    });
+
+    expect(result.repos[0].topics).toEqual([
+      "checkout",
+      "storefront",
+      "onboarding",
+      "pricing",
+      "personalization",
+      "recommendations",
+      "search",
+      "analytics",
+      "sessions",
+      "campaigns",
+      "catalogs",
+      "products"
     ]);
   });
 
@@ -451,7 +620,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/java-conventions.git",
         defaultBranch: "main",
         description: "Shared Gradle conventions for JDK-based projects",
-        topics: ["gradle", "conventions", "jdk"],
+        topics: ["gradle", "jdk"],
         classifications: ["library"]
       }
     ]);
@@ -503,7 +672,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/tiny-cli.git",
         defaultBranch: "main",
         description: "Tiny command line helper for demos",
-        topics: ["tiny", "command", "line"],
+        topics: ["command", "line", "helper"],
         classifications: ["cli"]
       }
     ]);
@@ -656,7 +825,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/billing-service.git",
         defaultBranch: "main",
         description: "Billing microservice GraphQL API",
-        topics: ["payments", "billing", "microservice", "graphql", "api"],
+        topics: ["payments", "microservice", "graphql", "api"],
         classifications: ["microservice", "backend"]
       }
     ]);
@@ -708,7 +877,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/billing-platform.git",
         defaultBranch: "main",
         description: "Billing GraphQL API",
-        topics: ["billing", "graphql", "api"],
+        topics: ["graphql", "api"],
         classifications: ["backend", "internal"]
       }
     ]);
@@ -752,6 +921,21 @@ describe("github-catalog", () => {
       fetchFn,
       inspectRepoFn
     })).rejects.toThrow("GitHub owner not found: missing-owner.");
+  });
+
+  it("throws an actionable error when GitHub rate limits discovery", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const fetchFn = vi.fn(async () => createJsonResponse(403, {
+      message: "API rate limit exceeded for 84.251.57.8."
+    }));
+
+    await expect(discoverGithubOwnerRepos({
+      owner: "nosto",
+      fetchFn,
+      inspectRepoFn
+    })).rejects.toThrow(
+      "GitHub API rate limit exceeded while requesting /users/nosto. Authenticate discovery with GH_TOKEN or GITHUB_TOKEN, or retry later."
+    );
   });
 
   it("plans additions, conflicts, and metadata suggestions against the current config", () => {

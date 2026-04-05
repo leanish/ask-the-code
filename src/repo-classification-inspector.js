@@ -20,40 +20,54 @@ const FRONTEND_CONFIG_FILES = [
   "svelte.config.ts"
 ];
 const FRONTEND_DIRECTORIES = [
-  "app",
   "pages",
-  "public",
   "components",
   "src/pages",
   "src/routes",
   "src/components"
 ];
 const MOBILE_DIRECTORIES = ["android", "ios"];
+const BACKEND_SURFACE_PATHS = [
+  "conf/routes",
+  "routes",
+  "app/controllers",
+  "src/main/java/controllers",
+  "src/main/kotlin/controllers",
+  "src/main/scala/controllers",
+  "src/main/resources/routes"
+];
 const INFRA_DIRECTORIES = ["terraform", "charts", "helm", "k8s"];
-const INFRA_FILE_SUFFIXES = [".tf", ".tfvars", ".yaml", ".yml"];
-const INFRA_FILENAMES = ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", "kustomization.yaml", "kustomization.yml"];
+const INFRA_FILE_SUFFIXES = [".tf", ".tfvars"];
+const INFRA_FILENAMES = ["kustomization.yaml", "kustomization.yml"];
 const README_CANDIDATES = ["README.md", "README.mdx", "README.txt", "readme.md"];
 const FRONTEND_DEPENDENCIES = new Set(["react", "next", "vue", "nuxt", "svelte", "@angular/core", "react-native", "expo"]);
 const BACKEND_DEPENDENCIES = new Set(["express", "fastify", "koa", "@nestjs/core", "hono", "graphql-yoga", "apollo-server"]);
 const CLI_DEPENDENCIES = new Set(["commander", "yargs", "oclif", "clipanion", "cac"]);
 const DESCRIPTION_MAX_LENGTH = 180;
-const MAX_INFERRED_TOPICS = 5;
 const TOPIC_STOP_WORDS = new Set([
   "about",
   "after",
   "also",
   "and",
   "any",
+  "application",
+  "applications",
   "before",
+  "based",
   "both",
   "build",
+  "can",
+  "called",
   "change",
   "changes",
+  "client",
   "code",
+  "com",
   "contributing",
   "coordinate",
   "coordinates",
   "distributed",
+  "embedded",
   "feature",
   "features",
   "finish",
@@ -64,6 +78,12 @@ const TOPIC_STOP_WORDS = new Set([
   "helpers",
   "heterogeneous",
   "how",
+  "http",
+  "https",
+  "include",
+  "includes",
+  "implementation",
+  "internally",
   "into",
   "issue",
   "issues",
@@ -79,13 +99,17 @@ const TOPIC_STOP_WORDS = new Set([
   "quick",
   "register",
   "run",
+  "running",
   "same",
   "see",
+  "setup",
   "small",
   "start",
   "suite",
   "test",
   "testing",
+  "service",
+  "services",
   "that",
   "the",
   "their",
@@ -94,13 +118,22 @@ const TOPIC_STOP_WORDS = new Set([
   "through",
   "aware",
   "awaittermination",
+  "main",
+  "most",
   "non",
+  "online",
+  "stores",
   "support",
   "supports",
+  "use",
+  "used",
   "uses",
   "using",
+  "views",
   "what",
   "with",
+  "web",
+  "where",
   "without",
   "you",
   "your"
@@ -122,6 +155,12 @@ const EXTERNAL_FACING_PHRASES = [
 const INTERNAL_TERMS = ["internal", "employee", "backoffice", "admin-only", "private"];
 const LIBRARY_TERMS = ["library", "sdk", "module", "plugin", "package"];
 const SERVICE_TERMS = ["microservice", "worker", "daemon"];
+const PLAY_FRAMEWORK_TERMS = ["playframework", "com.typesafe.play", "play.mvc", "play.api"];
+const SMALL_REPO_MAX_INFERRED_TOPICS = 3;
+const MEDIUM_REPO_MAX_INFERRED_TOPICS = 5;
+const LARGE_REPO_MAX_INFERRED_TOPICS = 8;
+const HUGE_REPO_MAX_INFERRED_TOPICS = 20;
+const MASSIVE_REPO_MAX_INFERRED_TOPICS = 30;
 
 export async function inspectRepoClassifications({
   repo,
@@ -250,6 +289,7 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
   const hasFrontend = await hasAnyPath(fsModule, directory, FRONTEND_DIRECTORIES)
     || await hasAnyFile(fsModule, directory, FRONTEND_CONFIG_FILES);
   const hasMobile = await hasAnyPath(fsModule, directory, MOBILE_DIRECTORIES);
+  const hasBackendSurface = await hasAnyPath(fsModule, directory, BACKEND_SURFACE_PATHS);
   const hasInfra = await hasAnyPath(fsModule, directory, INFRA_DIRECTORIES)
     || await hasAnyFile(fsModule, directory, INFRA_FILENAMES)
     || await hasRootFileWithSuffix(fsModule, directory, INFRA_FILE_SUFFIXES);
@@ -259,13 +299,14 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
   const pomText = await readTextIfExists(fsModule, path.join(directory, "pom.xml"));
   const goModText = await readTextIfExists(fsModule, path.join(directory, "go.mod"));
   const readmeText = await readFirstExisting(fsModule, directory, README_CANDIDATES);
+  const readmeLeadText = extractReadmeLeadText(readmeText);
 
   addWords(signals, repo.name);
   addWords(signals, repo.description);
-  addWords(signals, readmeText);
+  addWords(signals, readmeLeadText);
   addWords(signals, packageJson?.keywords || []);
   collectWords(topicCandidates, repo.description);
-  collectWords(topicCandidates, readmeText);
+  collectWords(topicCandidates, readmeLeadText);
   collectWords(topicCandidates, packageJson?.keywords || []);
 
   const dependencyNames = collectPackageDependencies(packageJson);
@@ -277,7 +318,15 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
   const gradleSource = `${gradleText}\n${gradleKtsText}`.toLowerCase();
   const pomSource = pomText.toLowerCase();
   const goSource = goModText.toLowerCase();
+  const readmeSource = readmeText.toLowerCase();
+  const hasFrontendDependency = hasMatchingDependency(dependencyNames, FRONTEND_DEPENDENCIES);
+  const hasPlayFramework = PLAY_FRAMEWORK_TERMS.some(term =>
+    gradleSource.includes(term) || pomSource.includes(term) || readmeSource.includes(term)
+  );
+  const hasFrontendSignals = hasFrontend || hasFrontendDependency;
   const hasBackendFramework = hasMatchingDependency(dependencyNames, BACKEND_DEPENDENCIES)
+    || hasBackendSurface
+    || hasPlayFramework
     || gradleSource.includes("spring-boot")
     || pomSource.includes("spring-boot")
     || goSource.includes("gin-gonic") || goSource.includes("chi");
@@ -285,18 +334,18 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
     || typeof packageJson?.bin === "string"
     || (packageJson?.bin && typeof packageJson.bin === "object")
     || goSource.includes("spf13/cobra");
-  const hasLibraryPackaging = hasMatchingDependency(dependencyNames, FRONTEND_DEPENDENCIES) && !hasFrontend
+  const hasLibraryPackaging = hasFrontendDependency && !hasFrontendSignals
     ? true
-    : LIBRARY_TERMS.some(term => signals.has(term))
+    : (LIBRARY_TERMS.some(term => signals.has(term)) && !hasBackendFramework)
       || gradleSource.includes("java-library")
-      || pomSource.includes("<packaging>jar</packaging>")
-      || typeof packageJson?.exports === "object"
-      || typeof packageJson?.module === "string"
-      || typeof packageJson?.main === "string";
-  const hasMicroserviceSignal = SERVICE_TERMS.some(term => signals.has(term))
-    || hasBackendFramework && (await hasAnyFile(fsModule, directory, ["Dockerfile"]))
-    || pomSource.includes("spring-boot-starter-web")
-    || gradleSource.includes("spring-boot-starter-web");
+      || (!hasBackendFramework && pomSource.includes("<packaging>jar</packaging>"))
+      || (!hasBackendFramework && (
+        typeof packageJson?.exports === "object"
+        || typeof packageJson?.module === "string"
+        || typeof packageJson?.main === "string"
+      ));
+  const hasMicroserviceSignal = signals.has("microservice")
+    || ((signals.has("worker") || signals.has("daemon")) && (hasBackendFramework || hasCliFramework));
 
   if (hasInfra) {
     classifications.push("infra");
@@ -314,7 +363,7 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
     classifications.push("cli");
   }
 
-  if (hasFrontend || hasMobile) {
+  if (hasFrontendSignals || hasMobile) {
     classifications.push("frontend");
   }
 
@@ -326,10 +375,10 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
     classifications.push("microservice");
   }
 
-  if ((hasFrontend || hasMobile || hasExternalFacingEvidence([
+  if ((hasFrontendSignals || hasMobile || (hasBackendFramework && hasBackendSurface) || hasExternalFacingEvidence([
     repo.name,
     repo.description,
-    readmeText,
+    readmeLeadText,
     packageJson?.keywords || []
   ])) && !classifications.includes("internal")) {
     classifications.push("external");
@@ -339,7 +388,12 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
 
   return {
     description: inferDescriptionFromReadme(readmeText),
-    topics: inferTopicsFromSignals(topicCandidates, normalizedClassifications, tokenizeTerms(repo.name)),
+    topics: inferTopicsFromSignals(
+      topicCandidates,
+      normalizedClassifications,
+      buildExcludedTopicTokens(repo),
+      sourceRepo.size
+    ),
     classifications: normalizedClassifications
   };
 }
@@ -355,35 +409,20 @@ function hasExternalFacingEvidence(values) {
 }
 
 function inferDescriptionFromReadme(readmeText) {
-  if (!readmeText) {
+  const leadParagraph = extractReadmeLeadText(readmeText);
+
+  if (!leadParagraph) {
     return "";
   }
 
-  const paragraphs = readmeText
-    .replace(/\r\n/g, "\n")
-    .split(/\n\s*\n/)
-    .map(paragraph => paragraph.trim())
-    .filter(Boolean)
-    .filter(paragraph => !paragraph.startsWith("#"))
-    .filter(paragraph => !paragraph.startsWith("```"))
-    .filter(paragraph => !paragraph.startsWith("- "))
-    .filter(paragraph => !paragraph.startsWith("* "))
-    .map(stripMarkdown);
-
-  const paragraph = paragraphs.find(candidate => candidate.length >= 20);
-
-  if (!paragraph) {
-    return "";
+  if (leadParagraph.length <= DESCRIPTION_MAX_LENGTH) {
+    return leadParagraph;
   }
 
-  if (paragraph.length <= DESCRIPTION_MAX_LENGTH) {
-    return paragraph;
-  }
-
-  return `${paragraph.slice(0, DESCRIPTION_MAX_LENGTH - 3).trimEnd()}...`;
+  return `${leadParagraph.slice(0, DESCRIPTION_MAX_LENGTH - 3).trimEnd()}...`;
 }
 
-function inferTopicsFromSignals(tokens, classifications, excludedTokens = []) {
+function inferTopicsFromSignals(tokens, classifications, excludedTokens = [], sizeKb) {
   const classificationSet = new Set(classifications);
   const excluded = new Set(excludedTokens);
   const ranked = new Map();
@@ -411,8 +450,32 @@ function inferTopicsFromSignals(tokens, classifications, excludedTokens = []) {
 
   return [...ranked.entries()]
     .sort((left, right) => right[1].count - left[1].count || left[1].firstIndex - right[1].firstIndex)
-    .slice(0, MAX_INFERRED_TOPICS)
+    .slice(0, getMaxInferredTopics(sizeKb))
     .map(([token]) => token);
+}
+
+function getMaxInferredTopics(sizeKb) {
+  if (typeof sizeKb !== "number" || Number.isNaN(sizeKb)) {
+    return MEDIUM_REPO_MAX_INFERRED_TOPICS;
+  }
+
+  if (sizeKb < 512) {
+    return SMALL_REPO_MAX_INFERRED_TOPICS;
+  }
+
+  if (sizeKb < 5_000) {
+    return MEDIUM_REPO_MAX_INFERRED_TOPICS;
+  }
+
+  if (sizeKb < 20_000) {
+    return LARGE_REPO_MAX_INFERRED_TOPICS;
+  }
+
+  if (sizeKb < 100_000) {
+    return HUGE_REPO_MAX_INFERRED_TOPICS;
+  }
+
+  return MASSIVE_REPO_MAX_INFERRED_TOPICS;
 }
 
 async function hasAnyPath(fsModule, rootDirectory, relativePaths) {
@@ -537,6 +600,26 @@ function tokenizeTerms(value) {
     .filter(Boolean);
 }
 
+function buildExcludedTopicTokens(repo) {
+  return [
+    ...tokenizeTerms(repo.name),
+    ...parseRepoOwnerTokens(repo.url)
+  ];
+}
+
+function parseRepoOwnerTokens(url) {
+  if (typeof url !== "string" || url.trim() === "") {
+    return [];
+  }
+
+  const match = url.match(/github\.com[/:]([^/]+)\/[^/]+(?:\.git)?$/i);
+  if (!match) {
+    return [];
+  }
+
+  return tokenizeTerms(match[1]);
+}
+
 function stripMarkdown(value) {
   return value
     .replace(/`([^`]+)`/g, "$1")
@@ -546,6 +629,28 @@ function stripMarkdown(value) {
     .replace(/[_#>]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractReadmeLeadText(readmeText) {
+  if (!readmeText) {
+    return "";
+  }
+
+  const paragraphs = readmeText
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/\r\n/g, "\n")
+    .split(/\n\s*\n/)
+    .map(paragraph => paragraph.trim())
+    .filter(Boolean)
+    .filter(paragraph => !paragraph.startsWith("#"))
+    .filter(paragraph => !paragraph.startsWith("```"))
+    .filter(paragraph => !paragraph.startsWith("- "))
+    .filter(paragraph => !paragraph.startsWith("* "))
+    .map(stripMarkdown)
+    .filter(Boolean)
+    .filter(paragraph => !paragraph.toLowerCase().includes("table of contents"));
+
+  return paragraphs.find(candidate => candidate.length >= 20) || "";
 }
 
 function hasAnyTerm(signals, terms) {

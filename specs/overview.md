@@ -14,7 +14,7 @@ Archa exposes the same repo-aware question-answering core through a CLI and an o
 ## Core behavior
 
 - user-level config defines the managed repo set and clone root
-- config can be bootstrapped from a local catalog file or discovered from a GitHub owner before being selectively added to or overridden in local config, showing a lightweight GitHub-metadata preview first, then refining only the selected repos with repo-content inspection, size-aware topic enrichment, separate repo classifications, a Codex cleanup pass, and progress updates before writing config
+- config can be bootstrapped from a local catalog file or discovered from a GitHub owner before being selectively added to or overridden in local config, showing a lightweight GitHub-metadata preview first, including private repos visible to authenticated GitHub credentials from `GH_TOKEN` / `GITHUB_TOKEN` or the current `gh` login when available, then refining only the selected repos with repo-content inspection, size-aware topic enrichment, separate repo classifications, a Codex cleanup pass, and progress updates before writing config
 - both `archa` and `archa-server` prompt interactively to initialize a missing config and can continue straight into `discover-github` when the new config still has zero repos; outside that CLI bootstrap flow, zero-repo installs surface a direct `discover-github --apply` hint during `config init`, server startup, repo listing, and the web UI empty state
 - commands that require Codex fail fast when the local `codex` CLI is missing and suggest installing it via Homebrew, then connecting/logging into Codex before retrying
 - repo names and aliases are validated eagerly and must be unique case-insensitively
