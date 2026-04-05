@@ -315,7 +315,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/java-conventions.git",
         defaultBranch: "main",
         description: "Shared Gradle conventions for JDK-based projects",
-        topics: ["gradle", "conventions", "jdk"],
+        topics: ["gradle", "jdk"],
         classifications: []
       }
     ]);
@@ -506,9 +506,67 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/java-conventions.git",
         defaultBranch: "main",
         description: "Shared Gradle conventions for JDK-based projects",
-        topics: ["gradle", "conventions", "jdk"],
+        topics: ["gradle", "jdk"],
         classifications: []
       }
+    ]);
+  });
+
+  it("uses a larger fallback topic budget for massive repos and filters weak tokens", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/nosto") {
+        return createJsonResponse(200, {
+          login: "Nosto",
+          type: "Organization"
+        });
+      }
+
+      if (url === "https://api.github.com/orgs/nosto/repos?per_page=100&page=1&sort=full_name&type=all") {
+        return createJsonResponse(200, [
+          {
+            name: "playcart",
+            clone_url: "https://github.com/Nosto/playcart.git",
+            default_branch: "master",
+            description: "Nosto checkout storefront onboarding pricing personalization recommendations search analytics sessions campaigns catalogs products can setup https implementation",
+            topics: [],
+            size: 150000,
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/nosto/playcart/topics") {
+        return createJsonResponse(200, {
+          names: []
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "nosto",
+      fetchFn,
+      inspectRepoFn,
+      inspectRepos: false,
+      curateWithCodex: false
+    });
+
+    expect(result.repos[0].topics).toEqual([
+      "checkout",
+      "storefront",
+      "onboarding",
+      "pricing",
+      "personalization",
+      "recommendations",
+      "search",
+      "analytics",
+      "sessions",
+      "campaigns",
+      "catalogs",
+      "products"
     ]);
   });
 
@@ -562,7 +620,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/java-conventions.git",
         defaultBranch: "main",
         description: "Shared Gradle conventions for JDK-based projects",
-        topics: ["gradle", "conventions", "jdk"],
+        topics: ["gradle", "jdk"],
         classifications: ["library"]
       }
     ]);
@@ -614,7 +672,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/tiny-cli.git",
         defaultBranch: "main",
         description: "Tiny command line helper for demos",
-        topics: ["tiny", "command", "line"],
+        topics: ["command", "line", "helper"],
         classifications: ["cli"]
       }
     ]);
@@ -767,7 +825,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/billing-service.git",
         defaultBranch: "main",
         description: "Billing microservice GraphQL API",
-        topics: ["payments", "billing", "microservice", "graphql", "api"],
+        topics: ["payments", "microservice", "graphql", "api"],
         classifications: ["microservice", "backend"]
       }
     ]);
@@ -819,7 +877,7 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/billing-platform.git",
         defaultBranch: "main",
         description: "Billing GraphQL API",
-        topics: ["billing", "graphql", "api"],
+        topics: ["graphql", "api"],
         classifications: ["backend", "internal"]
       }
     ]);

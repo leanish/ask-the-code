@@ -3,6 +3,11 @@ import { runCodexPrompt } from "./codex-runner.js";
 const DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS = 60_000;
 const DISCOVERY_CODEX_REASONING_EFFORT = "none";
 const MAX_DESCRIPTION_LENGTH = 180;
+const SMALL_REPO_MAX_TOPICS = 3;
+const MEDIUM_REPO_MAX_TOPICS = 5;
+const LARGE_REPO_MAX_TOPICS = 8;
+const HUGE_REPO_MAX_TOPICS = 20;
+const MASSIVE_REPO_MAX_TOPICS = 30;
 const ALLOWED_CLASSIFICATIONS = new Set([
   "infra",
   "library",
@@ -27,6 +32,38 @@ const EXTERNAL_FACING_PHRASES = [
   "public-api",
   "public endpoint"
 ];
+const TOPIC_STOP_WORDS = new Set([
+  "application",
+  "applications",
+  "based",
+  "can",
+  "called",
+  "client",
+  "com",
+  "http",
+  "https",
+  "include",
+  "includes",
+  "implementation",
+  "internally",
+  "main",
+  "most",
+  "online",
+  "running",
+  "service",
+  "services",
+  "setup",
+  "stores",
+  "use",
+  "used",
+  "views",
+  "web",
+  "where",
+  "embedded"
+]);
+const INFRA_TERMS = ["infra", "infrastructure", "terraform", "helm", "kubernetes", "k8s", "ops", "devops"];
+const LIBRARY_TERMS = ["library", "sdk", "module", "plugin", "package"];
+const MICROSERVICE_TERMS = ["microservice", "worker", "daemon"];
 
 export async function curateRepoMetadataWithCodex({
   directory,
@@ -73,8 +110,13 @@ function buildRepoMetadataCurationPrompt({ repo, sourceRepo, inferredMetadata })
     `description: one sentence, <= ${MAX_DESCRIPTION_LENGTH} characters, concrete and neutral.`,
     `topics: 0-${topicLimit} lowercase terms or kebab-case phrases, useful for repo selection, no repo-name repetition, no duplicates.`,
     `classifications: zero or more of ${[...ALLOWED_CLASSIFICATIONS].join(", ")}.`,
+    "Use as many strong topics as the repo clearly supports up to the limit, especially for larger repos; avoid filler or generic setup words.",
+    "Do not include owner/company names or generic operational words like setup, http, https, or can as topics.",
     'Use "external" only when the repo clearly exposes an outward-facing application or service surface consumed outside its owning service or runtime.',
     'Do not use "external" for shared libraries, conventions, codecs, or repos that merely call or mention GraphQL, REST, or APIs.',
+    'Do not use "library" for service applications just because they build a jar, have Docker support, or contain reusable submodules.',
+    'Do not use "infra" just because the repo contains Dockerfiles or docker-compose files.',
+    'Do not use "microservice" unless the repo clearly presents itself as a microservice, worker, or daemon.',
     "Keep accurate draft values when they are already good. Improve them when the repo content shows a better answer.",
     "",
     "Current draft metadata:",
@@ -108,7 +150,7 @@ function parseCuratedMetadata(text, { repo, sourceRepo, repoName, inferredMetada
   }
 
   const description = normalizeDescription(parsed.description) || inferredMetadata.description;
-  const topics = normalizeTopics(parsed.topics, repoName, getTopicLimit(sizeKb));
+  const topics = normalizeTopics(parsed.topics, repoName, getTopicLimit(sizeKb), repo?.url);
   const classifications = normalizeClassifications(parsed.classifications, {
     repo,
     sourceRepo,
@@ -141,12 +183,15 @@ function normalizeDescription(value) {
   return `${normalized.slice(0, MAX_DESCRIPTION_LENGTH - 3).trimEnd()}...`;
 }
 
-function normalizeTopics(value, repoName, limit) {
+function normalizeTopics(value, repoName, limit, repoUrl = "") {
   if (!Array.isArray(value)) {
     return null;
   }
 
-  const excludedTokens = new Set(tokenizeRepoName(repoName));
+  const excludedTokens = new Set([
+    ...tokenizeRepoName(repoName),
+    ...parseRepoOwnerTokens(repoUrl)
+  ]);
   const seen = new Set();
   const topics = [];
 
@@ -161,6 +206,7 @@ function normalizeTopics(value, repoName, limit) {
       || normalized.length < 3
       || seen.has(normalized)
       || excludedTokens.has(normalized)
+      || TOPIC_STOP_WORDS.has(normalized)
     ) {
       continue;
     }
@@ -222,10 +268,51 @@ function shouldKeepCuratedClassification(classification, {
   description,
   topics
 }) {
-  if (classification !== "external") {
-    return true;
+  switch (classification) {
+    case "external":
+      return shouldKeepExternalClassification({
+        repo,
+        sourceRepo,
+        inferredMetadata,
+        description,
+        topics
+      });
+    case "library":
+      return shouldKeepLibraryClassification({
+        repo,
+        sourceRepo,
+        inferredMetadata,
+        description,
+        topics
+      });
+    case "infra":
+      return shouldKeepKeywordClassification("infra", INFRA_TERMS, {
+        repo,
+        sourceRepo,
+        inferredMetadata,
+        description,
+        topics
+      });
+    case "microservice":
+      return shouldKeepKeywordClassification("microservice", MICROSERVICE_TERMS, {
+        repo,
+        sourceRepo,
+        inferredMetadata,
+        description,
+        topics
+      });
+    default:
+      return true;
   }
+}
 
+function shouldKeepExternalClassification({
+  repo,
+  sourceRepo,
+  inferredMetadata,
+  description,
+  topics
+}) {
   if (inferredMetadata.classifications.includes("external") || inferredMetadata.classifications.includes("frontend")) {
     return true;
   }
@@ -244,24 +331,113 @@ function shouldKeepCuratedClassification(classification, {
   return EXTERNAL_FACING_PHRASES.some(phrase => haystack.includes(phrase));
 }
 
+function shouldKeepLibraryClassification({
+  repo,
+  sourceRepo,
+  inferredMetadata,
+  description,
+  topics
+}) {
+  if (inferredMetadata.classifications.includes("library")) {
+    return true;
+  }
+
+  const haystack = buildClassificationHaystack({
+    repo,
+    sourceRepo,
+    inferredMetadata,
+    description,
+    topics
+  });
+
+  if ((inferredMetadata.classifications.includes("backend") || inferredMetadata.classifications.includes("external"))
+    && !LIBRARY_TERMS.some(term => haystack.includes(term))) {
+    return false;
+  }
+
+  return LIBRARY_TERMS.some(term => haystack.includes(term));
+}
+
+function shouldKeepKeywordClassification(classification, terms, {
+  repo,
+  sourceRepo,
+  inferredMetadata,
+  description,
+  topics
+}) {
+  if (inferredMetadata.classifications.includes(classification)) {
+    return true;
+  }
+
+  const haystack = buildClassificationHaystack({
+    repo,
+    sourceRepo,
+    inferredMetadata,
+    description,
+    topics
+  });
+
+  return terms.some(term => haystack.includes(term));
+}
+
+function buildClassificationHaystack({
+  repo,
+  sourceRepo,
+  inferredMetadata,
+  description,
+  topics
+}) {
+  return [
+    repo?.name,
+    repo?.description,
+    typeof sourceRepo?.description === "string" ? sourceRepo.description : "",
+    inferredMetadata.description,
+    description,
+    ...(Array.isArray(sourceRepo?.topics) ? sourceRepo.topics : []),
+    ...(Array.isArray(inferredMetadata.topics) ? inferredMetadata.topics : []),
+    ...(Array.isArray(topics) ? topics : [])
+  ].join("\n").toLowerCase();
+}
+
 function tokenizeRepoName(name) {
   return (name.toLowerCase().match(/[a-z0-9-]+/g) || [])
     .flatMap(token => token.includes("-") ? [token, ...token.split("-")] : [token])
     .filter(Boolean);
 }
 
+function parseRepoOwnerTokens(url) {
+  if (typeof url !== "string" || url.trim() === "") {
+    return [];
+  }
+
+  const match = url.match(/github\.com[/:]([^/]+)\/[^/]+(?:\.git)?$/i);
+  if (!match) {
+    return [];
+  }
+
+  return tokenizeRepoName(match[1]);
+}
+
 function getTopicLimit(sizeKb) {
   if (typeof sizeKb !== "number" || Number.isNaN(sizeKb)) {
-    return 5;
+    return MEDIUM_REPO_MAX_TOPICS;
   }
 
   if (sizeKb < 512) {
-    return 3;
+    return SMALL_REPO_MAX_TOPICS;
   }
 
   if (sizeKb < 5_000) {
-    return 5;
+    return MEDIUM_REPO_MAX_TOPICS;
   }
 
-  return 8;
+  if (sizeKb < 20_000) {
+    return LARGE_REPO_MAX_TOPICS;
+  }
+
+  if (sizeKb < 100_000) {
+    return HUGE_REPO_MAX_TOPICS;
+  }
+
+  return MASSIVE_REPO_MAX_TOPICS;
 }

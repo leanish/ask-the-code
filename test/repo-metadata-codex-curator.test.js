@@ -128,4 +128,39 @@ describe("repo-metadata-codex-curator", () => {
       classifications: ["library"]
     });
   });
+
+  it("drops weak topics and service-app misclassifications from Codex cleanup", async () => {
+    const metadata = await curateRepoMetadataWithCodex({
+      directory: "/workspace/repos/playcart",
+      repo: {
+        name: "playcart",
+        url: "https://github.com/Nosto/playcart.git",
+        defaultBranch: "master",
+        description: "Play framework based implementation of Nosto service"
+      },
+      sourceRepo: {
+        description: "Play framework based implementation of Nosto service",
+        topics: [],
+        size: 150_000
+      },
+      inferredMetadata: {
+        description: "Main web application for merchant backend, merchant frontend, and api services.",
+        topics: ["merchant", "backend", "frontend", "api", "checkout", "storefront", "onboarding", "pricing", "personalization", "recommendations"],
+        classifications: ["backend", "external"]
+      },
+      runCodexPromptFn: vi.fn(async () => ({
+        text: JSON.stringify({
+          description: "Main web application for merchant backend, merchant frontend, and api services.",
+          topics: ["merchant-backend", "checkout", "api-services", "personalization", "recommendations", "https", "setup", "can", "nosto"],
+          classifications: ["infra", "library", "external", "microservice", "backend"]
+        })
+      }))
+    });
+
+    expect(metadata).toEqual({
+      description: "Main web application for merchant backend, merchant frontend, and api services.",
+      topics: ["merchant-backend", "checkout", "api-services", "personalization", "recommendations"],
+      classifications: ["external", "backend"]
+    });
+  });
 });

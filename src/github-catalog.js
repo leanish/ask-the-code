@@ -7,6 +7,8 @@ const PAGE_SIZE = 100;
 const SMALL_REPO_MAX_INFERRED_TOPICS = 3;
 const MEDIUM_REPO_MAX_INFERRED_TOPICS = 5;
 const LARGE_REPO_MAX_INFERRED_TOPICS = 8;
+const HUGE_REPO_MAX_INFERRED_TOPICS = 20;
+const MASSIVE_REPO_MAX_INFERRED_TOPICS = 30;
 const CLASSIFICATION_KEYWORDS = new Map([
   ["infra", ["infra", "infrastructure", "terraform", "helm", "kubernetes", "k8s", "ansible", "devops", "ops"]],
   ["library", ["library", "lib", "sdk", "module", "plugin", "package"]],
@@ -41,25 +43,46 @@ const STOP_WORDS = new Set([
   "answer",
   "answering",
   "answers",
+  "application",
+  "applications",
   "around",
+  "can",
+  "called",
+  "client",
+  "com",
   "because",
   "based",
   "before",
   "between",
   "code",
   "does",
+  "embedded",
   "engineering",
   "from",
   "for",
   "have",
+  "http",
+  "https",
+  "include",
+  "includes",
+  "implementation",
+  "internally",
   "into",
   "local",
+  "main",
+  "most",
+  "online",
   "over",
   "project",
   "projects",
   "repo",
   "repository",
+  "running",
+  "setup",
   "shared",
+  "service",
+  "services",
+  "stores",
   "aware",
   "that",
   "their",
@@ -70,9 +93,14 @@ const STOP_WORDS = new Set([
   "through",
   "tool",
   "tools",
+  "use",
+  "used",
   "using",
+  "views",
   "what",
   "when",
+  "web",
+  "where",
   "which",
   "while",
   "with",
@@ -521,9 +549,13 @@ function inferRepoTopics(repo, { sizeKb }) {
   const topics = [];
   const seen = new Set();
   const maxTopics = getMaxInferredTopics(sizeKb);
+  const excludedTokens = new Set([
+    ...tokenizeRepoName(repo.name, { includeCompoundRepoNames: true }),
+    ...parseRepoOwnerTokens(repo.url)
+  ]);
 
   for (const token of tokenizeDescription(repo.description)) {
-    addTopicToken(token, topics, seen, maxTopics);
+    addTopicToken(token, topics, seen, maxTopics, excludedTokens);
   }
 
   return topics.slice(0, maxTopics);
@@ -573,14 +605,33 @@ function tokenizeRaw(text) {
   return (text.toLowerCase().match(/[a-z0-9-]+/g) || []);
 }
 
-function addTopicToken(token, topics, seen, maxTopics) {
+function parseRepoOwnerTokens(url) {
+  if (typeof url !== "string" || url.trim() === "") {
+    return [];
+  }
+
+  const match = url.match(/github\.com[/:]([^/]+)\/[^/]+(?:\.git)?$/i);
+  if (!match) {
+    return [];
+  }
+
+  return tokenizeRepoName(match[1], { includeCompoundRepoNames: true });
+}
+
+function addTopicToken(token, topics, seen, maxTopics, excludedTokens = new Set()) {
   if (topics.length >= maxTopics) {
     return;
   }
 
   const normalizedToken = token.trim().toLowerCase();
 
-  if (normalizedToken.length < 3 || STOP_WORDS.has(normalizedToken) || /^\d+$/.test(normalizedToken) || seen.has(normalizedToken)) {
+  if (
+    normalizedToken.length < 3
+    || STOP_WORDS.has(normalizedToken)
+    || excludedTokens.has(normalizedToken)
+    || /^\d+$/.test(normalizedToken)
+    || seen.has(normalizedToken)
+  ) {
     return;
   }
 
@@ -612,7 +663,15 @@ function getMaxInferredTopics(sizeKb) {
     return MEDIUM_REPO_MAX_INFERRED_TOPICS;
   }
 
-  return LARGE_REPO_MAX_INFERRED_TOPICS;
+  if (sizeKb < 20_000) {
+    return LARGE_REPO_MAX_INFERRED_TOPICS;
+  }
+
+  if (sizeKb < 100_000) {
+    return HUGE_REPO_MAX_INFERRED_TOPICS;
+  }
+
+  return MASSIVE_REPO_MAX_INFERRED_TOPICS;
 }
 
 function inferRepoClassifications({ repo, sourceRepo, topics }) {

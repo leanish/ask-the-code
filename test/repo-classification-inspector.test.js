@@ -180,7 +180,7 @@ describe("repo-classification-inspector", () => {
 
     expect(metadata).toEqual({
       description: "Terminator is a small Java library that coordinates the orderly shutdown of heterogeneous services.",
-      topics: ["blocking", "termination", "java", "shutdown", "services"],
+      topics: ["java", "shutdown"],
       classifications: ["library"]
     });
   });
@@ -222,6 +222,77 @@ describe("repo-classification-inspector", () => {
       topics: ["gradle-plugin", "conventions", "java"],
       classifications: ["library"]
     });
+  });
+
+  it("classifies a Play-style application as backend and external without frontend or infra false positives", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "playcart");
+    await fs.mkdir(path.join(repoDirectory, "app", "controllers"), { recursive: true });
+    await fs.mkdir(path.join(repoDirectory, "conf"), { recursive: true });
+    await fs.mkdir(path.join(repoDirectory, "public"), { recursive: true });
+    await fs.writeFile(path.join(repoDirectory, "conf", "routes"), "GET /api/ping controllers.HealthController.ping()");
+    await fs.writeFile(path.join(repoDirectory, "build.gradle"), "plugins { id 'java' }\n");
+    await fs.writeFile(path.join(repoDirectory, "README.md"), [
+      "# Playcart",
+      "",
+      "This is the main web application project for merchant backend, merchant frontend, and api services.",
+      "",
+      "It powers checkout, storefront, onboarding, pricing, personalization, recommendations, search, analytics, sessions, catalogs, campaigns, and products.",
+      "",
+      "You can run https setup docs locally."
+    ].join("\n"));
+
+    const classifications = await inspectRepoClassifications({
+      repo: {
+        name: "playcart",
+        url: "https://github.com/Nosto/playcart.git",
+        defaultBranch: "master",
+        description: "Play framework based implementation of Nosto service",
+        topics: []
+      },
+      sourceRepo: {
+        size: 150_000
+      },
+      env,
+      curateMetadataFn
+    });
+
+    expect(classifications).toEqual(["backend", "external"]);
+  });
+
+  it("uses a larger topic budget for massive repos and filters weak filler tokens", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "playcart");
+    await fs.mkdir(path.join(repoDirectory, "app", "controllers"), { recursive: true });
+    await fs.mkdir(path.join(repoDirectory, "conf"), { recursive: true });
+    await fs.writeFile(path.join(repoDirectory, "conf", "routes"), "GET /api/ping controllers.HealthController.ping()");
+    await fs.writeFile(path.join(repoDirectory, "README.md"), [
+      "# Playcart",
+      "",
+      "Playcart powers merchant backend, merchant frontend, api services, checkout, storefront, onboarding, pricing, personalization, recommendations, search, analytics, sessions, catalogs, campaigns, products, integrations, merchandising, segmentation, and reporting for commerce experiences. Nosto can provide https setup guidance for local development."
+    ].join("\n"));
+
+    const metadata = await inspectRepoMetadata({
+      repo: {
+        name: "playcart",
+        url: "https://github.com/Nosto/playcart.git",
+        defaultBranch: "master",
+        description: "Play framework based implementation of Nosto service",
+        topics: []
+      },
+      sourceRepo: {
+        size: 150_000
+      },
+      env,
+      curateMetadataFn
+    });
+
+    expect(metadata.topics.length).toBeGreaterThan(8);
+    expect(metadata.topics).toContain("merchant");
+    expect(metadata.topics).toContain("checkout");
+    expect(metadata.topics).toContain("storefront");
+    expect(metadata.topics).not.toContain("can");
+    expect(metadata.topics).not.toContain("https");
+    expect(metadata.topics).not.toContain("setup");
+    expect(metadata.topics).not.toContain("nosto");
   });
 
   it("falls back to heuristic metadata when Codex curation fails", async () => {

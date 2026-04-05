@@ -73,7 +73,7 @@ Example using a few public `leanish` repos:
       "defaultBranch": "main",
       "description": "Shared Gradle conventions for Java projects",
       "topics": ["gradle-plugin", "build-conventions"],
-      "classifications": ["library", "infra"],
+      "classifications": ["library"],
       "aliases": [],
       "alwaysSelect": false
     },
