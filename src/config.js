@@ -193,6 +193,7 @@ function normalizeRepoDefinition(repo, index, sourcePath) {
     defaultBranch: repo.defaultBranch || repo.branch || "main",
     description: repo.description || "",
     topics: Array.isArray(repo.topics) ? repo.topics : [],
+    classifications: normalizeClassifications(repo.classifications, repo.name, sourcePath),
     aliases: normalizeAliases(repo.aliases, repo.name, sourcePath),
     alwaysSelect: repo.alwaysSelect === true
   };
@@ -208,7 +209,8 @@ function mergeDiscoveredRepo(existingRepo, discoveredRepo) {
     url: discoveredRepo.url,
     defaultBranch: discoveredRepo.defaultBranch,
     description: discoveredRepo.description,
-    topics: discoveredRepo.topics
+    topics: discoveredRepo.topics,
+    classifications: discoveredRepo.classifications
   };
 }
 
@@ -229,6 +231,7 @@ async function importCatalog(catalogPath) {
       defaultBranch: normalizedRepo.defaultBranch,
       description: normalizedRepo.description,
       topics: normalizedRepo.topics,
+      classifications: normalizedRepo.classifications,
       aliases: normalizedRepo.aliases,
       alwaysSelect: normalizedRepo.alwaysSelect
     };
@@ -253,6 +256,22 @@ function normalizeAliases(value, repoName, sourcePath) {
   }
 
   return value.map(alias => alias.trim());
+}
+
+function normalizeClassifications(value, repoName, sourcePath) {
+  if (value == null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${repoName}" has non-array "classifications".`);
+  }
+
+  if (!value.every(item => typeof item === "string" && item.trim() !== "")) {
+    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${repoName}" has non-string or empty classifications.`);
+  }
+
+  return value.map(item => item.trim().toLowerCase());
 }
 
 function validateUniqueRepoIdentifiers(repos, sourcePath) {

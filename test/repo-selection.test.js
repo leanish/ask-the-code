@@ -7,17 +7,20 @@ const config = {
     {
       name: "sqs-codec",
       description: "SQS execution interceptor with compression and checksum metadata",
-      topics: ["aws", "sqs", "compression", "checksum"]
+      topics: ["aws", "sqs", "compression", "checksum"],
+      classifications: ["library"]
     },
     {
       name: "archa",
       description: "Repo-aware CLI for engineering Q&A with local Codex",
-      topics: ["cli", "codex", "qa"]
+      topics: ["cli", "codex", "qa"],
+      classifications: ["cli"]
     },
     {
       name: "java-conventions",
       description: "Java conventions and build defaults",
       topics: ["java", "conventions"],
+      classifications: ["infra"],
       aliases: ["conventions"]
     }
   ]
@@ -44,6 +47,48 @@ describe("selectRepos", () => {
 
   it("throws for unknown explicit repos", () => {
     expect(() => selectRepos(config, "anything", ["missing-repo"])).toThrow(/Unknown managed repo/);
+  });
+
+  it("weights separate classifications more strongly than generic topics", () => {
+    const repos = selectRepos({
+      repos: [
+        {
+          name: "shared-lib",
+          description: "Shared utilities and helpers",
+          topics: ["helpers", "retry"],
+          classifications: ["library"]
+        },
+        {
+          name: "infra-live",
+          description: "Deployment helpers and retry tooling",
+          topics: ["helpers", "retry"],
+          classifications: ["infra"]
+        }
+      ]
+    }, "Which infra repo owns retry tooling?", null);
+
+    expect(repos[0].name).toBe("infra-live");
+  });
+
+  it("matches classification aliases like lib to library", () => {
+    const repos = selectRepos({
+      repos: [
+        {
+          name: "shared-lib",
+          description: "Shared utilities and helpers",
+          topics: ["helpers"],
+          classifications: ["library"]
+        },
+        {
+          name: "app-service",
+          description: "Application service",
+          topics: ["helpers"],
+          classifications: ["microservice"]
+        }
+      ]
+    }, "Which lib exposes helpers?", null);
+
+    expect(repos[0].name).toBe("shared-lib");
   });
 
   it("falls back to all configured repos when nothing scores positively", () => {

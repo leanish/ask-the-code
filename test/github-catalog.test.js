@@ -76,14 +76,16 @@ describe("github-catalog", () => {
           url: "https://github.com/leanish/archa.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
-          topics: ["cli", "codex", "qa", "archa"]
+          topics: ["cli", "codex", "qa", "archa"],
+          classifications: ["cli"]
         },
         {
           name: "forked-repo",
           url: "https://github.com/leanish/forked-repo.git",
           defaultBranch: "main",
           description: "",
-          topics: ["fork", "customized", "forked"]
+          topics: ["fork", "customized", "forked"],
+          classifications: []
         }
       ],
       skippedForks: 0,
@@ -129,7 +131,8 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/archa.git",
         defaultBranch: "main",
         description: "Repo-aware CLI for engineering Q&A with local Codex",
-        topics: ["cli", "codex", "qa", "archa"]
+        topics: ["cli", "codex", "qa", "archa"],
+        classifications: ["cli"]
       }
     ]);
     expect(fetchFn).toHaveBeenCalledTimes(2);
@@ -179,7 +182,8 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/java-conventions.git",
         defaultBranch: "main",
         description: "Shared Gradle conventions for JDK-based projects",
-        topics: ["java-conventions", "java", "conventions", "gradle", "jdk"]
+        topics: ["java-conventions", "java", "conventions", "gradle", "jdk"],
+        classifications: ["infra"]
       }
     ]);
   });
@@ -228,7 +232,53 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/tiny-cli.git",
         defaultBranch: "main",
         description: "Tiny command line helper for demos",
-        topics: ["tiny-cli", "tiny", "cli"]
+        topics: ["tiny-cli", "tiny", "cli"],
+        classifications: ["cli"]
+      }
+    ]);
+  });
+
+  it("infers high-signal classifications separately from generic topics", async () => {
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
+        return createJsonResponse(200, [
+          {
+            name: "billing-service",
+            clone_url: "https://github.com/leanish/billing-service.git",
+            default_branch: "main",
+            description: "Internal billing microservice API",
+            topics: ["payments"],
+            size: 800,
+            private: true,
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "leanish",
+      fetchFn
+    });
+
+    expect(result.repos).toEqual([
+      {
+        name: "billing-service",
+        url: "https://github.com/leanish/billing-service.git",
+        defaultBranch: "main",
+        description: "Internal billing microservice API",
+        topics: ["payments", "billing", "service", "internal", "microservice", "api"],
+        classifications: ["internal", "microservice", "backend"]
       }
     ]);
   });
@@ -278,6 +328,7 @@ describe("github-catalog", () => {
           defaultBranch: "main",
           description: "",
           topics: [],
+          classifications: [],
           aliases: ["shared"],
           directory: "/repos/foundation"
         }
@@ -293,21 +344,24 @@ describe("github-catalog", () => {
           url: "https://github.com/leanish/foundation.git",
           defaultBranch: "main",
           description: "Shared base functionality",
-          topics: ["java", "gradle"]
+          topics: ["java", "gradle"],
+          classifications: ["infra"]
         },
         {
           name: "shared",
           url: "https://github.com/leanish/shared.git",
           defaultBranch: "main",
           description: "Shared utilities",
-          topics: []
+          topics: [],
+          classifications: []
         },
         {
           name: "archa",
           url: "https://github.com/leanish/archa.git",
           defaultBranch: "main",
           description: "Repo-aware CLI",
-          topics: ["cli"]
+          topics: ["cli"],
+          classifications: ["cli"]
         }
       ]
     });
@@ -332,7 +386,8 @@ describe("github-catalog", () => {
       },
       suggestions: [
         "add description from GitHub",
-        "consider topics: java, gradle"
+        "consider topics: java, gradle",
+        "consider classifications: infra"
       ]
     });
     expect(plan.entries.find(entry => entry.repo.name === "shared")).toMatchObject({
@@ -350,7 +405,8 @@ describe("github-catalog", () => {
         url: "https://github.com/leanish/archa.git",
         defaultBranch: "main",
         description: "Repo-aware CLI",
-        topics: ["cli"]
+        topics: ["cli"],
+        classifications: ["cli"]
       }
     ]);
   });

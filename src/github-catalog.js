@@ -3,6 +3,15 @@ const PAGE_SIZE = 100;
 const SMALL_REPO_MAX_INFERRED_TOPICS = 3;
 const MEDIUM_REPO_MAX_INFERRED_TOPICS = 5;
 const LARGE_REPO_MAX_INFERRED_TOPICS = 8;
+const CLASSIFICATION_KEYWORDS = new Map([
+  ["infra", ["infra", "infrastructure", "terraform", "helm", "kubernetes", "k8s", "platform", "ansible", "devops", "ops", "gradle", "build"]],
+  ["library", ["library", "lib", "sdk", "module", "plugin", "package"]],
+  ["internal", ["internal", "private", "proprietary"]],
+  ["microservice", ["microservice", "service", "worker", "daemon"]],
+  ["frontend", ["frontend", "ui", "browser", "react", "vue", "nextjs", "next"]],
+  ["backend", ["backend", "server", "api", "graphql", "rest"]],
+  ["cli", ["cli", "terminal", "command"]]
+]);
 const STOP_WORDS = new Set([
   "about",
   "after",
@@ -261,7 +270,8 @@ function normalizeGithubRepo(repo) {
     url: repo.clone_url,
     defaultBranch: repo.default_branch || "main",
     description: repo.description || "",
-    topics: Array.isArray(repo.topics) ? repo.topics : []
+    topics: Array.isArray(repo.topics) ? repo.topics : [],
+    classifications: []
   };
 }
 
@@ -269,9 +279,15 @@ async function hydrateGithubRepoTopics({ owner, repo, env, fetchFn }) {
   const normalizedRepo = normalizeGithubRepo(repo);
 
   if (normalizedRepo.topics.length > 0) {
+    const topics = normalizeTopicList(normalizedRepo.topics, normalizedRepo, repo.size);
     return {
       ...normalizedRepo,
-      topics: normalizeTopicList(normalizedRepo.topics, normalizedRepo, repo.size)
+      topics,
+      classifications: inferRepoClassifications({
+        repo: normalizedRepo,
+        sourceRepo: repo,
+        topics
+      })
     };
   }
 
@@ -281,9 +297,16 @@ async function hydrateGithubRepoTopics({ owner, repo, env, fetchFn }) {
     path: `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo.name)}/topics`
   });
 
+  const topics = normalizeTopicList(topicsResponse?.names, normalizedRepo, repo.size);
+
   return {
     ...normalizedRepo,
-    topics: normalizeTopicList(topicsResponse?.names, normalizedRepo, repo.size)
+    topics,
+    classifications: inferRepoClassifications({
+      repo: normalizedRepo,
+      sourceRepo: repo,
+      topics
+    })
   };
 }
 
@@ -403,6 +426,25 @@ function getMaxInferredTopics(sizeKb) {
   return LARGE_REPO_MAX_INFERRED_TOPICS;
 }
 
+function inferRepoClassifications({ repo, sourceRepo, topics }) {
+  const signals = new Set([
+    ...tokenizeRepoName(repo.name, { includeCompoundRepoNames: true }),
+    ...tokenizeDescription(repo.description),
+    ...topics.flatMap(topic => tokenizeRaw(topic)),
+    sourceRepo.private === true ? "private" : "",
+    typeof sourceRepo.visibility === "string" ? sourceRepo.visibility.toLowerCase() : ""
+  ].filter(Boolean));
+
+  const classifications = [];
+  for (const [classification, keywords] of CLASSIFICATION_KEYWORDS.entries()) {
+    if (keywords.some(keyword => signals.has(keyword))) {
+      classifications.push(classification);
+    }
+  }
+
+  return classifications;
+}
+
 function buildRepoSuggestions(configuredRepo, githubRepo) {
   const suggestions = [];
 
@@ -423,6 +465,13 @@ function buildRepoSuggestions(configuredRepo, githubRepo) {
   const missingTopics = githubRepo.topics.filter(topic => !(configuredRepo.topics || []).includes(topic));
   if (missingTopics.length > 0) {
     suggestions.push(`consider topics: ${missingTopics.join(", ")}`);
+  }
+
+  const missingClassifications = githubRepo.classifications.filter(
+    classification => !(configuredRepo.classifications || []).includes(classification)
+  );
+  if (missingClassifications.length > 0) {
+    suggestions.push(`consider classifications: ${missingClassifications.join(", ")}`);
   }
 
   return suggestions;

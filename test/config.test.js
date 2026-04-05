@@ -86,6 +86,7 @@ describe("config", () => {
         defaultBranch: "main",
         description: "SQS execution interceptor with compression and checksum metadata",
         topics: ["aws", "sqs"],
+        classifications: [],
         aliases: ["codec"],
         alwaysSelect: false,
         directory: "/workspace/managed-repos/sqs-codec"
@@ -213,6 +214,7 @@ describe("config", () => {
           defaultBranch: "main",
           description: "",
           topics: [],
+          classifications: [],
           aliases: [],
           alwaysSelect: false,
           directory: path.join(tempRoot, "data", "archa", "repos", "sqs-codec")
@@ -281,6 +283,22 @@ describe("config", () => {
     }));
 
     await expect(loadConfig(env)).rejects.toThrow(/non-string or empty aliases/);
+  });
+
+  it("rejects classifications that are not arrays of non-empty strings", async () => {
+    const configPath = getConfigPath(env);
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
+    await fs.writeFile(configPath, JSON.stringify({
+      repos: [
+        {
+          name: "foundation",
+          url: "https://github.com/leanish/foundation.git",
+          classifications: ["infra", 7]
+        }
+      ]
+    }));
+
+    await expect(loadConfig(env)).rejects.toThrow(/non-string or empty classifications/);
   });
 
   it("rejects duplicate repo names case-insensitively", async () => {
@@ -362,7 +380,8 @@ describe("config", () => {
           url: "https://github.com/leanish/archa.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
-          topics: ["cli", "codex", "qa"]
+          topics: ["cli", "codex", "qa"],
+          classifications: ["cli"]
         }
       ]
     });
@@ -380,7 +399,8 @@ describe("config", () => {
           url: "https://github.com/leanish/archa.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
-          topics: ["cli", "codex", "qa"]
+          topics: ["cli", "codex", "qa"],
+          classifications: ["cli"]
         }
       ]
     });
@@ -408,7 +428,8 @@ describe("config", () => {
           url: "https://github.com/leanish/archa.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
-          topics: ["cli", "codex", "qa"]
+          topics: ["cli", "codex", "qa"],
+          classifications: ["cli"]
         }
       ]
     });
@@ -422,6 +443,7 @@ describe("config", () => {
           defaultBranch: "master",
           description: "",
           topics: [],
+          classifications: [],
           aliases: [],
           alwaysSelect: false
         },
@@ -431,6 +453,7 @@ describe("config", () => {
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           topics: ["cli", "codex", "qa"],
+          classifications: ["cli"],
           aliases: [],
           alwaysSelect: false
         }
@@ -453,6 +476,7 @@ describe("config", () => {
           defaultBranch: "main",
           description: "",
           topics: [],
+          classifications: ["infra"],
           aliases: ["shared"],
           alwaysSelect: true
         }
@@ -467,7 +491,8 @@ describe("config", () => {
           url: "https://github.com/leanish/archa.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
-          topics: ["cli", "codex", "qa"]
+          topics: ["cli", "codex", "qa"],
+          classifications: ["cli"]
         }
       ],
       reposToOverride: [
@@ -476,7 +501,8 @@ describe("config", () => {
           url: "https://github.com/leanish/foundation-updated.git",
           defaultBranch: "trunk",
           description: "Shared base functionality",
-          topics: ["java", "gradle"]
+          topics: ["java", "gradle"],
+          classifications: ["infra", "library"]
         }
       ]
     });
@@ -495,6 +521,7 @@ describe("config", () => {
           defaultBranch: "trunk",
           description: "Shared base functionality",
           topics: ["java", "gradle"],
+          classifications: ["infra", "library"],
           aliases: ["shared"],
           alwaysSelect: true
         },
@@ -503,7 +530,8 @@ describe("config", () => {
           url: "https://github.com/leanish/archa.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
-          topics: ["cli", "codex", "qa"]
+          topics: ["cli", "codex", "qa"],
+          classifications: ["cli"]
         }
       ]
     });
@@ -539,7 +567,8 @@ describe("config", () => {
           url: "https://github.com/leanish/foundation-updated.git",
           defaultBranch: "trunk",
           description: "Shared base functionality",
-          topics: ["java", "gradle"]
+          topics: ["java", "gradle"],
+          classifications: ["infra"]
         }
       ]
     });
@@ -553,6 +582,7 @@ describe("config", () => {
           defaultBranch: "master",
           description: "",
           topics: [],
+          classifications: [],
           aliases: ["legacy"],
           alwaysSelect: false
         },
@@ -562,6 +592,7 @@ describe("config", () => {
           defaultBranch: "trunk",
           description: "Shared base functionality",
           topics: ["java", "gradle"],
+          classifications: ["infra"],
           aliases: [],
           alwaysSelect: true
         }

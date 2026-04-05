@@ -14,7 +14,7 @@ Archa exposes the same repo-aware question-answering core through a CLI and an o
 ## Core behavior
 
 - user-level config defines the managed repo set and clone root
-- config can be bootstrapped from a local catalog file or discovered from a GitHub owner before being selectively added to or overridden in local config, reusing GitHub metadata and enriching topics locally from repo name and description with a size-aware topic budget
+- config can be bootstrapped from a local catalog file or discovered from a GitHub owner before being selectively added to or overridden in local config, reusing GitHub metadata, enriching topics locally from repo name and description with a size-aware topic budget, and deriving separate repo classifications for high-signal selection cues
 - zero-repo installs surface a direct `discover-github --apply` hint during `config init`, server startup, repo listing, and the web UI empty state instead of leaving setup implicit
 - repo names and aliases are validated eagerly and must be unique case-insensitively
 - `repos list` shows configured repos and whether they are cloned locally
@@ -23,6 +23,7 @@ Archa exposes the same repo-aware question-answering core through a CLI and an o
 - the HTTP adapter exposes the same ask flow as async jobs plus status streams
 - the built-in web UI can load the configured repo catalog and present it as a picker instead of raw comma-separated input
 - repos can be pinned into automatic selection with `alwaysSelect`, and automatic selection still falls back to all configured repos when nothing scores positively
+- high-signal classifications such as `infra`, `library`, `internal`, and `microservice` are handled separately from generic topics and weighted more strongly during automatic selection
 - answers default to a general engineering audience and can optionally target codebase-aware readers
 
 ## Non-goals

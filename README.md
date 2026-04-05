@@ -39,7 +39,7 @@ export ARCHA_CONFIG_PATH=/path/to/config.json
 The config file contains:
 
 - `managedReposRoot`: where local clones live
-- `repos`: the curated repo list, including URL, branch, description, topics, and optional aliases
+- `repos`: the curated repo list, including URL, branch, description, generic `topics`, high-signal `classifications`, and optional aliases
 
 Repo names and aliases must be unique case-insensitively. Aliases must be non-empty strings.
 
@@ -55,6 +55,7 @@ Example using a few public `leanish` repos:
       "defaultBranch": "main",
       "description": "SQS execution interceptor that compresses message bodies and stores codec metadata",
       "topics": ["aws", "sqs", "compression", "checksum"],
+      "classifications": ["library"],
       "aliases": ["codec"]
     },
     {
@@ -63,6 +64,7 @@ Example using a few public `leanish` repos:
       "defaultBranch": "main",
       "description": "Shared Gradle conventions for JDK-based projects",
       "topics": ["gradle", "java", "jacoco", "checkstyle"],
+      "classifications": ["infra"],
       "aliases": ["conventions"]
     },
     {
@@ -71,6 +73,7 @@ Example using a few public `leanish` repos:
       "defaultBranch": "main",
       "description": "Repo-aware CLI for engineering Q&A with local Codex",
       "topics": ["cli", "codex", "qa"],
+      "classifications": ["cli"],
       "aliases": ["self"]
     }
   ]
@@ -78,6 +81,7 @@ Example using a few public `leanish` repos:
 ```
 
 Repos may also set `"alwaysSelect": true` to stay in scope during automatic repo selection. This is useful for foundational repos that should always be available when Archa narrows to likely matches. If nothing scores positively, Archa still falls back to all configured repos.
+`classifications` are handled separately from free-form `topics` and weighted more strongly during automatic repo selection for cues like `infra`, `library`, `internal`, and `microservice`.
 
 Bootstrap an empty config:
 
@@ -91,7 +95,7 @@ When `config init` creates a config with zero repos, it immediately suggests:
 archa config discover-github --owner <github-user-or-org> --apply
 ```
 
-That flow pre-populates each selected repo with GitHub `description`, `topics`, and `default_branch` metadata. Archa keeps GitHub topics first and then supplements them with a locally inferred topic set from the repo name and description, scaling the inferred topic count with project size.
+That flow pre-populates each selected repo with GitHub `description`, `topics`, and `default_branch` metadata. Archa keeps GitHub topics first, supplements them with a locally inferred topic set from the repo name and description, and derives separate high-signal `classifications` for repo type cues.
 
 Initialize config from an existing catalog file:
 
@@ -115,7 +119,7 @@ archa config discover-github --owner leanish --apply
 
 When `--apply` runs in a terminal, Archa prompts for which new repos to add and which configured repos to override from GitHub metadata. For scripted use, pass `--add <names>` and `--override <names>` alongside `--apply`, or use `*` to select all repos of that kind.
 
-By default, GitHub discovery includes forks and skips archived repos. Use `--exclude-forks` to hide forks, and `--include-archived` to keep archived repos in scope. Imported repos reuse GitHub `description`, `topics`, and `default_branch` so repo selection starts with sensible metadata. Archa keeps any GitHub topics that exist and appends locally inferred topics from the repo name and description, with a smaller inferred set for small repos and a broader one for larger repos. Overrides update the configured repo's URL, default branch, description, and topics while preserving local-only fields such as aliases and `alwaysSelect`.
+By default, GitHub discovery includes forks and skips archived repos. Use `--exclude-forks` to hide forks, and `--include-archived` to keep archived repos in scope. Imported repos reuse GitHub `description`, `topics`, and `default_branch` so repo selection starts with sensible metadata. Archa keeps any GitHub topics that exist and appends locally inferred topics from the repo name and description, with a smaller inferred set for small repos and a broader one for larger repos. It also derives separate `classifications` like `infra`, `library`, `internal`, and `microservice` so those high-signal repo roles can influence automatic selection more strongly than generic topics. Overrides update the configured repo's URL, default branch, description, topics, and classifications while preserving local-only fields such as aliases and `alwaysSelect`.
 
 If the active config has zero repos, `config init`, `archa-server` startup, repo-listing output, and the web UI empty state suggest `archa config discover-github --owner <github-user-or-org> --apply` as the quickest recovery path.
 
@@ -327,7 +331,7 @@ GitHub Actions CI runs `npm ci` and `npm test -- --coverage` on pull requests an
 
 ## Current limits
 
-- automatic repo selection is heuristic, based on repo names, descriptions, topics, and any repos pinned with `alwaysSelect`
+- automatic repo selection is heuristic, based on repo names, descriptions, topics, separately weighted classifications, and any repos pinned with `alwaysSelect`
 - syncing assumes the managed clones can fast-forward cleanly
 - the configured repo set is explicit and must be maintained in local config
 - HTTP job state is in-memory only and is lost when the server process restarts

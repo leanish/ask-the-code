@@ -101,7 +101,8 @@ describe("render", () => {
           repo: {
             name: "archa",
             description: "Repo-aware CLI",
-            topics: ["cli"]
+            topics: ["cli"],
+            classifications: ["cli"]
           },
           suggestions: []
         },
@@ -110,7 +111,8 @@ describe("render", () => {
           repo: {
             name: "foundation",
             description: "Shared base",
-            topics: ["java"]
+            topics: ["java"],
+            classifications: ["infra"]
           },
           suggestions: ["review description"]
         }
@@ -128,6 +130,8 @@ describe("render", () => {
     });
 
     expect(preview).toContain("Configured with review suggestions: 1");
+    expect(preview).toContain("classifications=cli topics=cli");
+    expect(preview).toContain("classifications=infra topics=java");
     expect(preview).toContain("Apply mode lets you choose which repos to add and which configured repos to override.");
 
     const applied = renderGithubDiscovery({

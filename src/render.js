@@ -56,10 +56,13 @@ export function renderGithubDiscovery(result) {
 
   for (const entry of result.entries) {
     const status = formatDiscoveryStatus(entry);
+    const classifications = entry.repo.classifications?.length > 0
+      ? ` classifications=${entry.repo.classifications.join(",")}`
+      : "";
     const topics = entry.repo.topics.length > 0 ? ` topics=${entry.repo.topics.join(",")}` : "";
     const description = entry.repo.description ? ` ${entry.repo.description}` : "";
     const suggestions = entry.suggestions.length > 0 ? ` review=${entry.suggestions.join("; ")}` : "";
-    lines.push(`- ${entry.repo.name} [${status}]${topics}${suggestions}${description}`);
+    lines.push(`- ${entry.repo.name} [${status}]${classifications}${topics}${suggestions}${description}`);
   }
 
   lines.push("");
