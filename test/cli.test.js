@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   promptForGithubOwner: vi.fn(),
   ensureInteractiveConfigSetup: vi.fn(),
   renderConfigInit: vi.fn(),
+  ensureCodexInstalled: vi.fn(),
   loadConfig: vi.fn(),
   initializeConfig: vi.fn(),
   applyGithubDiscoveryToConfig: vi.fn(),
@@ -39,6 +40,10 @@ vi.mock("../src/config.js", () => ({
   loadConfig: mocks.loadConfig,
   initializeConfig: mocks.initializeConfig,
   applyGithubDiscoveryToConfig: mocks.applyGithubDiscoveryToConfig
+}));
+
+vi.mock("../src/codex-installation.js", () => ({
+  ensureCodexInstalled: mocks.ensureCodexInstalled
 }));
 
 vi.mock("../src/config-paths.js", () => ({
@@ -86,6 +91,7 @@ describe("cli", () => {
       return true;
     });
     mocks.getConfigPath.mockReturnValue("/tmp/archa-config.json");
+    mocks.ensureCodexInstalled.mockImplementation(() => {});
     mocks.canPromptInteractively.mockReturnValue(true);
     mocks.promptToInitializeConfig.mockResolvedValue(true);
     mocks.promptToContinueGithubDiscovery.mockResolvedValue(false);
@@ -221,6 +227,20 @@ describe("cli", () => {
         statusReporter: expect.any(Object)
       })
     );
+    expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
+  });
+
+  it("does not require Codex for retrieval-only ask mode", async () => {
+    mocks.answerQuestion.mockResolvedValue({
+      mode: "retrieval-only",
+      question: "What is x-codec-meta?",
+      selectedRepos: [{ name: "sqs-codec" }],
+      syncReport: []
+    });
+
+    await main(["--no-synthesis", "What", "is", "x-codec-meta?"]);
+
+    expect(mocks.ensureCodexInstalled).not.toHaveBeenCalled();
   });
 
   it("prints the active config path", async () => {
@@ -339,6 +359,21 @@ describe("cli", () => {
     expect(stdout.join("")).toContain("archa [new]");
     expect(stdout.join("")).toContain("Run: archa config discover-github --owner leanish --apply");
     expect(mocks.applyGithubDiscoveryToConfig).not.toHaveBeenCalled();
+    expect(mocks.ensureCodexInstalled).not.toHaveBeenCalled();
+  });
+
+  it("requires Codex before applying GitHub discovery", async () => {
+    mocks.discoverGithubOwnerRepos.mockResolvedValue({
+      owner: "leanish",
+      ownerType: "User",
+      skippedForks: 0,
+      skippedArchived: 0,
+      repos: []
+    });
+
+    await main(["config", "discover-github", "--owner", "leanish", "--apply"]);
+
+    expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
   });
 
   it("applies interactively selected repo changes when requested", async () => {

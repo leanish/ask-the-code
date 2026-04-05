@@ -1,6 +1,7 @@
 import process from "node:process";
 
 import { applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "./config.js";
+import { ensureCodexInstalled } from "./codex-installation.js";
 import { getConfigPath } from "./config-paths.js";
 import { ensureInteractiveConfigSetup } from "./cli-bootstrap.js";
 import { discoverGithubOwnerRepos, planGithubRepoDiscovery } from "./github-catalog.js";
@@ -11,6 +12,7 @@ import { HelpError, parseServerArgs } from "./server-args.js";
 
 export async function main(argv) {
   const options = parseServerArgs(argv, process.env);
+  ensureCodexInstalled();
   const shouldContinue = await ensureInteractiveConfigSetup({
     env: process.env,
     loadConfigFn: loadConfig,
@@ -46,6 +48,7 @@ async function runServerGithubDiscovery(options) {
   const discovery = await discoverGithubOwnerRepos({
     owner: options.owner,
     env: process.env,
+    curateWithCodex: options.apply,
     includeForks: options.includeForks,
     includeArchived: options.includeArchived
   });

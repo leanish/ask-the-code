@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   startHttpServer: vi.fn(),
-  ensureInteractiveConfigSetup: vi.fn()
+  ensureInteractiveConfigSetup: vi.fn(),
+  ensureCodexInstalled: vi.fn()
 }));
 
 vi.mock("../src/http-server.js", () => ({
@@ -11,6 +12,10 @@ vi.mock("../src/http-server.js", () => ({
 
 vi.mock("../src/cli-bootstrap.js", () => ({
   ensureInteractiveConfigSetup: mocks.ensureInteractiveConfigSetup
+}));
+
+vi.mock("../src/codex-installation.js", () => ({
+  ensureCodexInstalled: mocks.ensureCodexInstalled
 }));
 
 import { main, setupShutdownHandlers } from "../src/server-main.js";
@@ -35,6 +40,7 @@ describe("server-main", () => {
       stderr.push(chunk);
       return true;
     });
+    mocks.ensureCodexInstalled.mockImplementation(() => {});
     mocks.ensureInteractiveConfigSetup.mockResolvedValue(true);
   });
 
@@ -53,6 +59,7 @@ describe("server-main", () => {
     const result = await main([]);
 
     expect(result).toBe(serverHandle);
+    expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
     expect(mocks.ensureInteractiveConfigSetup).toHaveBeenCalled();
     expect(stdout.join("")).toBe("Archa server listening on http://127.0.0.1:8787\n");
     expect(stderr.join("")).toContain('Suggestion: run "archa config discover-github --owner <github-user-or-org> --apply".');
@@ -75,6 +82,16 @@ describe("server-main", () => {
     const result = await main([]);
 
     expect(result).toBeNull();
+    expect(mocks.startHttpServer).not.toHaveBeenCalled();
+  });
+
+  it("fails before setup when Codex is missing", async () => {
+    mocks.ensureCodexInstalled.mockImplementation(() => {
+      throw new Error("Codex CLI is required but was not found on PATH.");
+    });
+
+    await expect(main([])).rejects.toThrow("Codex CLI is required but was not found on PATH.");
+    expect(mocks.ensureInteractiveConfigSetup).not.toHaveBeenCalled();
     expect(mocks.startHttpServer).not.toHaveBeenCalled();
   });
 });

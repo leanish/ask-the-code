@@ -407,6 +407,19 @@ describe("codex-runner", () => {
     expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), { force: true });
     expect(mocks.readFile).not.toHaveBeenCalled();
   });
+
+  it("surfaces a friendly install hint when codex is missing", async () => {
+    mocks.spawn.mockReturnValue(createChildProcess({
+      code: Object.assign(new Error("spawn codex ENOENT"), { code: "ENOENT" })
+    }));
+
+    await expect(runCodexPrompt({
+      prompt: "Return JSON only.",
+      workingDirectory: "/workspace/archa/repos"
+    })).rejects.toThrow(
+      'Codex CLI is required but was not found on PATH. Install it with "brew install codex". If Codex is still not connected afterwards, complete the Codex connection/login flow and retry later.'
+    );
+  });
 });
 
 function createChildProcess({ code = 0, stderrChunks = [], autoCloseOnEnd = true }) {

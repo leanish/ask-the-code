@@ -6,6 +6,7 @@ import {
   renderConfigInit as renderConfigInitSummary
 } from "./cli-bootstrap.js";
 import { applyGithubDiscoveryToConfig, loadConfig, initializeConfig } from "./config.js";
+import { ensureCodexInstalled } from "./codex-installation.js";
 import { getConfigPath } from "./config-paths.js";
 import { discoverGithubOwnerRepos, planGithubRepoDiscovery } from "./github-catalog.js";
 import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "./github-discovery-selection.js";
@@ -23,6 +24,9 @@ import { createStreamStatusReporter } from "./status-reporter.js";
 
 export async function main(argv) {
   const options = parseArgs(argv, process.env);
+  if (commandRequiresCodex(options)) {
+    ensureCodexInstalled();
+  }
   const shouldContinue = await ensureCliConfig(options);
 
   if (!shouldContinue) {
@@ -76,6 +80,11 @@ export async function main(argv) {
     default:
       throw new Error(`Unsupported command: ${options.command}`);
   }
+}
+
+function commandRequiresCodex(options) {
+  return (options.command === "ask" && !options.noSynthesis)
+    || (options.command === "config-discover-github" && options.apply);
 }
 
 function filterRepos(repos, requestedNames) {

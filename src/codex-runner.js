@@ -8,6 +8,7 @@ import {
   resolveAnswerAudience,
   SUPPORTED_ANSWER_AUDIENCES
 } from "./answer-audience.js";
+import { normalizeCodexExecutionError } from "./codex-installation.js";
 import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "./codex-defaults.js";
 
 const DEFAULT_CODEX_TIMEOUT_MS = 300_000;
@@ -209,7 +210,7 @@ async function runCodexExec({ prompt, model, reasoningEffort, outputFile, workin
         settled = true;
         clearTimeout(timeoutTimer);
         clearTimeout(forceKillTimer);
-        reject(error);
+        reject(normalizeCodexExecutionError(error));
       });
       child.on("close", code => {
         clearTimeout(timeoutTimer);
