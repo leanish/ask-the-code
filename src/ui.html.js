@@ -225,6 +225,21 @@ button[type="submit"]:disabled {
   color: #484f58;
   cursor: not-allowed;
 }
+.setup-hint {
+  display: none;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  background: #161b22;
+  color: #c9d1d9;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.setup-hint.visible {
+  display: block;
+}
 #answer {
   display: none;
   width: 100%;
@@ -264,6 +279,7 @@ button[type="submit"]:disabled {
 <main>
   <h1>archa</h1>
   <p class="subtitle">Ask your codebase how it behaves.</p>
+  <div id="setup-hint" class="setup-hint"></div>
 
   <form id="ask-form">
     <div class="field">
@@ -341,6 +357,7 @@ button[type="submit"]:disabled {
   const copyAnswerButton = document.getElementById("copy-answer");
   const errorBox = document.getElementById("error-box");
   const advancedOptions = document.getElementById("advanced-options");
+  const setupHint = document.getElementById("setup-hint");
   const repoSelected = document.getElementById("repo-selected");
   const repoOptions = document.getElementById("repo-options");
   const repoFilter = document.getElementById("repo-filter");
@@ -517,7 +534,10 @@ button[type="submit"]:disabled {
       if (repos.length === 0) {
         repoFilter.disabled = true;
         repoFilter.placeholder = "No configured repos available";
-        repoHelp.textContent = "No configured repos available.";
+        repoHelp.textContent = 'No configured repos available. Run "archa config discover-github --owner <github-user-or-org> --apply" to add repos.';
+        setSetupHint(
+          'No configured repos available.\nRun "archa config discover-github --owner <github-user-or-org> --apply" to discover and add repos.'
+        );
         renderRepoPicker();
         return;
       }
@@ -527,13 +547,20 @@ button[type="submit"]:disabled {
       repoFilter.disabled = false;
       repoFilter.placeholder = "Search configured repos";
       repoHelp.textContent = "Leave it empty to use automatic repo selection, or search to narrow to specific repos.";
+      setSetupHint("");
       renderRepoPicker();
     } catch (error) {
       repoFilter.disabled = true;
       repoFilter.placeholder = "Configured repos unavailable";
       repoHelp.textContent = "Configured repo list unavailable. The server will still use automatic repo selection.";
+      setSetupHint("");
       renderRepoPicker();
     }
+  }
+
+  function setSetupHint(message) {
+    setupHint.textContent = message;
+    setupHint.classList.toggle("visible", Boolean(message));
   }
 
   function renderRepoPicker() {

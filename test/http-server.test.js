@@ -205,6 +205,8 @@ describe("http-server", () => {
     expect(htmlResponse.body).toContain("/ask");
     expect(htmlResponse.body).toContain("/repos");
     expect(htmlResponse.body).toContain("Search configured repos");
+    expect(htmlResponse.body).toContain('id="setup-hint"');
+    expect(htmlResponse.body).toContain('archa config discover-github --owner <github-user-or-org> --apply');
     expect(htmlResponse.body).toContain("automatic");
     expect(htmlResponse.body).toContain('id="advanced-options" hidden');
     expect(htmlResponse.body).toContain('params.get("admin")');

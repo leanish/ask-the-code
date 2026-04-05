@@ -37,7 +37,12 @@ import { answerQuestion } from "../src/question-answering.js";
 describe("answerQuestion", () => {
   const config = {
     managedReposRoot: "/workspace/repos",
-    repos: []
+    repos: [
+      {
+        name: "sqs-codec",
+        directory: "/workspace/repos/sqs-codec"
+      }
+    ]
   };
   const selectedRepos = [
     {
@@ -173,6 +178,26 @@ describe("answerQuestion", () => {
     expect(mocks.runCodexQuestion).not.toHaveBeenCalled();
   });
 
+  it("fails when no managed repositories are configured", async () => {
+    mocks.loadConfig.mockResolvedValue({
+      managedReposRoot: "/workspace/repos",
+      repos: []
+    });
+
+    await expect(answerQuestion({
+      question: "How does x-codec-meta work?",
+      model: "gpt-5.4",
+      reasoningEffort: "low",
+      noSync: false,
+      noSynthesis: false,
+      repoNames: null
+    })).rejects.toThrow(
+      'No managed repositories are configured. Run "archa config discover-github --owner <github-user-or-org> --apply" to discover and add repos.'
+    );
+
+    expect(mocks.selectRepos).not.toHaveBeenCalled();
+  });
+
   it("fails when no managed repositories are selected", async () => {
     mocks.selectRepos.mockReturnValue([]);
 
@@ -211,7 +236,12 @@ describe("answerQuestion", () => {
     };
     const loadConfigFn = vi.fn().mockResolvedValue({
       managedReposRoot: "/workspace/repos",
-      repos: []
+      repos: [
+        {
+          name: "sqs-codec",
+          directory: "/workspace/repos/sqs-codec"
+        }
+      ]
     });
     const selectReposFn = vi.fn().mockReturnValue(selectedRepos);
     const syncReposFn = vi.fn(async (repos, callbacks) => {

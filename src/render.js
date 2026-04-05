@@ -3,6 +3,12 @@ import fs from "node:fs";
 export function renderRepoList(repos) {
   const lines = ["Managed repos:"];
 
+  if (repos.length === 0) {
+    lines.push("- none configured");
+    lines.push('Run: archa config discover-github --owner <github-user-or-org> --apply');
+    return lines.join("\n");
+  }
+
   for (const repo of repos) {
     const status = fs.existsSync(repo.directory) ? "local" : "missing";
     const aliases = repo.aliases && repo.aliases.length > 0 ? ` aliases=${repo.aliases.join(",")}` : "";

@@ -34,6 +34,14 @@ describe("render", () => {
     expect(output).toContain("- sqs-codec [local] main: aliases=codec SQS execution interceptor with compression and checksum metadata");
   });
 
+  it("renders an explicit discovery hint when no repos are configured", () => {
+    expect(renderRepoList([])).toBe([
+      "Managed repos:",
+      "- none configured",
+      'Run: archa config discover-github --owner <github-user-or-org> --apply'
+    ].join("\n"));
+  });
+
   it("renders retrieval-only mode with selected repos and sync report", () => {
     const output = renderRetrievalOnly({
       question: "How does x-codec-meta work?",

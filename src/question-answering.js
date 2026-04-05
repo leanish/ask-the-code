@@ -9,6 +9,13 @@ import { syncRepos } from "./repo-sync.js";
 export async function answerQuestion(options, envOrExecution = process.env, legacyStatusReporter = null) {
   const execution = normalizeExecutionOptions(envOrExecution, legacyStatusReporter);
   const config = await execution.loadConfigFn(execution.env);
+
+  if (config.repos.length === 0) {
+    throw new Error(
+      'No managed repositories are configured. Run "archa config discover-github --owner <github-user-or-org> --apply" to discover and add repos.'
+    );
+  }
+
   const selectedRepos = execution.selectReposFn(config, options.question, options.repoNames);
   const audience = resolveAnswerAudience(options.audience);
 

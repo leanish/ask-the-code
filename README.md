@@ -107,6 +107,8 @@ When `--apply` runs in a terminal, Archa prompts for which new repos to add and 
 
 By default, GitHub discovery includes forks and skips archived repos. Use `--exclude-forks` to hide forks, and `--include-archived` to keep archived repos in scope. Imported repos reuse GitHub `description`, `topics`, and `default_branch` so repo selection starts with sensible metadata. Overrides update the configured repo's URL, default branch, description, and topics while preserving local-only fields such as aliases and `alwaysSelect`.
 
+If the active config has zero repos, the CLI output, ask-time errors, and web UI now point to `archa config discover-github --owner <github-user-or-org> --apply` as the quickest recovery path.
+
 Print the active config path:
 
 ```bash
