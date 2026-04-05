@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 
 import {
@@ -25,10 +26,6 @@ export async function runCodexQuestion({
   onStatus,
   timeoutMs = DEFAULT_CODEX_TIMEOUT_MS
 }) {
-  const outputFile = path.join(
-    os.tmpdir(),
-    `archa-codex-${process.pid}-${Date.now()}.txt`
-  );
   const executionContext = getCodexExecutionContext({ question, audience, selectedRepos, workspaceRoot });
   const resolvedModel = model || DEFAULT_CODEX_MODEL;
   const resolvedReasoningEffort = reasoningEffort || DEFAULT_CODEX_REASONING_EFFORT;
@@ -57,10 +54,7 @@ export async function runCodexPrompt({
   timeoutMs = DEFAULT_CODEX_TIMEOUT_MS,
   emptyOutputText = "Codex did not produce a final answer."
 }) {
-  const outputFile = path.join(
-    os.tmpdir(),
-    `archa-codex-${process.pid}-${Date.now()}.txt`
-  );
+  const outputFile = createCodexOutputFilePath();
   const resolvedModel = model || DEFAULT_CODEX_MODEL;
   const resolvedReasoningEffort = reasoningEffort || DEFAULT_CODEX_REASONING_EFFORT;
 
@@ -81,6 +75,13 @@ export async function runCodexPrompt({
   } finally {
     await fs.rm(outputFile, { force: true });
   }
+}
+
+function createCodexOutputFilePath() {
+  return path.join(
+    os.tmpdir(),
+    `archa-codex-${process.pid}-${Date.now()}-${randomUUID()}.txt`
+  );
 }
 
 export function getCodexTimeoutMs(env = process.env) {

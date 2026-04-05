@@ -4,7 +4,8 @@ const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
   rm: vi.fn(),
   spawn: vi.fn(),
-  tmpdir: vi.fn(() => "/tmp")
+  tmpdir: vi.fn(() => "/tmp"),
+  randomUUID: vi.fn(() => "uuid-fixed")
 }));
 
 vi.mock("node:fs/promises", () => ({
@@ -24,6 +25,10 @@ vi.mock("node:os", () => ({
   }
 }));
 
+vi.mock("node:crypto", () => ({
+  randomUUID: mocks.randomUUID
+}));
+
 import {
   getCodexExecutionContext,
   getCodexTimeoutMs,
@@ -39,6 +44,7 @@ describe("codex-runner", () => {
     vi.useRealTimers();
     mocks.rm.mockResolvedValue();
     mocks.readFile.mockResolvedValue("Final answer");
+    mocks.randomUUID.mockReturnValue("uuid-fixed");
   });
 
   it("uses the selected repo as the working directory when only one repo is selected", () => {
@@ -173,6 +179,25 @@ describe("codex-runner", () => {
       ]),
       { stdio: ["pipe", "ignore", "pipe"] }
     );
+  });
+
+  it("adds a unique uuid suffix to the codex output file path", async () => {
+    const child = createChildProcess({ code: 0 });
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(1_234_567_890);
+    mocks.spawn.mockReturnValue(child);
+    mocks.readFile.mockResolvedValue("result");
+    mocks.randomUUID.mockReturnValue("uuid-123");
+
+    await runCodexPrompt({
+      prompt: "Return JSON only.",
+      workingDirectory: "/workspace/archa/repos/java-conventions"
+    });
+
+    const expectedPath = `/tmp/archa-codex-${process.pid}-1234567890-uuid-123.txt`;
+    expect(mocks.readFile).toHaveBeenCalledWith(expectedPath, "utf8");
+    expect(mocks.rm).toHaveBeenCalledWith(expectedPath, { force: true });
+
+    dateNowSpy.mockRestore();
   });
 
   it("uses default codex settings when model and reasoning effort are omitted", async () => {
