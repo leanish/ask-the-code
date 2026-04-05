@@ -19,7 +19,7 @@ describe("github-catalog", () => {
             clone_url: "https://github.com/leanish/archa.git",
             default_branch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
-            topics: ["cli", "codex", "qa"],
+            topics: [],
             fork: false,
             archived: false
           },
@@ -42,6 +42,18 @@ describe("github-catalog", () => {
             archived: false
           }
         ]);
+      }
+
+      if (url === "https://api.github.com/repos/leanish/archa/topics") {
+        return createJsonResponse(200, {
+          names: ["cli", "codex", "qa"]
+        });
+      }
+
+      if (url === "https://api.github.com/repos/leanish/forked-repo/topics") {
+        return createJsonResponse(200, {
+          names: ["fork", "customized"]
+        });
       }
 
       throw new Error(`Unexpected URL: ${url}`);
@@ -68,12 +80,55 @@ describe("github-catalog", () => {
           url: "https://github.com/leanish/forked-repo.git",
           defaultBranch: "main",
           description: "",
-          topics: []
+          topics: ["fork", "customized"]
         }
       ],
       skippedForks: 0,
       skippedArchived: 1
     });
+  });
+
+  it("keeps inline repo topics without an extra topics request", async () => {
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
+        return createJsonResponse(200, [
+          {
+            name: "archa",
+            clone_url: "https://github.com/leanish/archa.git",
+            default_branch: "main",
+            description: "Repo-aware CLI for engineering Q&A with local Codex",
+            topics: ["cli", "codex", "qa"],
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "leanish",
+      fetchFn
+    });
+
+    expect(result.repos).toEqual([
+      {
+        name: "archa",
+        url: "https://github.com/leanish/archa.git",
+        defaultBranch: "main",
+        description: "Repo-aware CLI for engineering Q&A with local Codex",
+        topics: ["cli", "codex", "qa"]
+      }
+    ]);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
   it("uses organization repo listing and forwards GitHub auth headers", async () => {

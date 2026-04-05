@@ -46,7 +46,7 @@ export async function discoverGithubOwnerRepos({
 
   let skippedForks = 0;
   let skippedArchived = 0;
-  const repos = [];
+  const eligibleRepos = [];
 
   for (const repo of discoveredRepos) {
     if (!includeForks && repo.fork) {
@@ -59,9 +59,17 @@ export async function discoverGithubOwnerRepos({
       continue;
     }
 
-    repos.push(normalizeGithubRepo(repo));
+    eligibleRepos.push(repo);
   }
 
+  const repos = await Promise.all(
+    eligibleRepos.map(repo => hydrateGithubRepoTopics({
+      owner: normalizedOwner,
+      repo,
+      env,
+      fetchFn
+    }))
+  );
   repos.sort((left, right) => left.name.localeCompare(right.name));
 
   return {
@@ -203,6 +211,25 @@ function normalizeGithubRepo(repo) {
     defaultBranch: repo.default_branch || "main",
     description: repo.description || "",
     topics: Array.isArray(repo.topics) ? repo.topics : []
+  };
+}
+
+async function hydrateGithubRepoTopics({ owner, repo, env, fetchFn }) {
+  const normalizedRepo = normalizeGithubRepo(repo);
+
+  if (normalizedRepo.topics.length > 0) {
+    return normalizedRepo;
+  }
+
+  const topicsResponse = await fetchGithubJson({
+    fetchFn,
+    env,
+    path: `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo.name)}/topics`
+  });
+
+  return {
+    ...normalizedRepo,
+    topics: Array.isArray(topicsResponse?.names) ? topicsResponse.names : []
   };
 }
 
