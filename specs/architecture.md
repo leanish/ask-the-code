@@ -75,7 +75,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 ## Main modules
 
 - `src/cli.js`
-  Dispatches commands, resolves question files, and prints output.
+  Dispatches commands, resolves question files, and prints output, including zero-repo discovery guidance after `config init`.
 - `src/server-main.js`
   Parses server startup arguments and boots the HTTP adapter.
 - `src/config-paths.js`

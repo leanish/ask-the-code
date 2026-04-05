@@ -15,7 +15,7 @@ Archa exposes the same repo-aware question-answering core through a CLI and an o
 
 - user-level config defines the managed repo set and clone root
 - config can be bootstrapped from a local catalog file or discovered from a GitHub owner before being selectively added to or overridden in local config
-- zero-repo installs surface a direct `discover-github --apply` hint instead of leaving setup implicit
+- zero-repo installs surface a direct `discover-github --apply` hint during `config init`, server startup, repo listing, and the web UI empty state instead of leaving setup implicit
 - repo names and aliases are validated eagerly and must be unique case-insensitively
 - `repos list` shows configured repos and whether they are cloned locally
 - `repos sync` clones or fast-forwards the managed repos

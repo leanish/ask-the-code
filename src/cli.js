@@ -113,11 +113,18 @@ export async function main(argv) {
 }
 
 function renderConfigInit(result) {
-  return [
+  const lines = [
     `Initialized config at ${result.configPath}`,
     `Managed repos root: ${result.managedReposRoot}`,
     `Repos imported: ${result.repoCount}`
-  ].join("\n");
+  ];
+
+  if (result.repoCount === 0) {
+    lines.push("");
+    lines.push('Next step: archa config discover-github --owner <github-user-or-org> --apply');
+  }
+
+  return lines.join("\n");
 }
 
 function filterRepos(repos, requestedNames) {

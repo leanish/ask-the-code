@@ -208,6 +208,22 @@ describe("cli", () => {
     expect(stdout.join("")).toContain("Repos imported: 2");
   });
 
+  it("suggests GitHub discovery when config init creates an empty repo list", async () => {
+    mocks.initializeConfig.mockResolvedValue({
+      configPath: "/tmp/archa-config.json",
+      managedReposRoot: "/workspace/repos",
+      repoCount: 0
+    });
+
+    await main(["config", "init"]);
+
+    expect(stdout.join("")).toContain("Initialized config at /tmp/archa-config.json");
+    expect(stdout.join("")).toContain("Repos imported: 0");
+    expect(stdout.join("")).toContain(
+      "Next step: archa config discover-github --owner <github-user-or-org> --apply"
+    );
+  });
+
   it("prints the repo list", async () => {
     await main(["repos", "list"]);
 
