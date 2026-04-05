@@ -61,28 +61,31 @@ Example using a few public `leanish` repos:
       "name": "sqs-codec",
       "url": "https://github.com/leanish/sqs-codec.git",
       "defaultBranch": "main",
-      "description": "SQS execution interceptor that compresses message bodies and stores codec metadata",
-      "topics": ["aws", "sqs", "compression", "checksum"],
+      "description": "automatic compression+encoding for SQS Messages",
+      "topics": ["aws-sqs", "aws-sdk-v2", "message-compression"],
       "classifications": ["library"],
-      "aliases": ["codec"]
+      "aliases": [],
+      "alwaysSelect": false
     },
     {
       "name": "java-conventions",
       "url": "https://github.com/leanish/java-conventions.git",
       "defaultBranch": "main",
-      "description": "Shared Gradle conventions for JDK-based projects",
-      "topics": ["gradle", "java", "jacoco", "checkstyle"],
-      "classifications": ["library"],
-      "aliases": ["conventions"]
+      "description": "Shared Gradle conventions for Java projects",
+      "topics": ["gradle-plugin", "build-conventions"],
+      "classifications": ["library", "infra"],
+      "aliases": [],
+      "alwaysSelect": false
     },
     {
       "name": "archa",
       "url": "https://github.com/leanish/archa.git",
       "defaultBranch": "main",
-      "description": "Repo-aware CLI for engineering Q&A with local Codex",
-      "topics": ["cli", "codex", "qa"],
-      "classifications": ["cli"],
-      "aliases": ["self"]
+      "description": "Archa is your personal code archaeologist. Ask your codebase how it behaves.",
+      "topics": ["codex", "repo-selection", "developer-tools"],
+      "classifications": ["internal", "backend", "cli"],
+      "aliases": [],
+      "alwaysSelect": false
     }
   ]
 }
