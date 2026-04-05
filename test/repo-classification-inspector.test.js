@@ -2,19 +2,21 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { inspectRepoClassifications, inspectRepoMetadata } from "../src/repo-classification-inspector.js";
 
 describe("repo-classification-inspector", () => {
   let tempRoot;
   let env;
+  let curateMetadataFn;
 
   beforeEach(async () => {
     tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "archa-inspect-"));
     env = {
       XDG_DATA_HOME: path.join(tempRoot, "data")
     };
+    curateMetadataFn = vi.fn(async ({ inferredMetadata }) => inferredMetadata);
   });
 
   afterEach(async () => {
@@ -43,7 +45,8 @@ describe("repo-classification-inspector", () => {
       sourceRepo: {
         private: false
       },
-      env
+      env,
+      curateMetadataFn
     });
 
     expect(classifications).toEqual(["frontend", "external"]);
@@ -63,7 +66,8 @@ describe("repo-classification-inspector", () => {
         topics: []
       },
       sourceRepo: {},
-      env
+      env,
+      curateMetadataFn
     });
 
     expect(classifications).toEqual(["infra", "internal"]);
@@ -84,7 +88,8 @@ describe("repo-classification-inspector", () => {
         topics: []
       },
       sourceRepo: {},
-      env
+      env,
+      curateMetadataFn
     });
 
     expect(classifications).toEqual(["infra", "library"]);
@@ -111,7 +116,8 @@ describe("repo-classification-inspector", () => {
         topics: []
       },
       sourceRepo: {},
-      env
+      env,
+      curateMetadataFn
     });
 
     expect(classifications).toEqual(["library"]);
@@ -140,7 +146,8 @@ describe("repo-classification-inspector", () => {
         description: "",
         topics: []
       },
-      env
+      env,
+      curateMetadataFn
     });
 
     expect(metadata).toEqual({
@@ -148,5 +155,67 @@ describe("repo-classification-inspector", () => {
       topics: ["blocking", "termination", "java", "shutdown", "services"],
       classifications: ["library"]
     });
+  });
+
+  it("lets Codex curation refine the inferred metadata", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "java-conventions");
+    await fs.mkdir(repoDirectory, { recursive: true });
+    await fs.writeFile(path.join(repoDirectory, "README.md"), "Shared Gradle conventions for JDK-based projects.");
+    await fs.writeFile(path.join(repoDirectory, "build.gradle"), "plugins { id 'java-library' }\n");
+    curateMetadataFn.mockImplementation(async ({ inferredMetadata }) => ({
+      ...inferredMetadata,
+      topics: ["gradle-plugin", "conventions", "java"],
+      classifications: ["library"]
+    }));
+
+    const metadata = await inspectRepoMetadata({
+      repo: {
+        name: "java-conventions",
+        url: "https://github.com/leanish/java-conventions.git",
+        defaultBranch: "main",
+        description: "Shared Gradle conventions for JDK-based projects",
+        topics: []
+      },
+      sourceRepo: {
+        size: 245
+      },
+      env,
+      curateMetadataFn
+    });
+
+    expect(curateMetadataFn).toHaveBeenCalledWith(expect.objectContaining({
+      directory: repoDirectory,
+      inferredMetadata: expect.objectContaining({
+        classifications: ["library"]
+      })
+    }));
+    expect(metadata).toEqual({
+      description: "Shared Gradle conventions for JDK-based projects.",
+      topics: ["gradle-plugin", "conventions", "java"],
+      classifications: ["library"]
+    });
+  });
+
+  it("falls back to heuristic metadata when Codex curation fails", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "terminator");
+    await fs.mkdir(repoDirectory, { recursive: true });
+    await fs.writeFile(path.join(repoDirectory, "README.md"), "Terminator is a small Java library.");
+    await fs.writeFile(path.join(repoDirectory, "build.gradle"), "plugins { id 'java-library' }\n");
+    curateMetadataFn.mockRejectedValue(new Error("codex unavailable"));
+
+    const metadata = await inspectRepoMetadata({
+      repo: {
+        name: "terminator",
+        url: "https://github.com/leanish/terminator.git",
+        defaultBranch: "main",
+        description: "",
+        topics: []
+      },
+      env,
+      curateMetadataFn
+    });
+
+    expect(metadata.classifications).toEqual(["library"]);
+    expect(metadata.description).toBe("Terminator is a small Java library.");
   });
 });

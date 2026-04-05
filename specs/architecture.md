@@ -90,6 +90,8 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
   Resolves explicit or interactive discovery selections so GitHub imports can add only chosen repos and override only chosen configured repos.
 - `src/repo-classification-inspector.js`
   Reuses an existing managed checkout when available, otherwise shallow-clones a repo temporarily, then inspects repo structure, manifests, dependencies, and README cues to infer fallback descriptions, fallback topics, and high-signal classifications such as `external`, `internal`, `infra`, `frontend`, `backend`, and `cli`.
+- `src/repo-metadata-codex-curator.js`
+  Runs a Codex cleanup pass in the inspected repo checkout to refine the heuristic discovery draft into the final description, topics, and classifications written into config.
 - `src/question-answering.js`
   Implements the transport-agnostic ask flow and accepts injectable adapters such as status reporters and sync functions.
 - `src/repo-selection.js`

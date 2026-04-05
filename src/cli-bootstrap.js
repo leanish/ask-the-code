@@ -161,7 +161,7 @@ export function renderConfigInit(result, {
   if (includeNextStepSuggestion && result.repoCount === 0) {
     lines.push("");
     lines.push('Next step: archa config discover-github --owner <github-user-or-org> --apply');
-    lines.push("That imports GitHub metadata and inferred classifications into your config.");
+    lines.push("That imports GitHub metadata plus curated descriptions, topics, and classifications into your config.");
   }
 
   return lines.join("\n");

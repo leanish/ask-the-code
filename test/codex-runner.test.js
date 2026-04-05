@@ -27,6 +27,7 @@ vi.mock("node:os", () => ({
 import {
   getCodexExecutionContext,
   getCodexTimeoutMs,
+  runCodexPrompt,
   runCodexQuestion,
   summarizeCodexTimeoutStderr,
   summarizeCodexStderr
@@ -148,6 +149,30 @@ describe("codex-runner", () => {
     );
     expect(mocks.readFile).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), "utf8");
     expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), { force: true });
+  });
+
+  it("runs a generic Codex prompt in the provided working directory", async () => {
+    const child = createChildProcess({ code: 0 });
+    mocks.spawn.mockReturnValue(child);
+    mocks.readFile.mockResolvedValue("  {\"topics\":[\"java\"]}  ");
+
+    const result = await runCodexPrompt({
+      prompt: "Return JSON only.",
+      workingDirectory: "/workspace/archa/repos/java-conventions"
+    });
+
+    expect(result).toEqual({ text: "{\"topics\":[\"java\"]}" });
+    expect(child.stdin.write).toHaveBeenCalledWith("Return JSON only.");
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      "codex",
+      expect.arrayContaining([
+        "-C",
+        "/workspace/archa/repos/java-conventions",
+        "--model",
+        "gpt-5.4"
+      ]),
+      { stdio: ["pipe", "ignore", "pipe"] }
+    );
   });
 
   it("uses default codex settings when model and reasoning effort are omitted", async () => {

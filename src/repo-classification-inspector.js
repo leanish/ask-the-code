@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { getDefaultManagedReposRoot } from "./config-paths.js";
+import { curateRepoMetadataWithCodex } from "./repo-metadata-codex-curator.js";
 
 const FRONTEND_CONFIG_FILES = [
   "next.config.js",
@@ -132,7 +133,8 @@ export async function inspectRepoClassifications({
   env = process.env,
   runCommandFn = runCommand,
   fsModule = fs,
-  tempDirRoot = os.tmpdir()
+  tempDirRoot = os.tmpdir(),
+  curateMetadataFn = curateRepoMetadataWithCodex
 }) {
   const metadata = await inspectRepoMetadata({
     repo,
@@ -140,7 +142,8 @@ export async function inspectRepoClassifications({
     env,
     runCommandFn,
     fsModule,
-    tempDirRoot
+    tempDirRoot,
+    curateMetadataFn
   });
 
   return metadata.classifications;
@@ -152,7 +155,8 @@ export async function inspectRepoMetadata({
   env = process.env,
   runCommandFn = runCommand,
   fsModule = fs,
-  tempDirRoot = os.tmpdir()
+  tempDirRoot = os.tmpdir(),
+  curateMetadataFn = curateRepoMetadataWithCodex
 }) {
   const inspection = await prepareInspectionDirectory({
     repo,
@@ -163,14 +167,29 @@ export async function inspectRepoMetadata({
   });
 
   try {
-    return await inferMetadataFromDirectory({
+    const inferredMetadata = await inferMetadataFromDirectory({
       directory: inspection.directory,
       repo,
       sourceRepo,
       fsModule
     });
+    try {
+      return await curateMetadataFn({
+        directory: inspection.directory,
+        repo,
+        sourceRepo,
+        inferredMetadata,
+        env
+      });
+    } catch {
+      return inferredMetadata;
+    }
   } catch {
-    return [];
+    return {
+      description: "",
+      topics: [],
+      classifications: []
+    };
   } finally {
     await inspection.cleanup?.();
   }
