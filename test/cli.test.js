@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
+  canPromptInteractively: vi.fn(),
+  promptToInitializeConfig: vi.fn(),
+  promptToContinueGithubDiscovery: vi.fn(),
+  promptForGithubOwner: vi.fn(),
   loadConfig: vi.fn(),
   initializeConfig: vi.fn(),
   applyGithubDiscoveryToConfig: vi.fn(),
@@ -18,6 +22,13 @@ vi.mock("node:fs/promises", () => ({
   default: {
     readFile: mocks.readFile
   }
+}));
+
+vi.mock("../src/cli-bootstrap.js", () => ({
+  canPromptInteractively: mocks.canPromptInteractively,
+  promptToInitializeConfig: mocks.promptToInitializeConfig,
+  promptToContinueGithubDiscovery: mocks.promptToContinueGithubDiscovery,
+  promptForGithubOwner: mocks.promptForGithubOwner
 }));
 
 vi.mock("../src/config.js", () => ({
@@ -71,6 +82,10 @@ describe("cli", () => {
       return true;
     });
     mocks.getConfigPath.mockReturnValue("/tmp/archa-config.json");
+    mocks.canPromptInteractively.mockReturnValue(true);
+    mocks.promptToInitializeConfig.mockResolvedValue(true);
+    mocks.promptToContinueGithubDiscovery.mockResolvedValue(false);
+    mocks.promptForGithubOwner.mockResolvedValue("leanish");
     mocks.loadConfig.mockResolvedValue({
       configPath: "/tmp/archa-config.json",
       repos: [
@@ -225,6 +240,149 @@ describe("cli", () => {
     expect(stdout.join("")).toContain(
       "That imports GitHub metadata and inferred classifications into your config."
     );
+  });
+
+  it("prompts to initialize instead of failing when config is missing", async () => {
+    mocks.loadConfig.mockRejectedValueOnce(
+      new Error('Archa config not found at /tmp/archa-config.json. Run "archa config init" or set ARCHA_CONFIG_PATH.')
+    );
+    mocks.initializeConfig.mockResolvedValue({
+      configPath: "/tmp/archa-config.json",
+      managedReposRoot: "/workspace/repos",
+      repoCount: 0
+    });
+    mocks.loadConfig.mockResolvedValueOnce({
+      configPath: "/tmp/archa-config.json",
+      repos: []
+    });
+
+    await main(["How", "does", "x-codec-meta", "work?"]);
+
+    expect(mocks.promptToInitializeConfig).toHaveBeenCalledWith({
+      configPath: "/tmp/archa-config.json"
+    });
+    expect(stdout.join("")).toContain("Initialized config at /tmp/archa-config.json");
+    expect(stdout.join("")).not.toContain("Next step: archa config discover-github");
+    expect(stdout.join("")).toContain("GitHub discovery skipped.");
+    expect(mocks.answerQuestion).not.toHaveBeenCalled();
+  });
+
+  it("continues into GitHub discovery after initialization when requested", async () => {
+    const reposToAdd = [
+      {
+        name: "java-conventions",
+        url: "https://github.com/leanish/java-conventions.git",
+        defaultBranch: "main",
+        description: "Shared Gradle conventions for JDK-based projects",
+        topics: ["gradle", "java"]
+      }
+    ];
+    mocks.loadConfig.mockRejectedValueOnce(
+      new Error('Archa config not found at /tmp/archa-config.json. Run "archa config init" or set ARCHA_CONFIG_PATH.')
+    );
+    mocks.initializeConfig.mockResolvedValue({
+      configPath: "/tmp/archa-config.json",
+      managedReposRoot: "/workspace/repos",
+      repoCount: 0
+    });
+    mocks.promptToContinueGithubDiscovery.mockResolvedValue(true);
+    mocks.loadConfig.mockResolvedValueOnce({
+      configPath: "/tmp/archa-config.json",
+      repos: []
+    });
+    mocks.discoverGithubOwnerRepos.mockResolvedValue({
+      owner: "leanish",
+      ownerType: "User",
+      skippedForks: 0,
+      skippedArchived: 0,
+      repos: reposToAdd
+    });
+    mocks.planGithubRepoDiscovery.mockReturnValue({
+      owner: "leanish",
+      ownerType: "User",
+      skippedForks: 0,
+      skippedArchived: 0,
+      entries: [
+        {
+          status: "new",
+          repo: reposToAdd[0],
+          suggestions: []
+        }
+      ],
+      reposToAdd,
+      counts: {
+        discovered: 1,
+        configured: 0,
+        new: 1,
+        conflicts: 0,
+        withSuggestions: 0
+      }
+    });
+    mocks.promptGithubDiscoverySelection.mockResolvedValue({
+      reposToAdd,
+      reposToOverride: []
+    });
+    mocks.applyGithubDiscoveryToConfig.mockResolvedValue({
+      configPath: "/tmp/archa-config.json",
+      addedCount: 1,
+      overriddenCount: 0,
+      totalCount: 1
+    });
+    mocks.loadConfig.mockResolvedValueOnce({
+      configPath: "/tmp/archa-config.json",
+      repos: [
+        {
+          name: "java-conventions",
+          aliases: [],
+          directory: "/workspace/repos/java-conventions",
+          defaultBranch: "main",
+          description: "Shared Gradle conventions for JDK-based projects"
+        }
+      ]
+    });
+
+    await main(["How", "does", "x-codec-meta", "work?"]);
+
+    expect(mocks.promptToContinueGithubDiscovery).toHaveBeenCalled();
+    expect(mocks.promptForGithubOwner).toHaveBeenCalled();
+    expect(mocks.discoverGithubOwnerRepos).toHaveBeenCalledWith({
+      owner: "leanish",
+      env: process.env,
+      includeForks: true,
+      includeArchived: false
+    });
+    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledWith({
+      env: process.env,
+      reposToAdd,
+      reposToOverride: []
+    });
+    expect(mocks.answerQuestion).toHaveBeenCalled();
+  });
+
+  it("initializes automatically before running config discover-github", async () => {
+    mocks.loadConfig.mockRejectedValueOnce(
+      new Error('Archa config not found at /tmp/archa-config.json. Run "archa config init" or set ARCHA_CONFIG_PATH.')
+    );
+    mocks.initializeConfig.mockResolvedValue({
+      configPath: "/tmp/archa-config.json",
+      managedReposRoot: "/workspace/repos",
+      repoCount: 0
+    });
+    mocks.loadConfig.mockResolvedValue({
+      configPath: "/tmp/archa-config.json",
+      repos: []
+    });
+
+    await main(["config", "discover-github", "--owner", "leanish"]);
+
+    expect(mocks.promptToInitializeConfig).toHaveBeenCalled();
+    expect(mocks.promptToContinueGithubDiscovery).not.toHaveBeenCalled();
+    expect(mocks.discoverGithubOwnerRepos).toHaveBeenCalledWith({
+      owner: "leanish",
+      env: process.env,
+      includeForks: true,
+      includeArchived: false
+    });
   });
 
   it("prints the repo list", async () => {
