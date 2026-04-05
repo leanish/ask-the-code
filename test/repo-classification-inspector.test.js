@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { inspectRepoClassifications } from "../src/repo-classification-inspector.js";
+import { inspectRepoClassifications, inspectRepoMetadata } from "../src/repo-classification-inspector.js";
 
 describe("repo-classification-inspector", () => {
   let tempRoot;
@@ -67,5 +67,38 @@ describe("repo-classification-inspector", () => {
     });
 
     expect(classifications).toEqual(["infra", "internal"]);
+  });
+
+  it("infers description and topics from the repo readme when metadata is missing", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "terminator");
+    await fs.mkdir(repoDirectory, { recursive: true });
+    await fs.writeFile(path.join(repoDirectory, "README.md"), [
+      "# Terminator",
+      "",
+      "Terminator is a small Java library that coordinates the orderly shutdown of heterogeneous services.",
+      "",
+      "## Key features",
+      "",
+      "- Blocking and non-blocking termination",
+      "- Timeout-aware awaitTermination support"
+    ].join("\n"));
+    await fs.writeFile(path.join(repoDirectory, "build.gradle"), "plugins { id 'java-library' }\n");
+
+    const metadata = await inspectRepoMetadata({
+      repo: {
+        name: "terminator",
+        url: "https://github.com/leanish/terminator.git",
+        defaultBranch: "main",
+        description: "",
+        topics: []
+      },
+      env
+    });
+
+    expect(metadata).toEqual({
+      description: "Terminator is a small Java library that coordinates the orderly shutdown of heterogeneous services.",
+      topics: ["blocking", "termination", "java", "shutdown", "services"],
+      classifications: ["library"]
+    });
   });
 });

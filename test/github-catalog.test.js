@@ -297,6 +297,62 @@ describe("github-catalog", () => {
     }));
   });
 
+  it("fills missing description and topics from repository inspection metadata", async () => {
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
+        return createJsonResponse(200, [
+          {
+            name: "terminator",
+            clone_url: "https://github.com/leanish/terminator.git",
+            default_branch: "main",
+            description: "",
+            topics: [],
+            size: 175,
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/leanish/terminator/topics") {
+        return createJsonResponse(200, {
+          names: []
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    const inspectRepoFn = vi.fn(async () => ({
+      description: "Terminator is a small Java library that coordinates the orderly shutdown of heterogeneous services.",
+      topics: ["java", "shutdown", "blocking"],
+      classifications: ["library"]
+    }));
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "leanish",
+      fetchFn,
+      inspectRepoFn
+    });
+
+    expect(result.repos).toEqual([
+      {
+        name: "terminator",
+        url: "https://github.com/leanish/terminator.git",
+        defaultBranch: "main",
+        description: "Terminator is a small Java library that coordinates the orderly shutdown of heterogeneous services.",
+        topics: ["java", "shutdown", "blocking"],
+        classifications: ["library"]
+      }
+    ]);
+  });
+
   it("infers high-signal classifications separately from generic topics", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const fetchFn = vi.fn(async url => {

@@ -1,4 +1,4 @@
-import { inspectRepoClassifications } from "./repo-classification-inspector.js";
+import { inspectRepoMetadata } from "./repo-classification-inspector.js";
 
 const GITHUB_API_URL = "https://api.github.com";
 const PAGE_SIZE = 100;
@@ -68,7 +68,7 @@ export async function discoverGithubOwnerRepos({
   owner,
   env = process.env,
   fetchFn = globalThis.fetch,
-  inspectRepoFn = inspectRepoClassifications,
+  inspectRepoFn = inspectRepoMetadata,
   includeForks = true,
   includeArchived = false
 }) {
@@ -282,26 +282,34 @@ function normalizeGithubRepo(repo) {
 
 async function hydrateGithubRepoTopics({ owner, repo, env, fetchFn, inspectRepoFn }) {
   const normalizedRepo = normalizeGithubRepo(repo);
+  const inspectedMetadata = await safeInspectMetadata(inspectRepoFn, {
+    repo: normalizedRepo,
+    sourceRepo: repo,
+    env
+  });
+  const description = normalizedRepo.description || inspectedMetadata.description || "";
+  const repoWithDescription = {
+    ...normalizedRepo,
+    description
+  };
 
   if (normalizedRepo.topics.length > 0) {
-    const topics = normalizeTopicList(normalizedRepo.topics, normalizedRepo, repo.size);
+    const topics = resolveTopics({
+      rawGithubTopics: normalizedRepo.topics,
+      repo: repoWithDescription,
+      sizeKb: repo.size,
+      inspectedTopics: inspectedMetadata.topics
+    });
     const classifications = mergeClassifications(
       inferRepoClassifications({
-        repo: normalizedRepo,
+        repo: repoWithDescription,
         sourceRepo: repo,
         topics
       }),
-      await safeInspectClassifications(inspectRepoFn, {
-        repo: {
-          ...normalizedRepo,
-          topics
-        },
-        sourceRepo: repo,
-        env
-      })
+      inspectedMetadata.classifications
     );
     return {
-      ...normalizedRepo,
+      ...repoWithDescription,
       topics,
       classifications
     };
@@ -313,25 +321,23 @@ async function hydrateGithubRepoTopics({ owner, repo, env, fetchFn, inspectRepoF
     path: `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo.name)}/topics`
   });
 
-  const topics = normalizeTopicList(topicsResponse?.names, normalizedRepo, repo.size);
+  const topics = resolveTopics({
+    rawGithubTopics: topicsResponse?.names,
+    repo: repoWithDescription,
+    sizeKb: repo.size,
+    inspectedTopics: inspectedMetadata.topics
+  });
   const classifications = mergeClassifications(
     inferRepoClassifications({
-      repo: normalizedRepo,
+      repo: repoWithDescription,
       sourceRepo: repo,
       topics
     }),
-    await safeInspectClassifications(inspectRepoFn, {
-      repo: {
-        ...normalizedRepo,
-        topics
-      },
-      sourceRepo: repo,
-      env
-    })
+    inspectedMetadata.classifications
   );
 
   return {
-    ...normalizedRepo,
+    ...repoWithDescription,
     topics,
     classifications
   };
@@ -346,6 +352,18 @@ function normalizeTopicList(value, repo, sizeKb) {
     githubTopics,
     inferRepoTopics(repo, { sizeKb })
   );
+}
+
+function resolveTopics({ rawGithubTopics, repo, sizeKb, inspectedTopics }) {
+  const githubTopics = Array.isArray(rawGithubTopics)
+    ? rawGithubTopics.filter(topic => typeof topic === "string" && topic.trim() !== "")
+    : [];
+
+  if (inspectedTopics?.length > 0) {
+    return mergeTopicLists(githubTopics, inspectedTopics);
+  }
+
+  return normalizeTopicList(githubTopics, repo, sizeKb);
 }
 
 function inferRepoTopics(repo, { sizeKb }) {
@@ -475,17 +493,46 @@ function mergeClassifications(primary, secondary) {
   return pruneConflictingClassifications(Array.from(new Set([...(primary || []), ...(secondary || [])])));
 }
 
-async function safeInspectClassifications(inspectRepoFn, context) {
+async function safeInspectMetadata(inspectRepoFn, context) {
   if (typeof inspectRepoFn !== "function") {
-    return [];
+    return emptyInspectionMetadata();
   }
 
   try {
-    const classifications = await inspectRepoFn(context);
-    return Array.isArray(classifications) ? classifications : [];
+    const result = await inspectRepoFn(context);
+
+    if (Array.isArray(result)) {
+      return {
+        description: "",
+        topics: [],
+        classifications: result
+      };
+    }
+
+    if (!result || typeof result !== "object") {
+      return emptyInspectionMetadata();
+    }
+
+    return {
+      description: typeof result.description === "string" ? result.description : "",
+      topics: Array.isArray(result.topics)
+        ? result.topics.filter(topic => typeof topic === "string" && topic.trim() !== "")
+        : [],
+      classifications: Array.isArray(result.classifications)
+        ? result.classifications.filter(classification => typeof classification === "string" && classification.trim() !== "")
+        : []
+    };
   } catch {
-    return [];
+    return emptyInspectionMetadata();
   }
+}
+
+function emptyInspectionMetadata() {
+  return {
+    description: "",
+    topics: [],
+    classifications: []
+  };
 }
 
 function buildRepoSuggestions(configuredRepo, githubRepo) {

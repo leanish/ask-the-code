@@ -35,6 +35,75 @@ const README_CANDIDATES = ["README.md", "README.mdx", "README.txt", "readme.md"]
 const FRONTEND_DEPENDENCIES = new Set(["react", "next", "vue", "nuxt", "svelte", "@angular/core", "react-native", "expo"]);
 const BACKEND_DEPENDENCIES = new Set(["express", "fastify", "koa", "@nestjs/core", "hono", "graphql-yoga", "apollo-server"]);
 const CLI_DEPENDENCIES = new Set(["commander", "yargs", "oclif", "clipanion", "cac"]);
+const DESCRIPTION_MAX_LENGTH = 180;
+const MAX_INFERRED_TOPICS = 5;
+const TOPIC_STOP_WORDS = new Set([
+  "about",
+  "after",
+  "also",
+  "and",
+  "any",
+  "before",
+  "both",
+  "build",
+  "change",
+  "changes",
+  "code",
+  "contributing",
+  "coordinate",
+  "coordinates",
+  "distributed",
+  "feature",
+  "features",
+  "finish",
+  "for",
+  "from",
+  "guide",
+  "helper",
+  "helpers",
+  "heterogeneous",
+  "how",
+  "into",
+  "issue",
+  "issues",
+  "its",
+  "key",
+  "license",
+  "log",
+  "once",
+  "only",
+  "orderly",
+  "package",
+  "project",
+  "quick",
+  "register",
+  "run",
+  "same",
+  "see",
+  "small",
+  "start",
+  "suite",
+  "test",
+  "testing",
+  "that",
+  "the",
+  "their",
+  "them",
+  "this",
+  "through",
+  "aware",
+  "awaittermination",
+  "non",
+  "support",
+  "supports",
+  "uses",
+  "using",
+  "what",
+  "with",
+  "without",
+  "you",
+  "your"
+]);
 const EXTERNAL_TERMS = [
   "external",
   "customer",
@@ -65,6 +134,26 @@ export async function inspectRepoClassifications({
   fsModule = fs,
   tempDirRoot = os.tmpdir()
 }) {
+  const metadata = await inspectRepoMetadata({
+    repo,
+    sourceRepo,
+    env,
+    runCommandFn,
+    fsModule,
+    tempDirRoot
+  });
+
+  return metadata.classifications;
+}
+
+export async function inspectRepoMetadata({
+  repo,
+  sourceRepo = {},
+  env = process.env,
+  runCommandFn = runCommand,
+  fsModule = fs,
+  tempDirRoot = os.tmpdir()
+}) {
   const inspection = await prepareInspectionDirectory({
     repo,
     env,
@@ -74,7 +163,7 @@ export async function inspectRepoClassifications({
   });
 
   try {
-    return await inferClassificationsFromDirectory({
+    return await inferMetadataFromDirectory({
       directory: inspection.directory,
       repo,
       sourceRepo,
@@ -124,12 +213,17 @@ async function prepareInspectionDirectory({ repo, env, fsModule, runCommandFn, t
   };
 }
 
-async function inferClassificationsFromDirectory({ directory, repo, sourceRepo, fsModule }) {
+async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModule }) {
   if (!(await exists(fsModule, directory))) {
-    return [];
+    return {
+      description: "",
+      topics: [],
+      classifications: []
+    };
   }
 
   const signals = new Set();
+  const topicCandidates = [];
   const classifications = [];
   const hasFrontend = await hasAnyPath(fsModule, directory, FRONTEND_DIRECTORIES)
     || await hasAnyFile(fsModule, directory, FRONTEND_CONFIG_FILES);
@@ -148,10 +242,14 @@ async function inferClassificationsFromDirectory({ directory, repo, sourceRepo, 
   addWords(signals, repo.description);
   addWords(signals, readmeText);
   addWords(signals, packageJson?.keywords || []);
+  collectWords(topicCandidates, repo.description);
+  collectWords(topicCandidates, readmeText);
+  collectWords(topicCandidates, packageJson?.keywords || []);
 
   const dependencyNames = collectPackageDependencies(packageJson);
   for (const dependencyName of dependencyNames) {
     signals.add(dependencyName.toLowerCase());
+    collectWords(topicCandidates, dependencyName);
   }
 
   const gradleSource = `${gradleText}\n${gradleKtsText}`.toLowerCase();
@@ -210,7 +308,74 @@ async function inferClassificationsFromDirectory({ directory, repo, sourceRepo, 
     classifications.push("external");
   }
 
-  return Array.from(new Set(classifications));
+  const normalizedClassifications = Array.from(new Set(classifications));
+
+  return {
+    description: inferDescriptionFromReadme(readmeText),
+    topics: inferTopicsFromSignals(topicCandidates, normalizedClassifications, tokenizeTerms(repo.name)),
+    classifications: normalizedClassifications
+  };
+}
+
+function inferDescriptionFromReadme(readmeText) {
+  if (!readmeText) {
+    return "";
+  }
+
+  const paragraphs = readmeText
+    .replace(/\r\n/g, "\n")
+    .split(/\n\s*\n/)
+    .map(paragraph => paragraph.trim())
+    .filter(Boolean)
+    .filter(paragraph => !paragraph.startsWith("#"))
+    .filter(paragraph => !paragraph.startsWith("```"))
+    .filter(paragraph => !paragraph.startsWith("- "))
+    .filter(paragraph => !paragraph.startsWith("* "))
+    .map(stripMarkdown);
+
+  const paragraph = paragraphs.find(candidate => candidate.length >= 20);
+
+  if (!paragraph) {
+    return "";
+  }
+
+  if (paragraph.length <= DESCRIPTION_MAX_LENGTH) {
+    return paragraph;
+  }
+
+  return `${paragraph.slice(0, DESCRIPTION_MAX_LENGTH - 3).trimEnd()}...`;
+}
+
+function inferTopicsFromSignals(tokens, classifications, excludedTokens = []) {
+  const classificationSet = new Set(classifications);
+  const excluded = new Set(excludedTokens);
+  const ranked = new Map();
+  let index = 0;
+
+  for (const token of tokens) {
+    const normalizedToken = token.trim().toLowerCase();
+
+    if (
+      normalizedToken.length < 3
+      || classificationSet.has(normalizedToken)
+      || excluded.has(normalizedToken)
+      || TOPIC_STOP_WORDS.has(normalizedToken)
+    ) {
+      continue;
+    }
+
+    const current = ranked.get(normalizedToken);
+    ranked.set(normalizedToken, {
+      count: (current?.count || 0) + 1,
+      firstIndex: current?.firstIndex ?? index
+    });
+    index += 1;
+  }
+
+  return [...ranked.entries()]
+    .sort((left, right) => right[1].count - left[1].count || left[1].firstIndex - right[1].firstIndex)
+    .slice(0, MAX_INFERRED_TOPICS)
+    .map(([token]) => token);
 }
 
 async function hasAnyPath(fsModule, rootDirectory, relativePaths) {
@@ -308,6 +473,42 @@ function addWords(target, value) {
       }
     }
   }
+}
+
+function collectWords(target, value) {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectWords(target, item);
+    }
+    return;
+  }
+
+  if (typeof value !== "string") {
+    return;
+  }
+
+  for (const token of tokenizeTerms(value)) {
+    target.push(token);
+  }
+}
+
+function tokenizeTerms(value) {
+  return (value.match(/[A-Za-z0-9-]+/g) || [])
+    .flatMap(token => token.split("-"))
+    .flatMap(token => token.split(/(?=[A-Z])/))
+    .map(token => token.toLowerCase())
+    .filter(Boolean);
+}
+
+function stripMarkdown(value) {
+  return value
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/[_#>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function hasAnyTerm(signals, terms) {

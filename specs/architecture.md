@@ -85,11 +85,11 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/config.js`
   Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and applies selected GitHub discovery additions or overrides into the active config.
 - `src/github-catalog.js`
-  Discovers repos from a GitHub user or org, normalizes them into repo definitions, enriches topics from repo descriptions after GitHub metadata is loaded with a size-aware topic budget, derives separate repo classifications from metadata plus repo-content inspection, and compares them with the current config to classify additions, conflicts, and metadata review suggestions.
+  Discovers repos from a GitHub user or org, normalizes them into repo definitions, fills blank descriptions/topics from repo-content inspection when GitHub metadata is sparse, enriches topics with a size-aware topic budget, derives separate repo classifications from metadata plus repo-content inspection, and compares them with the current config to classify additions, conflicts, and metadata review suggestions.
 - `src/github-discovery-selection.js`
   Resolves explicit or interactive discovery selections so GitHub imports can add only chosen repos and override only chosen configured repos.
 - `src/repo-classification-inspector.js`
-  Reuses an existing managed checkout when available, otherwise shallow-clones a repo temporarily, then inspects repo structure, manifests, dependencies, and README cues to infer high-signal classifications such as `external`, `internal`, `infra`, `frontend`, `backend`, and `cli`.
+  Reuses an existing managed checkout when available, otherwise shallow-clones a repo temporarily, then inspects repo structure, manifests, dependencies, and README cues to infer fallback descriptions, fallback topics, and high-signal classifications such as `external`, `internal`, `infra`, `frontend`, `backend`, and `cli`.
 - `src/question-answering.js`
   Implements the transport-agnostic ask flow and accepts injectable adapters such as status reporters and sync functions.
 - `src/repo-selection.js`
