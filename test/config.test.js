@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { appendReposToConfig, initializeConfig, loadConfig } from "../src/config.js";
+import { appendReposToConfig, applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "../src/config.js";
 import { getConfigPath, getDefaultManagedReposRoot } from "../src/config-paths.js";
 
 describe("config", () => {
@@ -294,6 +294,77 @@ describe("config", () => {
     await expect(loadConfig(env)).resolves.toMatchObject({
       managedReposRoot: "/workspace/repos",
       repos: [
+        {
+          name: "archa",
+          url: "https://github.com/leanish/archa.git",
+          defaultBranch: "main",
+          description: "Repo-aware CLI for engineering Q&A with local Codex",
+          topics: ["cli", "codex", "qa"]
+        }
+      ]
+    });
+  });
+
+  it("applies selected GitHub discovery additions and overrides", async () => {
+    await initializeConfig({
+      env,
+      managedReposRoot: "/workspace/repos"
+    });
+
+    await appendReposToConfig({
+      env,
+      repos: [
+        {
+          name: "foundation",
+          url: "https://github.com/leanish/foundation.git",
+          defaultBranch: "main",
+          description: "",
+          topics: [],
+          aliases: ["shared"],
+          alwaysSelect: true
+        }
+      ]
+    });
+
+    const result = await applyGithubDiscoveryToConfig({
+      env,
+      reposToAdd: [
+        {
+          name: "archa",
+          url: "https://github.com/leanish/archa.git",
+          defaultBranch: "main",
+          description: "Repo-aware CLI for engineering Q&A with local Codex",
+          topics: ["cli", "codex", "qa"]
+        }
+      ],
+      reposToOverride: [
+        {
+          name: "foundation",
+          url: "https://github.com/leanish/foundation-updated.git",
+          defaultBranch: "trunk",
+          description: "Shared base functionality",
+          topics: ["java", "gradle"]
+        }
+      ]
+    });
+
+    expect(result).toEqual({
+      configPath: path.join(tempRoot, "config", "archa", "config.json"),
+      addedCount: 1,
+      overriddenCount: 1,
+      totalCount: 2
+    });
+    await expect(loadConfig(env)).resolves.toMatchObject({
+      repos: [
+        {
+          name: "foundation",
+          url: "https://github.com/leanish/foundation-updated.git",
+          defaultBranch: "trunk",
+          description: "Shared base functionality",
+          topics: ["java", "gradle"],
+          aliases: ["shared"],
+          alwaysSelect: true
+        },
         {
           name: "archa",
           url: "https://github.com/leanish/archa.git",

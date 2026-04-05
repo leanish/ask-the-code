@@ -5,7 +5,7 @@ export async function discoverGithubOwnerRepos({
   owner,
   env = process.env,
   fetchFn = globalThis.fetch,
-  includeForks = false,
+  includeForks = true,
   includeArchived = false
 }) {
   const normalizedOwner = normalizeOwner(owner);

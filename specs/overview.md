@@ -14,7 +14,7 @@ Archa exposes the same repo-aware question-answering core through a CLI and an o
 ## Core behavior
 
 - user-level config defines the managed repo set and clone root
-- config can be bootstrapped from a local catalog file or discovered from a GitHub owner before being written locally
+- config can be bootstrapped from a local catalog file or discovered from a GitHub owner before being selectively added to or overridden in local config
 - `repos list` shows configured repos and whether they are cloned locally
 - `repos sync` clones or fast-forwards the managed repos
 - asking a question uses automatic repo selection by default, or an explicit repo subset when provided, then syncs them and runs Codex

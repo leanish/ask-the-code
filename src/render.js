@@ -61,6 +61,7 @@ export function renderGithubDiscovery(result) {
   lines.push(`Already configured: ${result.counts.configured}`);
   lines.push(`Ready to add: ${result.counts.new}`);
   lines.push(`Identifier conflicts: ${result.counts.conflicts}`);
+  lines.push(`Configured with review suggestions: ${result.counts.withSuggestions}`);
 
   if (result.skippedForks > 0) {
     lines.push(`Skipped forks: ${result.skippedForks}`);
@@ -71,13 +72,16 @@ export function renderGithubDiscovery(result) {
   }
 
   if (result.applied) {
-    lines.push(`${result.addedCount > 0 ? "Config updated" : "Config unchanged"}: ${result.configPath}`);
+    const hasChanges = result.addedCount > 0 || (result.overriddenCount || 0) > 0;
+    lines.push(`${hasChanges ? "Config updated" : "Config unchanged"}: ${result.configPath}`);
     lines.push(`Repos added: ${result.addedCount}`);
+    lines.push(`Repos overridden: ${result.overriddenCount || 0}`);
     return lines.join("\n");
   }
 
-  if (result.counts.new > 0) {
+  if (result.counts.new > 0 || result.counts.configured > 0) {
     lines.push(`Run: archa config discover-github --owner ${result.owner} --apply`);
+    lines.push("Apply mode lets you choose which repos to add and which configured repos to override.");
   } else {
     lines.push("No new repos to add.");
   }

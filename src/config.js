@@ -82,6 +82,69 @@ export async function appendReposToConfig({
   };
 }
 
+export async function applyGithubDiscoveryToConfig({
+  env = process.env,
+  reposToAdd = [],
+  reposToOverride = []
+}) {
+  if (!Array.isArray(reposToAdd)) {
+    throw new Error('applyGithubDiscoveryToConfig requires a "reposToAdd" array.');
+  }
+
+  if (!Array.isArray(reposToOverride)) {
+    throw new Error('applyGithubDiscoveryToConfig requires a "reposToOverride" array.');
+  }
+
+  const configPath = getConfigPath(env);
+  const raw = await readConfigFile(configPath);
+  const parsed = parseConfigJson(configPath, raw);
+
+  if (!Array.isArray(parsed.repos)) {
+    throw new Error(`Invalid Archa config at ${configPath}: "repos" must be an array.`);
+  }
+
+  const normalizedAdditions = reposToAdd.map((repo, index) => normalizeRepoDefinition(repo, index, configPath));
+  const normalizedOverrides = reposToOverride.map((repo, index) => normalizeRepoDefinition(repo, index, configPath));
+  const overridesByName = new Map(
+    normalizedOverrides.map(repo => [repo.name.toLowerCase(), repo])
+  );
+  const normalizedExistingRepos = parsed.repos.map((repo, index) => normalizeRepoDefinition(repo, index, configPath));
+
+  for (const repoToOverride of normalizedOverrides) {
+    if (!normalizedExistingRepos.some(existingRepo => existingRepo.name.toLowerCase() === repoToOverride.name.toLowerCase())) {
+      throw new Error(`Cannot override missing repo "${repoToOverride.name}" in ${configPath}.`);
+    }
+  }
+
+  const nextRepos = parsed.repos.map((repo, index) => {
+    const normalizedExistingRepo = normalizedExistingRepos[index];
+    const overrideRepo = overridesByName.get(normalizedExistingRepo.name.toLowerCase());
+
+    if (!overrideRepo) {
+      return repo;
+    }
+
+    return mergeDiscoveredRepo(repo, normalizedExistingRepo, overrideRepo);
+  });
+
+  nextRepos.push(...normalizedAdditions);
+
+  validateUniqueRepoIdentifiers(
+    nextRepos.map((repo, index) => normalizeRepoDefinition(repo, index, configPath)),
+    configPath
+  );
+
+  parsed.repos = nextRepos;
+  await fs.writeFile(configPath, JSON.stringify(parsed, null, 2) + "\n");
+
+  return {
+    configPath,
+    addedCount: normalizedAdditions.length,
+    overriddenCount: normalizedOverrides.length,
+    totalCount: nextRepos.length
+  };
+}
+
 async function readConfigFile(configPath) {
   try {
     return await fs.readFile(configPath, "utf8");
@@ -136,6 +199,22 @@ function normalizeRepoDefinition(repo, index, sourcePath) {
     topics: Array.isArray(repo.topics) ? repo.topics : [],
     aliases: Array.isArray(repo.aliases) ? repo.aliases : [],
     alwaysSelect: repo.alwaysSelect === true
+  };
+}
+
+function mergeDiscoveredRepo(rawRepo, existingRepo, discoveredRepo) {
+  const {
+    branch: _branch,
+    ...preservedFields
+  } = rawRepo;
+
+  return {
+    ...preservedFields,
+    name: existingRepo.name,
+    url: discoveredRepo.url,
+    defaultBranch: discoveredRepo.defaultBranch,
+    description: discoveredRepo.description,
+    topics: discoveredRepo.topics
   };
 }
 

@@ -81,9 +81,11 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/config-paths.js`
   Resolves the active config path and default managed repos root.
 - `src/config.js`
-  Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and appends newly discovered repos into the active config.
+  Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and applies selected GitHub discovery additions or overrides into the active config.
 - `src/github-catalog.js`
   Discovers repos from a GitHub user or org, normalizes them into repo definitions, and compares them with the current config to classify additions, conflicts, and metadata review suggestions.
+- `src/github-discovery-selection.js`
+  Resolves explicit or interactive discovery selections so GitHub imports can add only chosen repos and override only chosen configured repos.
 - `src/question-answering.js`
   Implements the transport-agnostic ask flow and accepts injectable adapters such as status reporters and sync functions.
 - `src/repo-selection.js`

@@ -91,19 +91,21 @@ archa config init \
   --managed-repos-root /Users/leandro.aguiar/.local/share/archa/repos
 ```
 
-Discover repos from a GitHub user or org and preview what could be added:
+Discover repos from a GitHub user or org and preview what could be added or overridden:
 
 ```bash
 archa config discover-github --owner leanish
 ```
 
-Append the missing repos from that owner into the active config:
+Selectively apply additions or overrides from that owner into the active config:
 
 ```bash
 archa config discover-github --owner leanish --apply
 ```
 
-By default, GitHub discovery skips forks and archived repos. Use `--include-forks` and `--include-archived` to keep them in scope. Imported repos reuse GitHub `description`, `topics`, and `default_branch` so repo selection starts with sensible metadata. Existing repos are not rewritten, but the preview points out when GitHub metadata suggests the configured description, topics, URL, or default branch should be reviewed.
+When `--apply` runs in a terminal, Archa prompts for which new repos to add and which configured repos to override from GitHub metadata. For scripted use, pass `--add <names>` and `--override <names>` alongside `--apply`, or use `*` to select all repos of that kind.
+
+By default, GitHub discovery includes forks and skips archived repos. Use `--exclude-forks` to hide forks, and `--include-archived` to keep archived repos in scope. Imported repos reuse GitHub `description`, `topics`, and `default_branch` so repo selection starts with sensible metadata. Overrides update the configured repo's URL, default branch, description, and topics while preserving local-only fields such as aliases and `alwaysSelect`.
 
 Print the active config path:
 

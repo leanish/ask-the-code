@@ -4,9 +4,11 @@ const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
   loadConfig: vi.fn(),
   initializeConfig: vi.fn(),
-  appendReposToConfig: vi.fn(),
+  applyGithubDiscoveryToConfig: vi.fn(),
   discoverGithubOwnerRepos: vi.fn(),
   planGithubRepoDiscovery: vi.fn(),
+  promptGithubDiscoverySelection: vi.fn(),
+  selectGithubDiscoveryRepos: vi.fn(),
   answerQuestion: vi.fn(),
   syncRepos: vi.fn(),
   getConfigPath: vi.fn()
@@ -21,7 +23,7 @@ vi.mock("node:fs/promises", () => ({
 vi.mock("../src/config.js", () => ({
   loadConfig: mocks.loadConfig,
   initializeConfig: mocks.initializeConfig,
-  appendReposToConfig: mocks.appendReposToConfig
+  applyGithubDiscoveryToConfig: mocks.applyGithubDiscoveryToConfig
 }));
 
 vi.mock("../src/config-paths.js", () => ({
@@ -31,6 +33,11 @@ vi.mock("../src/config-paths.js", () => ({
 vi.mock("../src/github-catalog.js", () => ({
   discoverGithubOwnerRepos: mocks.discoverGithubOwnerRepos,
   planGithubRepoDiscovery: mocks.planGithubRepoDiscovery
+}));
+
+vi.mock("../src/github-discovery-selection.js", () => ({
+  promptGithubDiscoverySelection: mocks.promptGithubDiscoverySelection,
+  selectGithubDiscoveryRepos: mocks.selectGithubDiscoveryRepos
 }));
 
 vi.mock("../src/question-answering.js", () => ({
@@ -65,6 +72,7 @@ describe("cli", () => {
     });
     mocks.getConfigPath.mockReturnValue("/tmp/archa-config.json");
     mocks.loadConfig.mockResolvedValue({
+      configPath: "/tmp/archa-config.json",
       repos: [
         {
           name: "sqs-codec",
@@ -104,9 +112,18 @@ describe("cli", () => {
         withSuggestions: 0
       }
     });
-    mocks.appendReposToConfig.mockResolvedValue({
+    mocks.promptGithubDiscoverySelection.mockResolvedValue({
+      reposToAdd: [],
+      reposToOverride: []
+    });
+    mocks.selectGithubDiscoveryRepos.mockReturnValue({
+      reposToAdd: [],
+      reposToOverride: []
+    });
+    mocks.applyGithubDiscoveryToConfig.mockResolvedValue({
       configPath: "/tmp/archa-config.json",
       addedCount: 0,
+      overriddenCount: 0,
       totalCount: 1
     });
     mocks.answerQuestion.mockResolvedValue({
@@ -253,10 +270,10 @@ describe("cli", () => {
     expect(stdout.join("")).toContain("GitHub repo discovery for leanish (User):");
     expect(stdout.join("")).toContain("archa [new]");
     expect(stdout.join("")).toContain("Run: archa config discover-github --owner leanish --apply");
-    expect(mocks.appendReposToConfig).not.toHaveBeenCalled();
+    expect(mocks.applyGithubDiscoveryToConfig).not.toHaveBeenCalled();
   });
 
-  it("applies discovered repos when requested", async () => {
+  it("applies interactively selected repo changes when requested", async () => {
     const reposToAdd = [
       {
         name: "java-conventions",
@@ -282,7 +299,6 @@ describe("cli", () => {
           suggestions: []
         }
       ],
-      reposToAdd,
       counts: {
         discovered: 1,
         configured: 0,
@@ -291,20 +307,107 @@ describe("cli", () => {
         withSuggestions: 0
       }
     });
-    mocks.appendReposToConfig.mockResolvedValue({
+    mocks.promptGithubDiscoverySelection.mockResolvedValue({
+      reposToAdd,
+      reposToOverride: []
+    });
+    mocks.applyGithubDiscoveryToConfig.mockResolvedValue({
       configPath: "/tmp/archa-config.json",
       addedCount: 1,
+      overriddenCount: 0,
       totalCount: 2
     });
 
     await main(["config", "discover-github", "--owner", "leanish", "--apply"]);
 
-    expect(mocks.appendReposToConfig).toHaveBeenCalledWith({
+    expect(mocks.promptGithubDiscoverySelection).toHaveBeenCalled();
+    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledWith({
       env: process.env,
-      repos: reposToAdd
+      reposToAdd,
+      reposToOverride: []
     });
     expect(stdout.join("")).toContain("Config updated: /tmp/archa-config.json");
     expect(stdout.join("")).toContain("Repos added: 1");
+  });
+
+  it("applies explicit add and override selections without prompting", async () => {
+    const reposToAdd = [
+      {
+        name: "java-conventions",
+        url: "https://github.com/leanish/java-conventions.git",
+        defaultBranch: "main",
+        description: "Shared Gradle conventions for JDK-based projects",
+        topics: ["gradle", "java"]
+      }
+    ];
+    const reposToOverride = [
+      {
+        name: "sqs-codec",
+        url: "https://github.com/leanish/sqs-codec.git",
+        defaultBranch: "main",
+        description: "Updated description",
+        topics: ["aws", "sqs"]
+      }
+    ];
+    mocks.planGithubRepoDiscovery.mockReturnValue({
+      owner: "leanish",
+      ownerType: "Organization",
+      skippedForks: 0,
+      skippedArchived: 0,
+      entries: [
+        {
+          status: "new",
+          repo: reposToAdd[0],
+          suggestions: []
+        },
+        {
+          status: "configured",
+          repo: reposToOverride[0],
+          suggestions: ["review description"]
+        }
+      ],
+      counts: {
+        discovered: 2,
+        configured: 1,
+        new: 1,
+        conflicts: 0,
+        withSuggestions: 1
+      }
+    });
+    mocks.selectGithubDiscoveryRepos.mockReturnValue({
+      reposToAdd,
+      reposToOverride
+    });
+    mocks.applyGithubDiscoveryToConfig.mockResolvedValue({
+      configPath: "/tmp/archa-config.json",
+      addedCount: 1,
+      overriddenCount: 1,
+      totalCount: 2
+    });
+
+    await main([
+      "config",
+      "discover-github",
+      "--owner",
+      "leanish",
+      "--apply",
+      "--add",
+      "java-conventions",
+      "--override",
+      "sqs-codec"
+    ]);
+
+    expect(mocks.selectGithubDiscoveryRepos).toHaveBeenCalledWith(expect.any(Object), {
+      addRepoNames: ["java-conventions"],
+      overrideRepoNames: ["sqs-codec"]
+    });
+    expect(mocks.promptGithubDiscoverySelection).not.toHaveBeenCalled();
+    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledWith({
+      env: process.env,
+      reposToAdd,
+      reposToOverride
+    });
+    expect(stdout.join("")).toContain("Repos overridden: 1");
   });
 
   it("throws for unknown requested repos during sync", async () => {

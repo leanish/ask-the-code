@@ -34,9 +34,35 @@ describe("parseArgs", () => {
         command: "config-discover-github",
         owner: "leanish",
         apply: true,
-        includeForks: false,
-        includeArchived: false
+        includeForks: true,
+        includeArchived: false,
+        addRepoNames: [],
+        overrideRepoNames: []
       });
+  });
+
+  it("supports explicit GitHub discovery selections and fork exclusion", () => {
+    expect(parseArgs([
+      "config",
+      "discover-github",
+      "--owner",
+      "leanish",
+      "--apply",
+      "--add",
+      "archa,java-conventions",
+      "--override",
+      "foundation",
+      "--exclude-forks",
+      "--include-archived"
+    ], {})).toEqual({
+      command: "config-discover-github",
+      owner: "leanish",
+      apply: true,
+      includeForks: false,
+      includeArchived: true,
+      addRepoNames: ["archa", "java-conventions"],
+      overrideRepoNames: ["foundation"]
+    });
   });
 
   it("parses ask options and env overrides", () => {
@@ -191,6 +217,17 @@ describe("parseArgs", () => {
   it("throws for unknown config discover-github options", () => {
     expect(() => parseArgs(["config", "discover-github", "--owner", "leanish", "--wat"], {}))
       .toThrow(/Unknown config discover-github option: --wat/);
+  });
+
+  it("throws when explicit GitHub discovery selections are passed without --apply", () => {
+    expect(() => parseArgs([
+      "config",
+      "discover-github",
+      "--owner",
+      "leanish",
+      "--add",
+      "archa"
+    ], {})).toThrow("Use --apply when passing --add or --override.");
   });
 
 });

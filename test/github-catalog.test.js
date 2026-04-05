@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { discoverGithubOwnerRepos, planGithubRepoDiscovery } from "../src/github-catalog.js";
 
 describe("github-catalog", () => {
-  it("discovers user repos and filters forks and archived repos by default", async () => {
+  it("discovers user repos, keeping forks and filtering archived repos by default", async () => {
     const fetchFn = vi.fn(async url => {
       if (url === "https://api.github.com/users/leanish") {
         return createJsonResponse(200, {
@@ -62,9 +62,16 @@ describe("github-catalog", () => {
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           topics: ["cli", "codex", "qa"]
+        },
+        {
+          name: "forked-repo",
+          url: "https://github.com/leanish/forked-repo.git",
+          defaultBranch: "main",
+          description: "",
+          topics: []
         }
       ],
-      skippedForks: 1,
+      skippedForks: 0,
       skippedArchived: 1
     });
   });

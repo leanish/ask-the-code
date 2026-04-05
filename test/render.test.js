@@ -10,7 +10,7 @@ vi.mock("node:fs", () => ({
   }
 }));
 
-import { renderAnswer, renderRepoList, renderRetrievalOnly, renderSyncReport } from "../src/render.js";
+import { renderAnswer, renderGithubDiscovery, renderRepoList, renderRetrievalOnly, renderSyncReport } from "../src/render.js";
 
 describe("render", () => {
   beforeEach(() => {
@@ -81,5 +81,67 @@ describe("render", () => {
       "- sqs-codec: updated (main)",
       "- java-conventions: skipped"
     ].join("\n"));
+  });
+
+  it("renders GitHub discovery preview and applied summaries", () => {
+    const preview = renderGithubDiscovery({
+      owner: "leanish",
+      ownerType: "User",
+      entries: [
+        {
+          status: "new",
+          repo: {
+            name: "archa",
+            description: "Repo-aware CLI",
+            topics: ["cli"]
+          },
+          suggestions: []
+        },
+        {
+          status: "configured",
+          repo: {
+            name: "foundation",
+            description: "Shared base",
+            topics: ["java"]
+          },
+          suggestions: ["review description"]
+        }
+      ],
+      counts: {
+        discovered: 2,
+        configured: 1,
+        new: 1,
+        conflicts: 0,
+        withSuggestions: 1
+      },
+      skippedForks: 0,
+      skippedArchived: 0,
+      applied: false
+    });
+
+    expect(preview).toContain("Configured with review suggestions: 1");
+    expect(preview).toContain("Apply mode lets you choose which repos to add and which configured repos to override.");
+
+    const applied = renderGithubDiscovery({
+      owner: "leanish",
+      ownerType: "User",
+      entries: [],
+      counts: {
+        discovered: 0,
+        configured: 0,
+        new: 0,
+        conflicts: 0,
+        withSuggestions: 0
+      },
+      skippedForks: 0,
+      skippedArchived: 0,
+      applied: true,
+      configPath: "/tmp/archa-config.json",
+      addedCount: 1,
+      overriddenCount: 2
+    });
+
+    expect(applied).toContain("Config updated: /tmp/archa-config.json");
+    expect(applied).toContain("Repos overridden: 2");
   });
 });
