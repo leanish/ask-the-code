@@ -169,6 +169,57 @@ describe("ask-job-manager", () => {
     manager.close();
   });
 
+  it("shutdown cancels queued jobs and waits for running jobs to finish", async () => {
+    let finishFirstJob;
+    const firstJobDone = new Promise(resolve => {
+      finishFirstJob = resolve;
+    });
+    const answerQuestionFn = vi.fn(async ({ question }) => {
+      if (question === "first") {
+        await firstJobDone;
+      }
+
+      return {
+        mode: "answer",
+        question,
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: `answer:${question}`
+        }
+      };
+    });
+    const manager = createAskJobManager({
+      answerQuestionFn,
+      generateJobId: createSequenceIdGenerator(),
+      maxConcurrentJobs: 1,
+      jobRetentionMs: 60_000
+    });
+
+    const firstJob = manager.createJob({ question: "first" });
+    const secondJob = manager.createJob({ question: "second" });
+
+    await Promise.resolve();
+
+    const shutdownPromise = manager.shutdown();
+
+    expect(() => manager.createJob({ question: "after-shutdown" })).toThrow("Ask job manager is shutting down.");
+    expect(manager.getJob(firstJob.id)?.status).toBe("running");
+    expect(manager.getJob(secondJob.id)).toMatchObject({
+      status: "failed",
+      error: "Server shutting down."
+    });
+
+    finishFirstJob();
+
+    await shutdownPromise;
+
+    expect(manager.getJob(firstJob.id)?.status).toBe("completed");
+    expect(answerQuestionFn).toHaveBeenCalledTimes(1);
+
+    manager.close();
+  });
+
   it("returns null when subscribing to an unknown job", () => {
     const manager = createAskJobManager({
       answerQuestionFn: vi.fn(async () => ({

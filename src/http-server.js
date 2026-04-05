@@ -48,16 +48,8 @@ export async function startHttpServer({
     jobManager: resolvedJobManager,
     loadConfigFn
   });
-  const sockets = new Set();
   const server = http.createServer((request, response) => {
     void handler(request, response);
-  });
-
-  server.on("connection", socket => {
-    sockets.add(socket);
-    socket.on("close", () => {
-      sockets.delete(socket);
-    });
   });
 
   await new Promise((resolve, reject) => {
@@ -73,17 +65,21 @@ export async function startHttpServer({
     server,
     url: formatServerUrl(server),
     async close() {
+      const shutdownPromise = typeof resolvedJobManager.shutdown === "function"
+        ? resolvedJobManager.shutdown()
+        : Promise.resolve();
+
+      await Promise.all([
+        shutdownPromise,
+        new Promise(resolve => {
+          server.close(() => {
+            resolve();
+          });
+          server.closeIdleConnections?.();
+        })
+      ]);
+
       resolvedJobManager.close();
-
-      await new Promise(resolve => {
-        server.close(() => {
-          resolve();
-        });
-
-        for (const socket of sockets) {
-          socket.destroy();
-        }
-      });
     }
   };
 }

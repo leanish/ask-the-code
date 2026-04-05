@@ -127,6 +127,7 @@ Repo names and aliases are validated eagerly and must be unique case-insensitive
 - jobs are kept in memory only
 - completed jobs expire after a retention window
 - server concurrency is bounded to avoid spawning unbounded Codex processes
+- server shutdown cancels queued jobs, drains running jobs, and clears manager state after the drain completes
 - repo sync coordination is per-process and keyed by repo directory
 - SSE clients receive a snapshot first, then live events until the job reaches a terminal state
 

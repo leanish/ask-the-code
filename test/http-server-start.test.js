@@ -17,7 +17,7 @@ describe("http-server startup", () => {
     vi.clearAllMocks();
   });
 
-  it("starts the server, formats the url, and destroys tracked sockets on close", async () => {
+  it("starts the server, formats the url, and drains the job manager on close", async () => {
     const server = createServerDouble({
       addressValue: {
         family: "IPv6",
@@ -25,8 +25,8 @@ describe("http-server startup", () => {
         port: 43123
       }
     });
-    const socket = createSocketDouble();
     const jobManager = {
+      shutdown: vi.fn(() => Promise.resolve()),
       close: vi.fn()
     };
     mocks.createServer.mockReturnValue(server);
@@ -39,18 +39,54 @@ describe("http-server startup", () => {
       jobManager
     });
 
-    server.emit("connection", socket);
-    socket.emit("close");
-    server.emit("connection", socket);
-
     expect(server.listen).toHaveBeenCalledWith(43123, "::1", expect.any(Function));
     expect(handle.url).toBe("http://[::1]:43123");
 
     await handle.close();
 
+    expect(jobManager.shutdown).toHaveBeenCalled();
     expect(jobManager.close).toHaveBeenCalled();
     expect(server.close).toHaveBeenCalled();
-    expect(socket.destroy).toHaveBeenCalled();
+    expect(server.closeIdleConnections).toHaveBeenCalled();
+  });
+
+  it("waits for server close and job shutdown before clearing the manager", async () => {
+    let finishShutdown;
+    const shutdownPromise = new Promise(resolve => {
+      finishShutdown = resolve;
+    });
+    const server = createServerDouble({
+      addressValue: {
+        family: "IPv4",
+        address: "127.0.0.1",
+        port: 8787
+      },
+      deferClose: true
+    });
+    const jobManager = {
+      shutdown: vi.fn(() => shutdownPromise),
+      close: vi.fn()
+    };
+    mocks.createServer.mockReturnValue(server);
+
+    const handle = await startHttpServer({
+      loadConfigFn: async () => ({ repos: [] }),
+      jobManager
+    });
+
+    const closePromise = handle.close();
+
+    expect(jobManager.shutdown).toHaveBeenCalled();
+    expect(jobManager.close).not.toHaveBeenCalled();
+
+    server.finishClose();
+    await Promise.resolve();
+    expect(jobManager.close).not.toHaveBeenCalled();
+
+    finishShutdown();
+    await closePromise;
+
+    expect(jobManager.close).toHaveBeenCalled();
   });
 
   it("returns a null url when the server address is not an object", async () => {
@@ -62,6 +98,7 @@ describe("http-server startup", () => {
     const handle = await startHttpServer({
       loadConfigFn: async () => ({ repos: [] }),
       jobManager: {
+        shutdown: vi.fn(() => Promise.resolve()),
         close: vi.fn()
       }
     });
@@ -73,6 +110,7 @@ describe("http-server startup", () => {
 
   it("rejects invalid numeric server configuration from the environment", async () => {
     const jobManager = {
+      shutdown: vi.fn(() => Promise.resolve()),
       close: vi.fn()
     };
 
@@ -150,6 +188,7 @@ describe("http-server startup", () => {
         throw new Error("Invalid Archa config at /tmp/config.json: bad value");
       },
       jobManager: {
+        shutdown: vi.fn(() => Promise.resolve()),
         close: vi.fn()
       }
     })).rejects.toThrow("Invalid Archa config at /tmp/config.json: bad value");
@@ -158,8 +197,9 @@ describe("http-server startup", () => {
   });
 });
 
-function createServerDouble({ addressValue }) {
+function createServerDouble({ addressValue, deferClose = false }) {
   const handlers = new Map();
+  let closeCallback = null;
   const server = {
     on: vi.fn((event, handler) => {
       handlers.set(event, handler);
@@ -177,28 +217,21 @@ function createServerDouble({ addressValue }) {
       return server;
     }),
     close: vi.fn(callback => {
-      callback?.();
+      closeCallback = callback;
+      if (!deferClose) {
+        closeCallback?.();
+      }
       return server;
     }),
+    closeIdleConnections: vi.fn(),
     address: vi.fn(() => addressValue),
+    finishClose() {
+      closeCallback?.();
+    },
     emit(event, ...args) {
       handlers.get(event)?.(...args);
     }
   };
 
   return server;
-}
-
-function createSocketDouble() {
-  const handlers = new Map();
-
-  return {
-    destroy: vi.fn(),
-    on: vi.fn((event, handler) => {
-      handlers.set(event, handler);
-    }),
-    emit(event, ...args) {
-      handlers.get(event)?.(...args);
-    }
-  };
 }
