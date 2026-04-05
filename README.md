@@ -241,6 +241,8 @@ Available endpoints:
 
 HTTP jobs keep an in-memory event history, run with bounded concurrency, and share a per-process repo sync coordinator. If two jobs need the same repo sync at the same time, one sync runs and the other job waits for the same result.
 
+The server shuts down gracefully on `SIGTERM` or `SIGINT`: it stops accepting new connections, drains in-flight jobs, and closes open SSE streams before exiting. Sending the signal a second time forces an immediate exit.
+
 ### Web UI
 
 Open `http://127.0.0.1:8787` in a browser to use the built-in web UI. The UI streams job status updates in real time using server-sent events and loads the configured repo catalog so the repo filter can be selected from a searchable multi-select instead of typed manually.
