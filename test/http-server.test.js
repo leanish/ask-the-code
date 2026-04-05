@@ -115,9 +115,94 @@ describe("http-server", () => {
       }
     });
     expect(healthResponse.statusCode).toBe(200);
-    expect(JSON.parse(healthResponse.body)).toEqual({ status: "ok" });
+    expect(JSON.parse(healthResponse.body)).toEqual({
+      status: "ok",
+      jobs: { queued: 0, running: 0, completed: 0, failed: 0 }
+    });
     expect(optionsResponse.statusCode).toBe(204);
     expect(optionsResponse.headers["access-control-allow-methods"]).toContain("POST");
+  });
+
+  it("returns ok health even when a custom job manager does not expose stats", async () => {
+    const handler = createHttpHandler({
+      jobManager: {}
+    });
+
+    const healthResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/health"
+    });
+
+    expect(healthResponse.statusCode).toBe(200);
+    expect(JSON.parse(healthResponse.body)).toEqual({
+      status: "ok",
+      jobs: null
+    });
+  });
+
+  it("includes job stats in the health endpoint after creating jobs", async () => {
+    let releaseJob;
+    const jobReleased = new Promise(resolve => {
+      releaseJob = resolve;
+    });
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => {
+        await jobReleased;
+
+        return {
+          mode: "answer",
+          question: "ignored",
+          selectedRepos: [],
+          syncReport: [],
+          synthesis: { text: "ignored" }
+        };
+      },
+      maxConcurrentJobs: 1,
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpHandler({ jobManager: manager });
+
+    await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: { question: "first" }
+    });
+    await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: { question: "second" }
+    });
+
+    await Promise.resolve();
+
+    const healthResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/health"
+    });
+    const health = JSON.parse(healthResponse.body);
+
+    expect(health.status).toBe("ok");
+    expect(health.jobs.running).toBe(1);
+    expect(health.jobs.queued).toBe(1);
+
+    releaseJob();
+
+    await waitFor(async () => {
+      const response = await performRequest(handler, {
+        method: "GET",
+        path: "/health"
+      });
+
+      return JSON.parse(response.body).jobs.completed === 2;
+    });
+
+    const finalHealth = JSON.parse((await performRequest(handler, {
+      method: "GET",
+      path: "/health"
+    })).body);
+
+    expect(finalHealth.jobs).toEqual({ queued: 0, running: 0, completed: 2, failed: 0 });
   });
 
   it("lists configured repos for the web picker", async () => {

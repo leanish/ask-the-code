@@ -220,6 +220,67 @@ describe("ask-job-manager", () => {
     manager.close();
   });
 
+  it("reports correct stats as jobs progress through states", async () => {
+    let finishFirstJob;
+    const firstJobDone = new Promise(resolve => {
+      finishFirstJob = resolve;
+    });
+    const answerQuestionFn = vi.fn(async ({ question }) => {
+      if (question === "first") {
+        await firstJobDone;
+      }
+
+      return {
+        mode: "answer",
+        question,
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: { text: `answer:${question}` }
+      };
+    });
+    const manager = createAskJobManager({
+      answerQuestionFn,
+      generateJobId: createSequenceIdGenerator(),
+      maxConcurrentJobs: 1,
+      jobRetentionMs: 60_000
+    });
+
+    expect(manager.getStats()).toEqual({ queued: 0, running: 0, completed: 0, failed: 0 });
+
+    manager.createJob({ question: "first" });
+    manager.createJob({ question: "second" });
+
+    await Promise.resolve();
+
+    expect(manager.getStats()).toEqual({ queued: 1, running: 1, completed: 0, failed: 0 });
+
+    finishFirstJob();
+
+    await waitFor(() => manager.getStats().completed === 2);
+
+    expect(manager.getStats()).toEqual({ queued: 0, running: 0, completed: 2, failed: 0 });
+
+    manager.close();
+  });
+
+  it("reports failed jobs in stats", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: vi.fn(async () => {
+        throw new Error("boom");
+      }),
+      generateJobId: createSequenceIdGenerator(),
+      jobRetentionMs: 60_000
+    });
+
+    manager.createJob({ question: "explode" });
+
+    await waitFor(() => manager.getStats().failed === 1);
+
+    expect(manager.getStats()).toEqual({ queued: 0, running: 0, completed: 0, failed: 1 });
+
+    manager.close();
+  });
+
   it("returns null when subscribing to an unknown job", () => {
     const manager = createAskJobManager({
       answerQuestionFn: vi.fn(async () => ({
