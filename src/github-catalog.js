@@ -420,17 +420,6 @@ function normalizeSelectedRepoNames(selectedRepoNames) {
   return names.length > 0 ? new Set(names) : null;
 }
 
-function normalizeTopicList(value, repo, sizeKb) {
-  const githubTopics = Array.isArray(value)
-    ? value.filter(topic => typeof topic === "string" && topic.trim() !== "")
-    : [];
-
-  return mergeTopicLists(
-    githubTopics,
-    inferRepoTopics(repo, { sizeKb })
-  );
-}
-
 function resolveTopics({ rawGithubTopics, repo, sizeKb, inspectedTopics }) {
   const githubTopics = Array.isArray(rawGithubTopics)
     ? rawGithubTopics.filter(topic => typeof topic === "string" && topic.trim() !== "")
@@ -440,7 +429,10 @@ function resolveTopics({ rawGithubTopics, repo, sizeKb, inspectedTopics }) {
     return mergeTopicLists(githubTopics, inspectedTopics);
   }
 
-  return normalizeTopicList(githubTopics, repo, sizeKb);
+  return mergeTopicLists(
+    githubTopics,
+    inferRepoTopics(repo, { sizeKb })
+  );
 }
 
 function inferRepoTopics(repo, { sizeKb }) {
