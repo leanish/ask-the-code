@@ -14,10 +14,10 @@ Archa exposes the same repo-aware question-answering core through a CLI and an o
 ## Core behavior
 
 - user-level config defines the managed repo set and clone root
-- config can be bootstrapped from a local catalog file or discovered from a GitHub owner before being selectively added to or overridden in local config, requiring authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or the current `gh` login, including private repos visible to that credential, with the same repo-content inspection, size-aware topic enrichment, separate repo classifications, Codex cleanup pass, and progress updates used for both preview and apply
+- config can be bootstrapped from a local catalog file or discovered from a GitHub owner before being selectively added to or overridden in local config, using authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login, including private repos visible to that credential, with the same repo-content inspection, size-aware topic enrichment, separate repo classifications, Codex cleanup pass, and progress updates used for both preview and apply
 - both `archa` and `archa-server` prompt interactively to initialize a missing config and can continue straight into `discover-github` when the new config still has zero repos; outside that CLI bootstrap flow, zero-repo installs surface a direct `discover-github --apply` hint during `config init`, server startup, repo listing, and the web UI empty state
 - commands that require Git fail fast when the local `git` CLI is missing, suggesting installation via Homebrew before retrying
-- discovery commands fail fast when neither `GH_TOKEN` / `GITHUB_TOKEN` nor a usable `gh` login is available
+- discovery commands fail fast when neither `GH_TOKEN` / `GITHUB_TOKEN` nor, as a fallback, a usable `gh` login is available
 - commands that require Codex fail fast when the local `codex` CLI is missing or not logged in, suggesting installation via Homebrew and then completing the Codex login/connection flow before retrying
 - repo names and aliases are validated eagerly and must be unique case-insensitively
 - `repos list` shows configured repos and whether they are cloned locally

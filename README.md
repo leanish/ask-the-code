@@ -16,15 +16,14 @@ The project is intentionally split in two:
 
 This keeps the tool reusable while still letting each installation decide which repos to manage.
 
-Archa requires local `git` on `PATH` for repo sync and GitHub discovery, plus the local `codex` CLI on `PATH` and a logged-in Codex session for synthesis and curated discovery. GitHub discovery also requires either `GH_TOKEN` / `GITHUB_TOKEN` or a usable `gh` CLI login. Install the local CLIs with:
+Archa requires local `git` on `PATH` for repo sync and GitHub discovery, plus the local `codex` CLI on `PATH` and a logged-in Codex session for synthesis and curated discovery. For GitHub discovery, use `GH_TOKEN` / `GITHUB_TOKEN`; `gh` is optional and only needed if those env vars are not set. Install the required local CLIs with:
 
 ```bash
 brew install git
 brew install codex
-brew install gh
 ```
 
-Then make sure `codex login status` reports a logged-in session, and either export `GH_TOKEN` / `GITHUB_TOKEN` or run `gh auth login` for discovery. If Codex is still not connected afterwards, complete the Codex connection/login flow and retry later.
+Then make sure `codex login status` reports a logged-in session. For discovery, either export `GH_TOKEN` / `GITHUB_TOKEN`, or, if you prefer not to use env vars, install `gh` with `brew install gh` and run `gh auth login`. If Codex is still not connected afterwards, complete the Codex connection/login flow and retry later.
 
 ## Quick Start
 
@@ -124,7 +123,7 @@ When `config init` creates a config with zero repos, it prints the next step:
 archa config discover-github --owner <github-user-or-org> --apply
 ```
 
-That flow discovers repos with GitHub metadata plus curated descriptions, topics, and `classifications`. Discovery requires either `GH_TOKEN` / `GITHUB_TOKEN` or a usable `gh` login, and can include private repos visible to that credential. When GitHub leaves descriptions or topics blank, Archa can fill them from README/source inspection. It keeps GitHub topics first, supplements them with a locally inferred topic set from repo descriptions or inspected repo content, and then runs a Codex cleanup pass over the draft metadata to improve precision.
+That flow discovers repos with GitHub metadata plus curated descriptions, topics, and `classifications`. Discovery uses `GH_TOKEN` / `GITHUB_TOKEN` when available, and otherwise can fall back to a usable `gh` login. It can include private repos visible to that credential. When GitHub leaves descriptions or topics blank, Archa can fill them from README/source inspection. It keeps GitHub topics first, supplements them with a locally inferred topic set from repo descriptions or inspected repo content, and then runs a Codex cleanup pass over the draft metadata to improve precision.
 
 Initialize config from an existing catalog file:
 
@@ -150,7 +149,7 @@ archa config discover-github --owner leanish --apply
 
 When `--apply` runs in a terminal, Archa prompts for which new repos to add and which configured repos to override from GitHub metadata. For scripted use, pass `--add <names>` and `--override <names>` alongside `--apply`, or use `*` to select all repos of that kind.
 
-By default, GitHub discovery includes forks and skips archived repos. Use `--exclude-forks` to hide forks, and `--include-archived` to keep archived repos in scope. Discovery requires either `GH_TOKEN` / `GITHUB_TOKEN` or an existing `gh` login, and includes private repos visible to that credential. Imported repos reuse GitHub `description`, `topics`, and `default_branch` so repo selection starts with sensible metadata. Discovery preview and discovery apply use the same curated metadata pipeline: Archa inspects repos, fills blank descriptions or topics from README/source inspection when needed, derives additional topics with a size-aware topic budget, derives separate `classifications` like `infra`, `library`, `internal`, `external`, `frontend`, `backend`, and `microservice`, and then runs a Codex cleanup pass before either rendering the preview or writing config. `external` is kept high-precision: it means the repo clearly exposes an outward-facing app or service surface, not merely that it mentions or consumes APIs. Repo names are handled separately during selection instead of being copied into `topics`. When a discovered repo is already cloned under the managed repos root, discovery inspects that local checkout; otherwise it can shallow-clone the repo temporarily to inspect and curate metadata from source structure and README cues. `--apply` changes only whether the chosen repos are written into config; it does not change the discovered metadata. Overrides update the configured repo's URL, default branch, description, topics, and classifications while preserving local-only fields such as aliases and `alwaysSelect`.
+By default, GitHub discovery includes forks and skips archived repos. Use `--exclude-forks` to hide forks, and `--include-archived` to keep archived repos in scope. Discovery uses `GH_TOKEN` / `GITHUB_TOKEN` when available, and otherwise can fall back to an existing `gh` login; `gh` is not needed unless you want that fallback. Discovery includes private repos visible to that credential. Imported repos reuse GitHub `description`, `topics`, and `default_branch` so repo selection starts with sensible metadata. Discovery preview and discovery apply use the same curated metadata pipeline: Archa inspects repos, fills blank descriptions or topics from README/source inspection when needed, derives additional topics with a size-aware topic budget, derives separate `classifications` like `infra`, `library`, `internal`, `external`, `frontend`, `backend`, and `microservice`, and then runs a Codex cleanup pass before either rendering the preview or writing config. `external` is kept high-precision: it means the repo clearly exposes an outward-facing app or service surface, not merely that it mentions or consumes APIs. Repo names are handled separately during selection instead of being copied into `topics`. When a discovered repo is already cloned under the managed repos root, discovery inspects that local checkout; otherwise it can shallow-clone the repo temporarily to inspect and curate metadata from source structure and README cues. `--apply` changes only whether the chosen repos are written into config; it does not change the discovered metadata. Overrides update the configured repo's URL, default branch, description, topics, and classifications while preserving local-only fields such as aliases and `alwaysSelect`.
 
 When either `archa` or `archa-server` starts with no `config.json` and stdin/stdout are attached to a TTY, Archa prompts to initialize the config instead of only failing with a command suggestion. If that new config still has zero repos, it can then prompt to continue directly into `discover-github`, ask for the GitHub owner, and resume the original command after discovery. Outside that interactive CLI flow, `config init`, `archa-server` startup, repo-listing output, and the web UI empty state still surface `archa config discover-github --owner <github-user-or-org> --apply` as the recovery path.
 
@@ -320,7 +319,7 @@ Programmatic clients that do not send `Accept: text/html` continue to receive th
 - `ARCHA_DEFAULT_MODEL`: overrides the default Codex model (`gpt-5.4`)
 - `ARCHA_DEFAULT_REASONING_EFFORT`: overrides the default reasoning effort (`low`)
 - `ARCHA_CODEX_TIMEOUT_MS`: overrides the Codex execution timeout (default `300000`)
-- `GH_TOKEN` / `GITHUB_TOKEN`: authenticates GitHub repo discovery; if they are unset, discovery requires the current `gh` login instead
+- `GH_TOKEN` / `GITHUB_TOKEN`: authenticates GitHub repo discovery; if they are unset, discovery can fall back to the current `gh` login instead
 - `ARCHA_SERVER_HOST`: overrides the HTTP bind host (`127.0.0.1`)
 - `ARCHA_SERVER_PORT`: overrides the HTTP bind port (`8787`)
 - `ARCHA_SERVER_BODY_LIMIT_BYTES`: overrides the max HTTP request body size (`65536`)

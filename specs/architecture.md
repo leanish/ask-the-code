@@ -33,7 +33,7 @@ flowchart LR
 
 1. A transport adapter receives a request, including the question plus optional audience and execution overrides.
 2. Commands that require Git check that the local `git` CLI is installed before continuing.
-3. Discovery commands check that GitHub access is available via `GH_TOKEN` / `GITHUB_TOKEN` or a usable `gh` login before continuing.
+3. Discovery commands check that GitHub access is available via `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, via a usable `gh` login before continuing.
 4. Commands that require Codex check that the local `codex` CLI is installed and `codex login status` reports a logged-in session before continuing.
 5. Config is loaded from the user config path.
 6. Repo selection chooses explicit repos or heuristic candidates, keeps any pinned repos in scope, and falls back to all configured repos when nothing scores positively.
@@ -88,9 +88,9 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/config.js`
   Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and applies selected GitHub discovery additions or overrides into the active config.
 - `src/github-catalog.js`
-  Discovers repos from a GitHub user or org, using authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or the current `gh` login so private repos and higher rate limits can be used, normalizes them into repo definitions, enriches them with repo-content inspection plus a Codex cleanup pass for both preview and apply, and compares the result with the current config to classify additions, conflicts, and metadata review suggestions.
+  Discovers repos from a GitHub user or org, using authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used, normalizes them into repo definitions, enriches them with repo-content inspection plus a Codex cleanup pass for both preview and apply, and compares the result with the current config to classify additions, conflicts, and metadata review suggestions.
 - `src/github-discovery-auth.js`
-  Checks whether GitHub discovery can authenticate via `GH_TOKEN` / `GITHUB_TOKEN` or a usable `gh` CLI session, and formats user-facing setup guidance when neither path is available.
+  Checks whether GitHub discovery can authenticate via `GH_TOKEN` / `GITHUB_TOKEN` or, as a fallback, via a usable `gh` CLI session, and formats user-facing setup guidance when neither path is available.
 - `src/github-discovery-progress.js`
   Formats stderr progress updates for GitHub discovery so CLI and server bootstrap flows do not look stuck while repo metadata is being loaded and curated.
 - `src/github-discovery-selection.js`
