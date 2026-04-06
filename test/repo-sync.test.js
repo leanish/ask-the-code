@@ -48,8 +48,6 @@ describe("syncRepos", () => {
     ]);
     expect(mocks.spawn).toHaveBeenCalledWith("git", [
       "clone",
-      "--depth",
-      "1",
       "--branch",
       "main",
       "--single-branch",
@@ -63,6 +61,7 @@ describe("syncRepos", () => {
   it("updates existing repos and reports them as updated", async () => {
     mocks.access.mockResolvedValue();
     mocks.spawn
+      .mockReturnValueOnce(createSuccessfulChild({ stdoutChunks: ["false\n"] }))
       .mockReturnValueOnce(createSuccessfulChild())
       .mockReturnValueOnce(createSuccessfulChild())
       .mockReturnValueOnce(createSuccessfulChild());
@@ -85,15 +84,51 @@ describe("syncRepos", () => {
       }
     ]);
     expect(mocks.spawn.mock.calls.map(call => call[1])).toEqual([
-      ["-C", "/workspace/repos/sqs-codec", "fetch", "--depth", "1", "origin", "main"],
+      ["-C", "/workspace/repos/sqs-codec", "rev-parse", "--is-shallow-repository"],
+      ["-C", "/workspace/repos/sqs-codec", "fetch", "origin", "main"],
       ["-C", "/workspace/repos/sqs-codec", "checkout", "main"],
-      ["-C", "/workspace/repos/sqs-codec", "reset", "--hard", "origin/main"]
+      ["-C", "/workspace/repos/sqs-codec", "merge", "--ff-only", "origin/main"]
+    ]);
+  });
+
+  it("unshallows existing shallow repos before updating them", async () => {
+    mocks.access.mockResolvedValue();
+    mocks.spawn
+      .mockReturnValueOnce(createSuccessfulChild({ stdoutChunks: ["true\n"] }))
+      .mockReturnValueOnce(createSuccessfulChild())
+      .mockReturnValueOnce(createSuccessfulChild())
+      .mockReturnValueOnce(createSuccessfulChild());
+
+    const report = await syncRepos([
+      {
+        name: "sqs-codec",
+        url: "git@github.com:leanish/sqs-codec.git",
+        directory: "/workspace/repos/sqs-codec",
+        defaultBranch: "main"
+      }
+    ]);
+
+    expect(report).toEqual([
+      {
+        name: "sqs-codec",
+        directory: "/workspace/repos/sqs-codec",
+        action: "updated",
+        detail: "main"
+      }
+    ]);
+    expect(mocks.spawn.mock.calls.map(call => call[1])).toEqual([
+      ["-C", "/workspace/repos/sqs-codec", "rev-parse", "--is-shallow-repository"],
+      ["-C", "/workspace/repos/sqs-codec", "fetch", "--unshallow", "origin", "main"],
+      ["-C", "/workspace/repos/sqs-codec", "checkout", "main"],
+      ["-C", "/workspace/repos/sqs-codec", "merge", "--ff-only", "origin/main"]
     ]);
   });
 
   it("records failures instead of throwing for individual repos", async () => {
     mocks.access.mockResolvedValue();
-    mocks.spawn.mockReturnValue(createFailingChild("fetch failed"));
+    mocks.spawn
+      .mockReturnValueOnce(createSuccessfulChild({ stdoutChunks: ["false\n"] }))
+      .mockReturnValueOnce(createFailingChild("fetch failed"));
 
     const report = await syncRepos([
       {
@@ -109,7 +144,7 @@ describe("syncRepos", () => {
         name: "sqs-codec",
         directory: "/workspace/repos/sqs-codec",
         action: "failed",
-        detail: "git -C /workspace/repos/sqs-codec fetch --depth 1 origin main failed: fetch failed"
+        detail: "git -C /workspace/repos/sqs-codec fetch origin main failed: fetch failed"
       }
     ]);
   });
@@ -176,20 +211,24 @@ describe("syncRepos", () => {
   });
 });
 
-function createSuccessfulChild() {
-  return createChild({ exitCode: 0 });
+function createSuccessfulChild(options = {}) {
+  return createChild({ exitCode: 0, ...options });
 }
 
 function createFailingChild(stderr) {
   return createChild({ exitCode: 1, stderrChunks: [stderr] });
 }
 
-function createChild({ exitCode, stderrChunks = [] }) {
+function createChild({ exitCode, stdoutChunks = [], stderrChunks = [] }) {
+  const stdoutHandlers = [];
   const stderrHandlers = [];
   const closeHandlers = [];
   const errorHandlers = [];
 
   setTimeout(() => {
+    stdoutChunks.forEach(chunk => {
+      stdoutHandlers.forEach(handler => handler(Buffer.from(chunk)));
+    });
     stderrChunks.forEach(chunk => {
       stderrHandlers.forEach(handler => handler(Buffer.from(chunk)));
     });
@@ -197,6 +236,13 @@ function createChild({ exitCode, stderrChunks = [] }) {
   }, 0);
 
   return {
+    stdout: {
+      on: vi.fn((event, handler) => {
+        if (event === "data") {
+          stdoutHandlers.push(handler);
+        }
+      })
+    },
     stderr: {
       on: vi.fn((event, handler) => {
         if (event === "data") {
@@ -219,6 +265,7 @@ function createChild({ exitCode, stderrChunks = [] }) {
 }
 
 function createErroringChild(error) {
+  const stdoutHandlers = [];
   const stderrHandlers = [];
   const closeHandlers = [];
   const errorHandlers = [];
@@ -228,6 +275,13 @@ function createErroringChild(error) {
   }, 0);
 
   return {
+    stdout: {
+      on: vi.fn((event, handler) => {
+        if (event === "data") {
+          stdoutHandlers.push(handler);
+        }
+      })
+    },
     stderr: {
       on: vi.fn((event, handler) => {
         if (event === "data") {

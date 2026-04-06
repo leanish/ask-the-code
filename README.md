@@ -176,13 +176,13 @@ List the configured repos:
 archa repos list
 ```
 
-Shallow-clone or refresh all configured repos to the latest tracked trunk tip:
+Clone or update all configured repos:
 
 ```bash
 archa repos sync
 ```
 
-Shallow-clone or refresh only a few repos:
+Clone or update only a few repos:
 
 ```bash
 archa repos sync sqs-codec,java-conventions
@@ -192,14 +192,14 @@ Ask a question. By default `archa` will:
 
 1. choose likely repos from the configured repo list, while keeping any repos marked with `"alwaysSelect": true` in scope
    If nothing scores positively, all configured repos are used.
-2. shallow-sync them to the latest tracked trunk tip
+2. sync them to the latest tracked trunk tip
 3. run `codex exec` with `gpt-5.4` and `low` reasoning effort
 
 By default, answers target a general engineering reader. When the reader can inspect the repositories directly, use `--audience codebase` to get a more implementation-oriented answer.
 
 While it runs, `archa` keeps progress reporting high-level, including a heartbeat every 10 seconds during long Codex runs. Raw nested Codex logs stay hidden unless the command fails.
 
-Managed repos are synced only against their default trunk branch, currently limited to `main` or `master`. Missing repos are shallow-cloned; existing managed repos are fetched at depth `1` and reset to the latest remote trunk tip, so treat those managed checkout directories as disposable cache copies rather than local worktrees for edits.
+Managed repos are synced only against their default trunk branch, currently limited to `main` or `master`. Discovery’s temporary inspection clones are shallow. Managed repo sync uses normal long-lived checkouts; if a managed repo happens to be shallow, Archa first runs `git fetch --unshallow` before the normal fast-forward update flow.
 
 A few example questions against public `leanish` repos:
 

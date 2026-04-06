@@ -24,8 +24,6 @@ export async function syncRepo(repo, callbacks = {}) {
       callbacks.onRepoStart?.(repo, "clone", trunkBranch);
       await runCommand("git", [
         "clone",
-        "--depth",
-        "1",
         "--branch",
         trunkBranch,
         "--single-branch",
@@ -39,9 +37,13 @@ export async function syncRepo(repo, callbacks = {}) {
     }
 
     callbacks.onRepoStart?.(repo, "update", trunkBranch);
-    await runCommand("git", ["-C", repo.directory, "fetch", "--depth", "1", "origin", trunkBranch]);
+    if (await isShallowRepo(repo.directory)) {
+      await runCommand("git", ["-C", repo.directory, "fetch", "--unshallow", "origin", trunkBranch]);
+    } else {
+      await runCommand("git", ["-C", repo.directory, "fetch", "origin", trunkBranch]);
+    }
     await runCommand("git", ["-C", repo.directory, "checkout", trunkBranch]);
-    await runCommand("git", ["-C", repo.directory, "reset", "--hard", `origin/${trunkBranch}`]);
+    await runCommand("git", ["-C", repo.directory, "merge", "--ff-only", `origin/${trunkBranch}`]);
 
     const item = createSyncItem(repo, "updated", trunkBranch);
     callbacks.onRepoResult?.(item);
@@ -70,8 +72,15 @@ async function exists(targetPath) {
   }
 }
 
-async function runCommand(command, args) {
-  await new Promise((resolve, reject) => {
+async function isShallowRepo(directory) {
+  const output = await runCommand("git", ["-C", directory, "rev-parse", "--is-shallow-repository"], {
+    captureStdout: true
+  });
+  return output.trim() === "true";
+}
+
+async function runCommand(command, args, { captureStdout = false } = {}) {
+  return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: {
@@ -80,8 +89,14 @@ async function runCommand(command, args) {
       }
     });
 
+    let stdout = "";
     let stderr = "";
 
+    child.stdout.on("data", chunk => {
+      if (captureStdout) {
+        stdout += chunk;
+      }
+    });
     child.stderr.on("data", chunk => {
       stderr += chunk;
     });
@@ -90,7 +105,7 @@ async function runCommand(command, args) {
     });
     child.on("close", code => {
       if (code === 0) {
-        resolve();
+        resolve(stdout);
         return;
       }
       reject(new Error(`${command} ${args.join(" ")} failed: ${stderr.trim()}`));

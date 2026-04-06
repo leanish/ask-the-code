@@ -21,7 +21,7 @@ Archa exposes the same repo-aware question-answering core through a CLI and an o
 - commands that require Codex fail fast when the local `codex` CLI is missing or not logged in, suggesting installation via Homebrew and then completing the Codex login/connection flow before retrying
 - repo names and aliases are validated eagerly and must be unique case-insensitively
 - `repos list` shows configured repos and whether they are cloned locally
-- `repos sync` shallow-clones missing managed repos and hard-resets existing ones to the latest tracked trunk tip
+- `repos sync` clones missing managed repos, fast-forwards existing ones, and first unshallows any previously shallow managed checkout
 - asking a question uses automatic repo selection by default, or an explicit repo subset when provided, then syncs them and runs Codex
 - the HTTP adapter exposes the same ask flow as async jobs plus status streams
 - the built-in web UI can load the configured repo catalog and present it as a picker instead of raw comma-separated input
