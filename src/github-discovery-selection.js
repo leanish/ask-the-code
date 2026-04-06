@@ -71,14 +71,23 @@ function resolveSelectedRepos(requestedNames, availableRepos, flagName, selectio
     return [...availableRepos];
   }
 
-  const reposByName = new Map(
-    availableRepos.map(repo => [repo.name.toLowerCase(), repo])
+  const selectionOptions = buildRepoSelectionOptions(
+    availableRepos.map(repo => ({
+      repo
+    }))
   );
+  const reposByIdentifier = new Map();
+
+  for (const option of selectionOptions) {
+    for (const identifier of option.identifiers) {
+      reposByIdentifier.set(identifier.toLowerCase(), option.repo);
+    }
+  }
   const missingNames = [];
   const selectedRepos = [];
 
   for (const requestedName of normalizedNames) {
-    const repo = reposByName.get(requestedName.toLowerCase());
+    const repo = reposByIdentifier.get(requestedName.toLowerCase());
     if (!repo) {
       missingNames.push(requestedName);
       continue;
@@ -89,7 +98,7 @@ function resolveSelectedRepos(requestedNames, availableRepos, flagName, selectio
   }
 
   if (missingNames.length > 0) {
-    const availableNames = availableRepos.map(repo => repo.name).join(", ") || "none";
+    const availableNames = selectionOptions.map(option => option.label).join(", ") || "none";
     throw new Error(
       `Unknown ${selectionKind} repo(s) for ${flagName}: ${missingNames.join(", ")}. Available: ${availableNames}.`
     );
@@ -114,26 +123,30 @@ async function promptForSelection(readline, {
     };
   }
 
-  const newNames = selectableEntries
+  const selectionOptions = buildRepoSelectionOptions(selectableEntries);
+  const newOptions = selectionOptions
     .filter(entry => entry.status === "new")
-    .map(entry => entry.repo.name);
-  const newRepos = selectableEntries
+    .map(entry => entry.label);
+  const newRepos = selectionOptions
     .filter(entry => entry.status === "new")
     .map(entry => entry.repo);
-  const configuredNames = selectableEntries
+  const configuredOptions = selectionOptions
     .filter(entry => entry.status === "configured")
-    .map(entry => entry.repo.name);
+    .map(entry => entry.label);
   const promptSections = [
-    `New (${newNames.length}): ${newNames.join(", ") || "none"}`
+    `New (${newOptions.length}): ${newOptions.join(", ") || "none"}`
   ];
 
-  if (configuredNames.length > 0) {
-    promptSections.push(`Configured already (${configuredNames.length}): ${configuredNames.join(", ")}`);
+  if (configuredOptions.length > 0) {
+    promptSections.push(`Configured already (${configuredOptions.length}): ${configuredOptions.join(", ")}`);
   }
-  const reposByName = new Map(
-    selectableEntries.map(entry => [entry.repo.name.toLowerCase(), entry])
+  const newRepoSet = new Set(newRepos);
+  const configuredRepoSet = new Set(
+    selectionOptions
+      .filter(entry => entry.status === "configured")
+      .map(entry => entry.repo)
   );
-  const selectionPrompt = newNames.length > 0
+  const selectionPrompt = newOptions.length > 0
     ? 'Select repos to add or override (comma-separated, "*" for all)\nPress Enter to add all new repos, or type repo names to customize.'
     : 'Select repos to add or override (comma-separated, "*" for all)\nPress Enter to keep the current config unchanged, or type repo names to customize.';
 
@@ -166,19 +179,53 @@ async function promptForSelection(readline, {
     try {
       const selectedRepos = resolveSelectedRepos(
         rawSelection.split(","),
-        selectableEntries.map(entry => entry.repo),
+        selectionOptions.map(entry => entry.repo),
         "selection",
         "selectable"
       );
 
       return {
         reposToAdd: selectedRepos
-          .filter(repo => reposByName.get(repo.name.toLowerCase())?.status === "new"),
+          .filter(repo => newRepoSet.has(repo)),
         reposToOverride: selectedRepos
-          .filter(repo => reposByName.get(repo.name.toLowerCase())?.status === "configured")
+          .filter(repo => configuredRepoSet.has(repo))
       };
     } catch (error) {
       readline.write(`${error.message}\n`);
     }
   }
+}
+
+function buildRepoSelectionOptions(entries) {
+  const sourceOwners = new Set(
+    entries
+      .map(entry => entry.repo.sourceOwner)
+      .filter(sourceOwner => typeof sourceOwner === "string" && sourceOwner !== "")
+  );
+  const hasMultipleSourceOwners = sourceOwners.size > 1;
+  const repoNameCounts = new Map();
+
+  for (const entry of entries) {
+    const normalizedName = entry.repo.name.toLowerCase();
+    repoNameCounts.set(normalizedName, (repoNameCounts.get(normalizedName) || 0) + 1);
+  }
+
+  return entries.map(entry => {
+    const repo = entry.repo;
+    const hasAmbiguousName = (repoNameCounts.get(repo.name.toLowerCase()) || 0) > 1;
+    const label = (hasMultipleSourceOwners || hasAmbiguousName) && repo.sourceFullName
+      ? repo.sourceFullName
+      : repo.name;
+    const identifiers = [label];
+
+    if (!hasAmbiguousName && label.toLowerCase() !== repo.name.toLowerCase()) {
+      identifiers.push(repo.name);
+    }
+
+    return {
+      ...entry,
+      label,
+      identifiers
+    };
+  });
 }

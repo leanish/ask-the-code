@@ -12,6 +12,7 @@ import { ensureGitInstalled } from "./git-installation.js";
 import { ensureGithubDiscoveryAuthAvailable } from "./github-discovery-auth.js";
 import {
   discoverGithubOwnerRepos,
+  getGithubDiscoveryRepoKey,
   mergeGithubDiscoveryPlan,
   planGithubRepoDiscovery
 } from "./github-catalog.js";
@@ -231,7 +232,8 @@ async function runGithubDiscovery(options, config = null) {
         inspectRepos: true,
         selectedRepoNames,
         onHydratedRepo: async repo => {
-          const action = selectedRepoActions.get(repo.name);
+          const actionKey = getGithubDiscoveryRepoKey(repo);
+          const action = selectedRepoActions.get(actionKey);
           if (!action) {
             return;
           }
@@ -260,13 +262,13 @@ async function runGithubDiscovery(options, config = null) {
       });
       const refinedPlan = planGithubRepoDiscovery(resolvedConfig, refinedDiscovery);
       const refinedReposByName = new Map(
-        refinedDiscovery.repos.map(repo => [repo.name, repo])
+        refinedDiscovery.repos.map(repo => [getGithubDiscoveryRepoKey(repo), repo])
       );
 
       plan = mergeGithubDiscoveryPlan(plan, refinedPlan);
       selection = {
-        reposToAdd: selection.reposToAdd.map(repo => refinedReposByName.get(repo.name) || repo),
-        reposToOverride: selection.reposToOverride.map(repo => refinedReposByName.get(repo.name) || repo)
+        reposToAdd: selection.reposToAdd.map(repo => refinedReposByName.get(getGithubDiscoveryRepoKey(repo)) || repo),
+        reposToOverride: selection.reposToOverride.map(repo => refinedReposByName.get(getGithubDiscoveryRepoKey(repo)) || repo)
       };
     }
 
@@ -291,14 +293,14 @@ function requiresConfig(command) {
 
 function collectSelectedRepoNames(selection) {
   return [...new Set([
-    ...selection.reposToAdd.map(repo => repo.name),
-    ...selection.reposToOverride.map(repo => repo.name)
+    ...selection.reposToAdd.map(repo => repo.sourceFullName || repo.name),
+    ...selection.reposToOverride.map(repo => repo.sourceFullName || repo.name)
   ])];
 }
 
 function buildSelectedRepoActions(selection) {
   return new Map([
-    ...selection.reposToAdd.map(repo => [repo.name, "add"]),
-    ...selection.reposToOverride.map(repo => [repo.name, "override"])
+    ...selection.reposToAdd.map(repo => [getGithubDiscoveryRepoKey(repo), "add"]),
+    ...selection.reposToOverride.map(repo => [getGithubDiscoveryRepoKey(repo), "override"])
   ]);
 }

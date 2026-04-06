@@ -48,9 +48,9 @@ export async function promptForGithubOwner({
     input,
     output,
     createInterfaceFn
-  }, readline => promptRequiredValue(
+  }, readline => promptGithubOwnerOrAccessible(
     readline,
-    "GitHub owner to discover from (user or org)\n> "
+    "GitHub owner to discover from (user or org).\nPress Enter to use all accessible repos from your authenticated GitHub access.\n> "
   ));
 }
 
@@ -213,14 +213,12 @@ async function promptEnterOrCancel(readline, prompt) {
   }
 }
 
-async function promptRequiredValue(readline, prompt) {
-  while (true) {
-    const answer = (await readline.question(prompt)).trim();
+async function promptGithubOwnerOrAccessible(readline, prompt) {
+  const answer = (await readline.question(prompt)).trim();
 
-    if (answer !== "") {
-      return answer;
-    }
-
-    readline.write("Please enter a value.\n");
+  if (answer === "") {
+    return "@accessible";
   }
+
+  return answer;
 }

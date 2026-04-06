@@ -156,4 +156,53 @@ describe("render", () => {
     expect(applied).toContain("Config updated: /tmp/archa-config.json");
     expect(applied).toContain("Repos overridden: 2");
   });
+
+  it("renders source-qualified repo labels for accessible discovery previews", () => {
+    const preview = renderGithubDiscovery({
+      owner: "@accessible",
+      ownerDisplay: "leanish + orgs",
+      ownerType: "Accessible",
+      entries: [
+        {
+          status: "new",
+          repo: {
+            name: "archa",
+            sourceOwner: "leanish",
+            sourceFullName: "leanish/archa",
+            description: "Repo-aware CLI",
+            topics: ["cli"],
+            classifications: ["cli"]
+          },
+          suggestions: []
+        },
+        {
+          status: "new",
+          repo: {
+            name: "playcart",
+            sourceOwner: "Nosto",
+            sourceFullName: "Nosto/playcart",
+            description: "Storefront backend",
+            topics: ["play"],
+            classifications: ["backend", "external"]
+          },
+          suggestions: []
+        }
+      ],
+      counts: {
+        discovered: 2,
+        configured: 0,
+        new: 2,
+        conflicts: 0,
+        withSuggestions: 0
+      },
+      skippedForks: 0,
+      skippedArchived: 0,
+      applied: false
+    });
+
+    expect(preview).toContain("GitHub repo discovery for leanish + orgs (Accessible):");
+    expect(preview).toContain("- leanish/archa [new]");
+    expect(preview).toContain("- Nosto/playcart [new]");
+    expect(preview).toContain("Run: archa config discover-github --owner @accessible --apply");
+  });
 });

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   initializeConfig: vi.fn(),
   applyGithubDiscoveryToConfig: vi.fn(),
   discoverGithubOwnerRepos: vi.fn(),
+  getGithubDiscoveryRepoKey: vi.fn(),
   mergeGithubDiscoveryPlan: vi.fn(),
   planGithubRepoDiscovery: vi.fn(),
   promptGithubDiscoverySelection: vi.fn(),
@@ -63,6 +64,7 @@ vi.mock("../src/config-paths.js", () => ({
 
 vi.mock("../src/github-catalog.js", () => ({
   discoverGithubOwnerRepos: mocks.discoverGithubOwnerRepos,
+  getGithubDiscoveryRepoKey: mocks.getGithubDiscoveryRepoKey,
   mergeGithubDiscoveryPlan: mocks.mergeGithubDiscoveryPlan,
   planGithubRepoDiscovery: mocks.planGithubRepoDiscovery
 }));
@@ -106,6 +108,7 @@ describe("cli", () => {
     mocks.ensureCodexInstalled.mockImplementation(() => {});
     mocks.ensureGitInstalled.mockImplementation(() => {});
     mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {});
+    mocks.getGithubDiscoveryRepoKey.mockImplementation(repo => repo.sourceFullName || repo.name);
     mocks.canPromptInteractively.mockReturnValue(true);
     mocks.promptToInitializeConfig.mockResolvedValue(true);
     mocks.promptToContinueGithubDiscovery.mockResolvedValue(false);

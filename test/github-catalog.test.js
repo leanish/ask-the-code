@@ -169,6 +169,93 @@ describe("github-catalog", () => {
     );
   });
 
+  it("can discover all accessible repos across personal and organization scopes", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/user") {
+        return createJsonResponse(200, {
+          login: "leanish"
+        });
+      }
+
+      if (url === "https://api.github.com/user/repos?per_page=100&page=1&sort=full_name&affiliation=owner,organization_member&visibility=all") {
+        return createJsonResponse(200, [
+          {
+            name: "archa",
+            full_name: "leanish/archa",
+            clone_url: "https://github.com/leanish/archa.git",
+            default_branch: "main",
+            description: "Repo-aware CLI",
+            topics: ["cli"],
+            size: 6400,
+            fork: false,
+            archived: false,
+            owner: {
+              login: "leanish"
+            }
+          },
+          {
+            name: "playcart",
+            full_name: "Nosto/playcart",
+            clone_url: "https://github.com/Nosto/playcart.git",
+            default_branch: "master",
+            description: "Storefront backend",
+            topics: ["play"],
+            size: 50200,
+            fork: false,
+            archived: false,
+            owner: {
+              login: "Nosto"
+            }
+          }
+        ]);
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "@accessible",
+      env: {
+        GH_TOKEN: "test-token"
+      },
+      fetchFn,
+      inspectRepoFn,
+      hydrateMetadata: false,
+      inspectRepos: false
+    });
+
+    expect(result).toEqual({
+      owner: "@accessible",
+      ownerDisplay: "leanish + orgs",
+      ownerType: "Accessible",
+      repos: [
+        {
+          name: "archa",
+          url: "https://github.com/leanish/archa.git",
+          defaultBranch: "main",
+          description: "Repo-aware CLI",
+          topics: ["cli"],
+          classifications: [],
+          sourceOwner: "leanish",
+          sourceFullName: "leanish/archa"
+        },
+        {
+          name: "playcart",
+          url: "https://github.com/Nosto/playcart.git",
+          defaultBranch: "master",
+          description: "Storefront backend",
+          topics: ["play"],
+          classifications: [],
+          sourceOwner: "Nosto",
+          sourceFullName: "Nosto/playcart"
+        }
+      ],
+      skippedForks: 0,
+      skippedArchived: 0
+    });
+  });
+
   it("falls back to gh auth when env tokens are absent", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const resolveGithubAuthTokenFn = vi.fn(async () => "gh-token");

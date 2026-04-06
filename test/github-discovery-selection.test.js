@@ -141,6 +141,61 @@ describe("github-discovery-selection", () => {
     ]);
   });
 
+  it("shows full repo names when multiple source owners are in scope", async () => {
+    const multiOwnerPlan = {
+      entries: [
+        {
+          status: "new",
+          repo: {
+            name: "archa",
+            sourceOwner: "leanish",
+            sourceFullName: "leanish/archa",
+            url: "https://github.com/leanish/archa.git",
+            defaultBranch: "main",
+            description: "Repo-aware CLI",
+            topics: ["cli"]
+          },
+          suggestions: []
+        },
+        {
+          status: "new",
+          repo: {
+            name: "playcart",
+            sourceOwner: "Nosto",
+            sourceFullName: "Nosto/playcart",
+            url: "https://github.com/Nosto/playcart.git",
+            defaultBranch: "master",
+            description: "Storefront backend",
+            topics: ["play"]
+          },
+          suggestions: []
+        }
+      ]
+    };
+    const prompts = [];
+    const fakeReadline = {
+      question: async prompt => {
+        prompts.push(prompt);
+        return "Nosto/playcart";
+      },
+      close() {}
+    };
+
+    const result = await promptGithubDiscoverySelection(multiOwnerPlan, {
+      input: { isTTY: true },
+      output: { isTTY: true },
+      createInterfaceFn() {
+        return fakeReadline;
+      }
+    });
+
+    expect(result).toEqual({
+      reposToAdd: [multiOwnerPlan.entries[1].repo],
+      reposToOverride: []
+    });
+    expect(prompts[0]).toContain("New (2): leanish/archa, Nosto/playcart");
+  });
+
   it("rejects interactive selection without a tty", async () => {
     await expect(promptGithubDiscoverySelection(plan, {
       input: { isTTY: false },

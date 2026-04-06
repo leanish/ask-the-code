@@ -51,8 +51,23 @@ describe("cli-bootstrap", () => {
     expect(readline.write).toHaveBeenCalledWith('Press Enter to continue, or press Esc then Enter to cancel.\n');
   });
 
-  it("requires a non-empty GitHub owner", async () => {
-    const readline = createReadline(["", " leanish "]);
+  it("defaults a blank GitHub owner prompt to accessible discovery", async () => {
+    const readline = createReadline([""]);
+
+    const result = await promptForGithubOwner({
+      input: { isTTY: true },
+      output: { isTTY: true },
+      createInterfaceFn: () => readline
+    });
+
+    expect(result).toBe("@accessible");
+    expect(readline.question).toHaveBeenCalledWith(
+      "GitHub owner to discover from (user or org).\nPress Enter to use all accessible repos from your authenticated GitHub access.\n> "
+    );
+  });
+
+  it("keeps explicit GitHub owners when provided", async () => {
+    const readline = createReadline([" leanish "]);
 
     const result = await promptForGithubOwner({
       input: { isTTY: true },
@@ -61,7 +76,6 @@ describe("cli-bootstrap", () => {
     });
 
     expect(result).toBe("leanish");
-    expect(readline.write).toHaveBeenCalledWith("Please enter a value.\n");
   });
 
   it("initializes and continues into discovery when config is missing", async () => {

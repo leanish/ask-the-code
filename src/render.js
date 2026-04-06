@@ -51,8 +51,13 @@ export function renderAnswer(result) {
 
 export function renderGithubDiscovery(result) {
   const lines = [
-    `GitHub repo discovery for ${result.owner} (${result.ownerType}):`
+    `GitHub repo discovery for ${result.ownerDisplay || result.owner} (${result.ownerType}):`
   ];
+  const useSourceLabels = new Set(
+    result.entries
+      .map(entry => entry.repo.sourceOwner)
+      .filter(sourceOwner => typeof sourceOwner === "string" && sourceOwner !== "")
+  ).size > 1;
 
   for (const entry of result.entries) {
     const status = formatDiscoveryStatus(entry);
@@ -62,7 +67,7 @@ export function renderGithubDiscovery(result) {
     const topics = entry.repo.topics.length > 0 ? ` topics=${entry.repo.topics.join(",")}` : "";
     const description = entry.repo.description ? ` ${entry.repo.description}` : "";
     const suggestions = entry.suggestions.length > 0 ? ` review=${entry.suggestions.join("; ")}` : "";
-    lines.push(`- ${entry.repo.name} [${status}]${classifications}${topics}${suggestions}${description}`);
+    lines.push(`- ${formatDiscoveryRepoLabel(entry.repo, useSourceLabels)} [${status}]${classifications}${topics}${suggestions}${description}`);
   }
 
   lines.push("");
@@ -104,4 +109,12 @@ function formatDiscoveryStatus(entry) {
   }
 
   return entry.status;
+}
+
+function formatDiscoveryRepoLabel(repo, useSourceLabels) {
+  if (useSourceLabels && repo.sourceFullName) {
+    return repo.sourceFullName;
+  }
+
+  return repo.name;
 }

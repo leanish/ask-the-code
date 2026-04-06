@@ -4,6 +4,7 @@ import { inspectRepoMetadata } from "./repo-classification-inspector.js";
 
 const GITHUB_API_URL = "https://api.github.com";
 const PAGE_SIZE = 100;
+const ACCESSIBLE_GITHUB_OWNER = "@accessible";
 const SMALL_REPO_MAX_INFERRED_TOPICS = 3;
 const MEDIUM_REPO_MAX_INFERRED_TOPICS = 5;
 const LARGE_REPO_MAX_INFERRED_TOPICS = 8;
@@ -132,19 +133,40 @@ export async function discoverGithubOwnerRepos({
     env,
     resolveGithubAuthTokenFn
   });
-  const ownerSummary = await fetchGithubJson({
-    fetchFn,
-    token: githubToken,
-    path: `/users/${encodeURIComponent(normalizedOwner)}`,
-    notFoundMessage: `GitHub owner not found: ${normalizedOwner}.`
-  });
-  const ownerType = ownerSummary.type === "Organization" ? "Organization" : "User";
-  const reposPath = await resolveReposPath({
-    ownerType,
-    owner: normalizedOwner,
-    fetchFn,
-    token: githubToken
-  });
+  const isAccessibleDiscovery = normalizedOwner === ACCESSIBLE_GITHUB_OWNER;
+  let ownerDisplay = null;
+  let ownerType;
+  let reposPath;
+  let sourceOwnerFallback = normalizedOwner;
+
+  if (isAccessibleDiscovery) {
+    const authenticatedUser = await fetchGithubJson({
+      fetchFn,
+      token: githubToken,
+      path: "/user"
+    });
+    const authenticatedLogin = typeof authenticatedUser?.login === "string" && authenticatedUser.login.trim() !== ""
+      ? authenticatedUser.login.trim()
+      : "authenticated user";
+    ownerDisplay = `${authenticatedLogin} + orgs`;
+    ownerType = "Accessible";
+    reposPath = "/user/repos?sort=full_name&affiliation=owner,organization_member&visibility=all";
+    sourceOwnerFallback = authenticatedLogin;
+  } else {
+    const ownerSummary = await fetchGithubJson({
+      fetchFn,
+      token: githubToken,
+      path: `/users/${encodeURIComponent(normalizedOwner)}`,
+      notFoundMessage: `GitHub owner not found: ${normalizedOwner}.`
+    });
+    ownerType = ownerSummary.type === "Organization" ? "Organization" : "User";
+    reposPath = await resolveReposPath({
+      ownerType,
+      owner: normalizedOwner,
+      fetchFn,
+      token: githubToken
+    });
+  }
   onProgress?.({
     type: "discovery-fetching",
     owner: normalizedOwner
@@ -201,7 +223,7 @@ export async function discoverGithubOwnerRepos({
   }
 
   const reposToProcess = selectedRepoNameSet
-    ? eligibleRepos.filter(repo => selectedRepoNameSet.has(repo.name.toLowerCase()))
+    ? eligibleRepos.filter(repo => matchesSelectedRepo(repo, selectedRepoNameSet, { sourceOwnerFallback }))
     : eligibleRepos;
 
   onProgress?.({
@@ -217,7 +239,10 @@ export async function discoverGithubOwnerRepos({
   });
 
   const repos = !hydrateMetadata
-    ? reposToProcess.map(normalizeGithubRepo)
+    ? reposToProcess.map(repo => normalizeGithubRepo(repo, {
+        includeSourceMetadata: isAccessibleDiscovery,
+        sourceOwnerFallback
+      }))
     : inspectRepos
     ? await hydrateReposSequentially({
         reposToProcess,
@@ -228,6 +253,8 @@ export async function discoverGithubOwnerRepos({
         inspectRepoFn,
         curateWithCodex,
         inspectRepos,
+        includeSourceMetadata: isAccessibleDiscovery,
+        sourceOwnerFallback,
         onProgress,
         onHydratedRepo
       })
@@ -240,6 +267,8 @@ export async function discoverGithubOwnerRepos({
         inspectRepoFn,
         curateWithCodex,
         inspectRepos,
+        includeSourceMetadata: isAccessibleDiscovery,
+        sourceOwnerFallback,
         onProgress,
         onHydratedRepo
       });
@@ -247,6 +276,7 @@ export async function discoverGithubOwnerRepos({
 
   return {
     owner: normalizedOwner,
+    ...(ownerDisplay ? { ownerDisplay } : {}),
     ownerType,
     repos,
     skippedForks,
@@ -263,6 +293,8 @@ async function hydrateReposSequentially({
   inspectRepoFn,
   curateWithCodex,
   inspectRepos,
+  includeSourceMetadata,
+  sourceOwnerFallback,
   onProgress,
   onHydratedRepo
 }) {
@@ -277,7 +309,9 @@ async function hydrateReposSequentially({
       token,
       inspectRepoFn,
       curateWithCodex,
-      inspectRepos
+      inspectRepos,
+      includeSourceMetadata,
+      sourceOwnerFallback
     });
 
     onProgress?.({
@@ -310,6 +344,8 @@ async function hydrateReposInParallel({
   inspectRepoFn,
   curateWithCodex,
   inspectRepos,
+  includeSourceMetadata,
+  sourceOwnerFallback,
   onProgress,
   onHydratedRepo
 }) {
@@ -324,7 +360,9 @@ async function hydrateReposInParallel({
       token,
       inspectRepoFn,
       curateWithCodex,
-      inspectRepos
+      inspectRepos,
+      includeSourceMetadata,
+      sourceOwnerFallback
     });
 
     processedCount += 1;
@@ -349,13 +387,15 @@ async function hydrateReposInParallel({
 
 export function mergeGithubDiscoveryPlan(basePlan, refinedPlan) {
   const refinedEntriesByName = new Map(
-    refinedPlan.entries.map(entry => [entry.repo.name, entry])
+    refinedPlan.entries.map(entry => [getGithubDiscoveryRepoKey(entry.repo), entry])
   );
 
   return {
     ...basePlan,
-    entries: basePlan.entries.map(entry => refinedEntriesByName.get(entry.repo.name) || entry),
-    reposToAdd: (basePlan.reposToAdd || []).map(repo => refinedEntriesByName.get(repo.name)?.repo || repo)
+    entries: basePlan.entries.map(entry => refinedEntriesByName.get(getGithubDiscoveryRepoKey(entry.repo)) || entry),
+    reposToAdd: (basePlan.reposToAdd || []).map(
+      repo => refinedEntriesByName.get(getGithubDiscoveryRepoKey(repo))?.repo || repo
+    )
   };
 }
 
@@ -402,6 +442,7 @@ export function planGithubRepoDiscovery(config, discovery) {
 
   return {
     owner: discovery.owner,
+    ...(discovery.ownerDisplay ? { ownerDisplay: discovery.ownerDisplay } : {}),
     ownerType: discovery.ownerType,
     skippedForks: discovery.skippedForks,
     skippedArchived: discovery.skippedArchived,
@@ -424,7 +465,10 @@ function normalizeOwner(owner) {
     throw new Error('GitHub discovery requires a non-empty "--owner" value.');
   }
 
-  return owner.trim();
+  const trimmedOwner = owner.trim();
+  return trimmedOwner.toLowerCase() === ACCESSIBLE_GITHUB_OWNER
+    ? ACCESSIBLE_GITHUB_OWNER
+    : trimmedOwner;
 }
 
 async function resolveReposPath({ ownerType, owner, fetchFn, token }) {
@@ -550,8 +594,11 @@ function readGithubCliAuthToken({ spawnSyncFn = spawnSync } = {}) {
   return typeof result.stdout === "string" ? result.stdout.trim() : null;
 }
 
-function normalizeGithubRepo(repo) {
-  return {
+function normalizeGithubRepo(repo, {
+  includeSourceMetadata = false,
+  sourceOwnerFallback = null
+} = {}) {
+  const normalizedRepo = {
     name: repo.name,
     url: repo.clone_url,
     defaultBranch: repo.default_branch || "main",
@@ -559,10 +606,42 @@ function normalizeGithubRepo(repo) {
     topics: Array.isArray(repo.topics) ? repo.topics : [],
     classifications: []
   };
+
+  if (!includeSourceMetadata) {
+    return normalizedRepo;
+  }
+
+  const sourceOwner = typeof repo.owner?.login === "string" && repo.owner.login.trim() !== ""
+    ? repo.owner.login.trim()
+    : sourceOwnerFallback;
+
+  return {
+    ...normalizedRepo,
+    sourceOwner,
+    sourceFullName: typeof repo.full_name === "string" && repo.full_name.trim() !== ""
+      ? repo.full_name.trim()
+      : sourceOwner
+        ? `${sourceOwner}/${repo.name}`
+        : repo.name
+  };
 }
 
-async function hydrateGithubRepoTopics({ owner, repo, env, fetchFn, token, inspectRepoFn, curateWithCodex, inspectRepos }) {
-  const normalizedRepo = normalizeGithubRepo(repo);
+async function hydrateGithubRepoTopics({
+  owner,
+  repo,
+  env,
+  fetchFn,
+  token,
+  inspectRepoFn,
+  curateWithCodex,
+  inspectRepos,
+  includeSourceMetadata,
+  sourceOwnerFallback
+}) {
+  const normalizedRepo = normalizeGithubRepo(repo, {
+    includeSourceMetadata,
+    sourceOwnerFallback
+  });
   const inspectedMetadata = inspectRepos
     ? await safeInspectMetadata(inspectRepoFn, {
         repo: normalizedRepo,
@@ -638,6 +717,57 @@ function normalizeSelectedRepoNames(selectedRepoNames) {
     .filter(Boolean);
 
   return names.length > 0 ? new Set(names) : null;
+}
+
+export function getGithubDiscoveryRepoKey(repo) {
+  if (typeof repo?.sourceFullName === "string" && repo.sourceFullName.trim() !== "") {
+    return repo.sourceFullName.trim().toLowerCase();
+  }
+
+  if (typeof repo?.full_name === "string" && repo.full_name.trim() !== "") {
+    return repo.full_name.trim().toLowerCase();
+  }
+
+  return typeof repo?.name === "string"
+    ? repo.name.trim().toLowerCase()
+    : "";
+}
+
+function matchesSelectedRepo(repo, selectedRepoNameSet, { sourceOwnerFallback } = {}) {
+  if (!selectedRepoNameSet) {
+    return true;
+  }
+
+  return getGithubRepoIdentifiers(repo, { sourceOwnerFallback })
+    .some(identifier => selectedRepoNameSet.has(identifier));
+}
+
+function getGithubRepoIdentifiers(repo, { sourceOwnerFallback = null } = {}) {
+  const identifiers = new Set();
+
+  if (typeof repo?.name === "string" && repo.name.trim() !== "") {
+    identifiers.add(repo.name.trim().toLowerCase());
+  }
+
+  if (typeof repo?.sourceFullName === "string" && repo.sourceFullName.trim() !== "") {
+    identifiers.add(repo.sourceFullName.trim().toLowerCase());
+  }
+
+  if (typeof repo?.full_name === "string" && repo.full_name.trim() !== "") {
+    identifiers.add(repo.full_name.trim().toLowerCase());
+  }
+
+  const sourceOwner = typeof repo?.sourceOwner === "string" && repo.sourceOwner.trim() !== ""
+    ? repo.sourceOwner.trim()
+    : typeof repo?.owner?.login === "string" && repo.owner.login.trim() !== ""
+      ? repo.owner.login.trim()
+      : sourceOwnerFallback;
+
+  if (sourceOwner && typeof repo?.name === "string" && repo.name.trim() !== "") {
+    identifiers.add(`${sourceOwner}/${repo.name}`.toLowerCase());
+  }
+
+  return [...identifiers];
 }
 
 function resolveTopics({ rawGithubTopics, repo, sizeKb, inspectedTopics }) {

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   loadConfig: vi.fn(),
   applyGithubDiscoveryToConfig: vi.fn(),
   discoverGithubOwnerRepos: vi.fn(),
+  getGithubDiscoveryRepoKey: vi.fn(),
   mergeGithubDiscoveryPlan: vi.fn(),
   planGithubRepoDiscovery: vi.fn(),
   promptGithubDiscoverySelection: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock("../src/github-discovery-auth.js", () => ({
 
 vi.mock("../src/github-catalog.js", () => ({
   discoverGithubOwnerRepos: mocks.discoverGithubOwnerRepos,
+  getGithubDiscoveryRepoKey: mocks.getGithubDiscoveryRepoKey,
   mergeGithubDiscoveryPlan: mocks.mergeGithubDiscoveryPlan,
   planGithubRepoDiscovery: mocks.planGithubRepoDiscovery
 }));
@@ -80,6 +82,7 @@ describe("server-main", () => {
     mocks.ensureCodexInstalled.mockImplementation(() => {});
     mocks.ensureGitInstalled.mockImplementation(() => {});
     mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {});
+    mocks.getGithubDiscoveryRepoKey.mockImplementation(repo => repo.sourceFullName || repo.name);
     mocks.ensureInteractiveConfigSetup.mockResolvedValue(true);
     mocks.loadConfig.mockResolvedValue({
       configPath: "/tmp/archa-config.json",
