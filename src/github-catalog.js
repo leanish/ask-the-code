@@ -781,7 +781,10 @@ async function hydrateGithubRepoTopics({
   const topicsResponse = await fetchGithubJson({
     fetchFn,
     token,
-    path: `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo.name)}/topics`
+    path: `/repos/${encodeURIComponent(resolveGithubTopicsOwner(repo, {
+      fallbackOwner: owner,
+      sourceOwnerFallback
+    }))}/${encodeURIComponent(repo.name)}/topics`
   });
 
   const topics = resolveTopics({
@@ -804,6 +807,25 @@ async function hydrateGithubRepoTopics({
     topics,
     classifications
   };
+}
+
+function resolveGithubTopicsOwner(repo, {
+  fallbackOwner,
+  sourceOwnerFallback = null
+}) {
+  if (typeof repo?.owner?.login === "string" && repo.owner.login.trim() !== "") {
+    return repo.owner.login.trim();
+  }
+
+  if (typeof repo?.sourceOwner === "string" && repo.sourceOwner.trim() !== "") {
+    return repo.sourceOwner.trim();
+  }
+
+  if (typeof repo?.sourceFullName === "string" && repo.sourceFullName.includes("/")) {
+    return repo.sourceFullName.split("/")[0].trim();
+  }
+
+  return sourceOwnerFallback || fallbackOwner;
 }
 
 function normalizeSelectedRepoNames(selectedRepoNames) {

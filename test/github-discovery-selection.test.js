@@ -121,6 +121,32 @@ describe("github-discovery-selection", () => {
     });
   });
 
+  it("accepts owner-qualified selections case-insensitively for single-owner discovery", () => {
+    const singleOwnerPlan = {
+      owner: "leanish",
+      entries: [
+        {
+          status: "new",
+          repo: {
+            name: "nullability",
+            url: "https://github.com/leanish/nullability.git",
+            defaultBranch: "main",
+            description: "",
+            topics: []
+          },
+          suggestions: []
+        }
+      ]
+    };
+
+    expect(selectGithubDiscoveryRepos(singleOwnerPlan, {
+      addRepoNames: ["Leanish/Nullability"]
+    })).toEqual({
+      reposToAdd: [singleOwnerPlan.entries[0].repo],
+      reposToOverride: []
+    });
+  });
+
   it("prompts once for comma-separated add and override selections", async () => {
     const outputWrites = [];
     const fakeReadline = {

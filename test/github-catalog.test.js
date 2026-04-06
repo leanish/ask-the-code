@@ -790,6 +790,83 @@ describe("github-catalog", () => {
     );
   });
 
+  it("uses the repo owner instead of @accessible when refining selected repo topics", async () => {
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/user") {
+        return createJsonResponse(200, {
+          login: "leanish"
+        });
+      }
+
+      if (url === "https://api.github.com/user/repos?per_page=100&page=1&sort=full_name&affiliation=owner,organization_member&visibility=all") {
+        return createJsonResponse(200, [
+          {
+            name: "nullability",
+            full_name: "leanish/nullability",
+            clone_url: "https://github.com/leanish/nullability.git",
+            default_branch: "main",
+            description: "",
+            topics: [],
+            size: 50,
+            fork: false,
+            archived: false,
+            owner: {
+              login: "leanish"
+            }
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/leanish/nullability/topics") {
+        return createJsonResponse(200, {
+          names: ["null-safety"]
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    const inspectRepoFn = vi.fn(async () => ({
+      description: "",
+      topics: [],
+      classifications: []
+    }));
+
+    const discovery = await discoverGithubOwnerRepos({
+      owner: "@accessible",
+      env: {
+        GH_TOKEN: "test-token"
+      },
+      fetchFn,
+      inspectRepoFn,
+      hydrateMetadata: false,
+      inspectRepos: false
+    });
+
+    fetchFn.mockClear();
+
+    const result = await refineDiscoveredGithubRepos({
+      discovery,
+      env: {
+        GH_TOKEN: "test-token"
+      },
+      fetchFn,
+      inspectRepoFn,
+      selectedRepoNames: ["leanish/nullability"]
+    });
+
+    expect(result.repos).toEqual([
+      expect.objectContaining({
+        name: "nullability",
+        topics: ["null-safety"]
+      })
+    ]);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledWith(
+      "https://api.github.com/repos/leanish/nullability/topics",
+      expect.any(Object)
+    );
+  });
+
   it("keeps inline repo topics without an extra topics request", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const fetchFn = vi.fn(async url => {

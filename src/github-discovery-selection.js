@@ -7,10 +7,15 @@ export function selectGithubDiscoveryRepos(plan, {
 } = {}) {
   const addableRepos = getAddableRepos(plan);
   const overridableRepos = getOverridableRepos(plan);
+  const defaultSourceOwner = getDefaultSourceOwner(plan);
 
   return {
-    reposToAdd: resolveSelectedRepos(addRepoNames, addableRepos, "--add", "new"),
-    reposToOverride: resolveSelectedRepos(overrideRepoNames, overridableRepos, "--override", "configured")
+    reposToAdd: resolveSelectedRepos(addRepoNames, addableRepos, "--add", "new", {
+      defaultSourceOwner
+    }),
+    reposToOverride: resolveSelectedRepos(overrideRepoNames, overridableRepos, "--override", "configured", {
+      defaultSourceOwner
+    })
   };
 }
 
@@ -34,7 +39,8 @@ export async function promptGithubDiscoverySelection(plan, {
   try {
     return await promptForSelection(readline, {
       selectableEntries,
-      primarySourceOwner: getPrimarySourceOwner(plan)
+      primarySourceOwner: getPrimarySourceOwner(plan),
+      defaultSourceOwner: getDefaultSourceOwner(plan)
     });
   } finally {
     readline.close();
@@ -62,7 +68,9 @@ function getSelectableEntries(plan) {
     }));
 }
 
-function resolveSelectedRepos(requestedNames, availableRepos, flagName, selectionKind) {
+function resolveSelectedRepos(requestedNames, availableRepos, flagName, selectionKind, {
+  defaultSourceOwner = null
+} = {}) {
   const normalizedNames = normalizeRequestedNames(requestedNames);
   if (normalizedNames.length === 0) {
     return [];
@@ -75,7 +83,10 @@ function resolveSelectedRepos(requestedNames, availableRepos, flagName, selectio
   const selectionOptions = buildRepoSelectionOptions(
     availableRepos.map(repo => ({
       repo
-    }))
+    })),
+    {
+      defaultSourceOwner
+    }
   );
   const reposByIdentifier = new Map();
 
@@ -116,7 +127,8 @@ function normalizeRequestedNames(requestedNames) {
 
 async function promptForSelection(readline, {
   selectableEntries,
-  primarySourceOwner = null
+  primarySourceOwner = null,
+  defaultSourceOwner = null
 }) {
   if (selectableEntries.length === 0) {
     return {
@@ -125,7 +137,9 @@ async function promptForSelection(readline, {
     };
   }
 
-  const selectionOptions = buildRepoSelectionOptions(selectableEntries);
+  const selectionOptions = buildRepoSelectionOptions(selectableEntries, {
+    defaultSourceOwner
+  });
   const newOptions = selectionOptions
     .filter(entry => entry.status === "new")
     .map(entry => entry.label);
@@ -189,7 +203,10 @@ async function promptForSelection(readline, {
         rawSelection.split(","),
         selectionOptions.map(entry => entry.repo),
         "selection",
-        "selectable"
+        "selectable",
+        {
+          defaultSourceOwner
+        }
       );
 
       return {
@@ -204,7 +221,9 @@ async function promptForSelection(readline, {
   }
 }
 
-function buildRepoSelectionOptions(entries) {
+function buildRepoSelectionOptions(entries, {
+  defaultSourceOwner = null
+} = {}) {
   const repoNameCounts = new Map();
 
   for (const entry of entries) {
@@ -215,13 +234,14 @@ function buildRepoSelectionOptions(entries) {
   return entries.map(entry => {
     const repo = entry.repo;
     const hasAmbiguousName = (repoNameCounts.get(repo.name.toLowerCase()) || 0) > 1;
-    const label = hasAmbiguousName && repo.sourceFullName
-      ? repo.sourceFullName
+    const qualifiedLabel = getQualifiedRepoLabel(repo, defaultSourceOwner);
+    const label = hasAmbiguousName && qualifiedLabel
+      ? qualifiedLabel
       : repo.name;
     const identifiers = [label];
 
-    if (repo.sourceFullName && repo.sourceFullName.toLowerCase() !== label.toLowerCase()) {
-      identifiers.push(repo.sourceFullName);
+    if (qualifiedLabel && qualifiedLabel.toLowerCase() !== label.toLowerCase()) {
+      identifiers.push(qualifiedLabel);
     }
 
     if (!hasAmbiguousName && label.toLowerCase() !== repo.name.toLowerCase()) {
@@ -320,8 +340,31 @@ function getPrimarySourceOwner(plan) {
   return primaryOwner?.trim() || null;
 }
 
+function getDefaultSourceOwner(plan) {
+  const primarySourceOwner = getPrimarySourceOwner(plan);
+  if (primarySourceOwner) {
+    return primarySourceOwner;
+  }
+
+  return typeof plan.owner === "string" && plan.owner !== "@accessible"
+    ? plan.owner
+    : null;
+}
+
 function getRepoSelectionKey(repo) {
   return typeof repo.sourceFullName === "string" && repo.sourceFullName.trim() !== ""
     ? repo.sourceFullName.trim().toLowerCase()
     : repo.name.toLowerCase();
+}
+
+function getQualifiedRepoLabel(repo, defaultSourceOwner) {
+  if (typeof repo.sourceFullName === "string" && repo.sourceFullName.trim() !== "") {
+    return repo.sourceFullName.trim();
+  }
+
+  if (typeof defaultSourceOwner === "string" && defaultSourceOwner.trim() !== "") {
+    return `${defaultSourceOwner.trim()}/${repo.name}`;
+  }
+
+  return null;
 }
