@@ -31,6 +31,7 @@ export async function promptGithubDiscoverySelection(plan, {
   }
 
   const selectableEntries = getSelectableEntries(plan);
+  const conflictEntries = getConflictEntries(plan);
   const readline = createInterfaceFn({
     input,
     output
@@ -39,6 +40,7 @@ export async function promptGithubDiscoverySelection(plan, {
   try {
     return await promptForSelection(readline, {
       selectableEntries,
+      conflictEntries,
       primarySourceOwner: getPrimarySourceOwner(plan),
       defaultSourceOwner: getDefaultSourceOwner(plan)
     });
@@ -65,6 +67,16 @@ function getSelectableEntries(plan) {
     .map(entry => ({
       status: entry.status,
       repo: entry.repo
+    }));
+}
+
+function getConflictEntries(plan) {
+  return plan.entries
+    .filter(entry => entry.status === "conflict")
+    .map(entry => ({
+      status: entry.status,
+      repo: entry.repo,
+      configuredRepo: entry.configuredRepo
     }));
 }
 
@@ -127,6 +139,7 @@ function normalizeRequestedNames(requestedNames) {
 
 async function promptForSelection(readline, {
   selectableEntries,
+  conflictEntries = [],
   primarySourceOwner = null,
   defaultSourceOwner = null
 }) {
@@ -137,8 +150,13 @@ async function promptForSelection(readline, {
     };
   }
 
+  const allDisplayEntries = [
+    ...selectableEntries,
+    ...conflictEntries
+  ];
   const selectionOptions = buildRepoSelectionOptions(selectableEntries, {
-    defaultSourceOwner
+    defaultSourceOwner,
+    allEntries: allDisplayEntries
   });
   const newOptions = selectionOptions
     .filter(entry => entry.status === "new")
@@ -159,6 +177,17 @@ async function promptForSelection(readline, {
     promptSections.push(...formatSelectionSectionLines({
       title: `Configured already (${configuredOptions.length})`,
       options: selectionOptions.filter(entry => entry.status === "configured"),
+      primarySourceOwner
+    }));
+  }
+
+  if (conflictEntries.length > 0) {
+    promptSections.push(...formatSelectionSectionLines({
+      title: `Name conflicts (${conflictEntries.length})`,
+      options: buildRepoSelectionOptions(conflictEntries, {
+        defaultSourceOwner,
+        allEntries: allDisplayEntries
+      }),
       primarySourceOwner
     }));
   }
@@ -222,14 +251,10 @@ async function promptForSelection(readline, {
 }
 
 function buildRepoSelectionOptions(entries, {
-  defaultSourceOwner = null
+  defaultSourceOwner = null,
+  allEntries = entries
 } = {}) {
-  const repoNameCounts = new Map();
-
-  for (const entry of entries) {
-    const normalizedName = entry.repo.name.toLowerCase();
-    repoNameCounts.set(normalizedName, (repoNameCounts.get(normalizedName) || 0) + 1);
-  }
+  const repoNameCounts = buildRepoNameCounts(allEntries);
 
   return entries.map(entry => {
     const repo = entry.repo;
@@ -254,6 +279,17 @@ function buildRepoSelectionOptions(entries, {
       identifiers
     };
   });
+}
+
+function buildRepoNameCounts(entries) {
+  const repoNameCounts = new Map();
+
+  for (const entry of entries) {
+    const normalizedName = entry.repo.name.toLowerCase();
+    repoNameCounts.set(normalizedName, (repoNameCounts.get(normalizedName) || 0) + 1);
+  }
+
+  return repoNameCounts;
 }
 
 function formatSelectionSectionLines({

@@ -173,6 +173,7 @@ describe("github-discovery-selection", () => {
     expect(outputWrites.join("")).toContain("Press Enter to add all new repos");
     expect(outputWrites.join("")).toContain("New (2): archa, java-conventions");
     expect(outputWrites.join("")).toContain("Configured already (1): foundation");
+    expect(outputWrites.join("")).toContain("Name conflicts (1): shared");
   });
 
   it("defaults Enter to all new repos after confirmation", async () => {
@@ -202,9 +203,71 @@ describe("github-discovery-selection", () => {
         + "Press Enter to add all new repos, or type repo names to customize.\n"
         + "New (2): archa, java-conventions\n"
         + "Configured already (1): foundation\n"
+        + "Name conflicts (1): shared\n"
         + "> ",
       "Add all 2 new repo(s)? Press Enter to confirm, or type repo names to customize.\n> "
     ]);
+  });
+
+  it("shows qualified configured labels and visible conflicts for colliding repo names", async () => {
+    const collisionPlan = {
+      ownerDisplay: "leanish + orgs",
+      entries: [
+        {
+          status: "configured",
+          repo: {
+            name: "nullability",
+            sourceOwner: "leanish",
+            sourceFullName: "leanish/nullability",
+            url: "https://github.com/leanish/nullability.git",
+            defaultBranch: "main",
+            description: "",
+            topics: []
+          },
+          suggestions: []
+        },
+        {
+          status: "conflict",
+          repo: {
+            name: "nullability",
+            sourceOwner: "Nosto",
+            sourceFullName: "Nosto/nullability",
+            url: "https://github.com/Nosto/nullability.git",
+            defaultBranch: "main",
+            description: "",
+            topics: []
+          },
+          configuredRepo: {
+            name: "nullability",
+            url: "https://github.com/leanish/nullability.git"
+          },
+          suggestions: []
+        }
+      ]
+    };
+    const prompts = [];
+    const fakeReadline = {
+      question: async prompt => {
+        prompts.push(prompt);
+        return "";
+      },
+      close() {}
+    };
+
+    const result = await promptGithubDiscoverySelection(collisionPlan, {
+      input: { isTTY: true },
+      output: { isTTY: true },
+      createInterfaceFn() {
+        return fakeReadline;
+      }
+    });
+
+    expect(result).toEqual({
+      reposToAdd: [],
+      reposToOverride: []
+    });
+    expect(prompts[0]).toContain("Configured already (1): leanish/nullability");
+    expect(prompts[0]).toContain("Name conflicts (1): Nosto/nullability");
   });
 
   it("groups repos by source owner when multiple owners are in scope", async () => {
