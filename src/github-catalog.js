@@ -144,6 +144,10 @@ export async function discoverGithubOwnerRepos({
     fetchFn,
     token: githubToken
   });
+  onProgress?.({
+    type: "discovery-fetching",
+    owner: normalizedOwner
+  });
   const discoveredRepos = [];
   let page = 1;
 
@@ -164,6 +168,7 @@ export async function discoverGithubOwnerRepos({
         type: "discovery-page",
         owner: normalizedOwner,
         page,
+        nextPage: page + 1,
         fetchedCount: discoveredRepos.length
       });
     }

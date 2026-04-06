@@ -33,8 +33,18 @@ export function createGithubDiscoveryProgressReporter({
         return;
       }
 
+      if (event.type === "discovery-fetching") {
+        if (isInteractive) {
+          writeInlineProgress("Fetching repos...", false);
+          return;
+        }
+
+        output.write("Fetching repos...\n");
+        return;
+      }
+
       if (event.type === "discovery-page") {
-        const message = `Listing repos: ${event.fetchedCount} fetched so far`;
+        const message = `Fetching repos, page ${event.nextPage}...`;
         if (isInteractive) {
           writeInlineProgress(message, false);
           return;

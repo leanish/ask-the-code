@@ -246,6 +246,10 @@ describe("github-catalog", () => {
     });
 
     expect(onProgress).toHaveBeenNthCalledWith(1, {
+      type: "discovery-fetching",
+      owner: "leanish"
+    });
+    expect(onProgress).toHaveBeenNthCalledWith(2, {
       type: "discovery-listed",
       owner: "leanish",
       discoveredCount: 1,
@@ -256,7 +260,7 @@ describe("github-catalog", () => {
       skippedForks: 0,
       skippedArchived: 0
     });
-    expect(onProgress).toHaveBeenNthCalledWith(2, {
+    expect(onProgress).toHaveBeenNthCalledWith(3, {
       type: "repo-curated",
       owner: "leanish",
       repoName: "archa",
@@ -317,18 +321,24 @@ describe("github-catalog", () => {
     });
 
     expect(onProgress).toHaveBeenNthCalledWith(1, {
-      type: "discovery-page",
-      owner: "leanish",
-      page: 1,
-      fetchedCount: 100
+      type: "discovery-fetching",
+      owner: "leanish"
     });
     expect(onProgress).toHaveBeenNthCalledWith(2, {
       type: "discovery-page",
       owner: "leanish",
-      page: 2,
-      fetchedCount: 101
+      page: 1,
+      nextPage: 2,
+      fetchedCount: 100
     });
     expect(onProgress).toHaveBeenNthCalledWith(3, {
+      type: "discovery-page",
+      owner: "leanish",
+      page: 2,
+      nextPage: 3,
+      fetchedCount: 101
+    });
+    expect(onProgress).toHaveBeenNthCalledWith(4, {
       type: "discovery-listed",
       owner: "leanish",
       discoveredCount: 101,
