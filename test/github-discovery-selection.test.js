@@ -81,6 +81,46 @@ describe("github-discovery-selection", () => {
     })).toThrow('Unknown new repo(s) for --add: foundation.');
   });
 
+  it("allows selecting colliding repo names via owner-qualified identifiers", () => {
+    const multiOwnerPlan = {
+      entries: [
+        {
+          status: "new",
+          repo: {
+            name: "shared",
+            sourceOwner: "leanish",
+            sourceFullName: "leanish/shared",
+            url: "https://github.com/leanish/shared.git",
+            defaultBranch: "main",
+            description: "",
+            topics: []
+          },
+          suggestions: []
+        },
+        {
+          status: "new",
+          repo: {
+            name: "shared",
+            sourceOwner: "Nosto",
+            sourceFullName: "Nosto/shared",
+            url: "https://github.com/Nosto/shared.git",
+            defaultBranch: "main",
+            description: "",
+            topics: []
+          },
+          suggestions: []
+        }
+      ]
+    };
+
+    expect(selectGithubDiscoveryRepos(multiOwnerPlan, {
+      addRepoNames: ["leanish/shared", "Nosto/shared"]
+    })).toEqual({
+      reposToAdd: [multiOwnerPlan.entries[0].repo, multiOwnerPlan.entries[1].repo],
+      reposToOverride: []
+    });
+  });
+
   it("prompts once for comma-separated add and override selections", async () => {
     const outputWrites = [];
     const fakeReadline = {
@@ -141,8 +181,9 @@ describe("github-discovery-selection", () => {
     ]);
   });
 
-  it("shows full repo names when multiple source owners are in scope", async () => {
+  it("groups repos by source owner when multiple owners are in scope", async () => {
     const multiOwnerPlan = {
+      ownerDisplay: "leanish + orgs",
       entries: [
         {
           status: "new",
@@ -193,7 +234,64 @@ describe("github-discovery-selection", () => {
       reposToAdd: [multiOwnerPlan.entries[1].repo],
       reposToOverride: []
     });
-    expect(prompts[0]).toContain("New (2): leanish/archa, Nosto/playcart");
+    expect(prompts[0]).toContain("New (2):\nleanish: archa\nNosto: playcart");
+  });
+
+  it("keeps owner-qualified labels only when repo names collide across owners", async () => {
+    const collisionPlan = {
+      ownerDisplay: "leanish + orgs",
+      entries: [
+        {
+          status: "new",
+          repo: {
+            name: "shared",
+            sourceOwner: "leanish",
+            sourceFullName: "leanish/shared",
+            url: "https://github.com/leanish/shared.git",
+            defaultBranch: "main",
+            description: "Personal shared repo",
+            topics: []
+          },
+          suggestions: []
+        },
+        {
+          status: "new",
+          repo: {
+            name: "shared",
+            sourceOwner: "Nosto",
+            sourceFullName: "Nosto/shared",
+            url: "https://github.com/Nosto/shared.git",
+            defaultBranch: "main",
+            description: "Company shared repo",
+            topics: []
+          },
+          suggestions: []
+        }
+      ]
+    };
+    const prompts = [];
+    const fakeReadline = {
+      question: async prompt => {
+        prompts.push(prompt);
+        return "Nosto/shared";
+      },
+      close() {}
+    };
+
+    const result = await promptGithubDiscoverySelection(collisionPlan, {
+      input: { isTTY: true },
+      output: { isTTY: true },
+      createInterfaceFn() {
+        return fakeReadline;
+      }
+    });
+
+    expect(result).toEqual({
+      reposToAdd: [collisionPlan.entries[1].repo],
+      reposToOverride: []
+    });
+    expect(prompts[0]).toContain("leanish: leanish/shared");
+    expect(prompts[0]).toContain("Nosto: Nosto/shared");
   });
 
   it("rejects interactive selection without a tty", async () => {

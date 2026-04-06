@@ -33,7 +33,8 @@ export async function promptGithubDiscoverySelection(plan, {
 
   try {
     return await promptForSelection(readline, {
-      selectableEntries
+      selectableEntries,
+      primarySourceOwner: getPrimarySourceOwner(plan)
     });
   } finally {
     readline.close();
@@ -92,7 +93,7 @@ function resolveSelectedRepos(requestedNames, availableRepos, flagName, selectio
       missingNames.push(requestedName);
       continue;
     }
-    if (!selectedRepos.some(candidate => candidate.name === repo.name)) {
+    if (!selectedRepos.some(candidate => getRepoSelectionKey(candidate) === getRepoSelectionKey(repo))) {
       selectedRepos.push(repo);
     }
   }
@@ -114,7 +115,8 @@ function normalizeRequestedNames(requestedNames) {
 }
 
 async function promptForSelection(readline, {
-  selectableEntries
+  selectableEntries,
+  primarySourceOwner = null
 }) {
   if (selectableEntries.length === 0) {
     return {
@@ -133,12 +135,18 @@ async function promptForSelection(readline, {
   const configuredOptions = selectionOptions
     .filter(entry => entry.status === "configured")
     .map(entry => entry.label);
-  const promptSections = [
-    `New (${newOptions.length}): ${newOptions.join(", ") || "none"}`
-  ];
+  const promptSections = formatSelectionSectionLines({
+    title: `New (${newOptions.length})`,
+    options: selectionOptions.filter(entry => entry.status === "new"),
+    primarySourceOwner
+  });
 
   if (configuredOptions.length > 0) {
-    promptSections.push(`Configured already (${configuredOptions.length}): ${configuredOptions.join(", ")}`);
+    promptSections.push(...formatSelectionSectionLines({
+      title: `Configured already (${configuredOptions.length})`,
+      options: selectionOptions.filter(entry => entry.status === "configured"),
+      primarySourceOwner
+    }));
   }
   const newRepoSet = new Set(newRepos);
   const configuredRepoSet = new Set(
@@ -197,12 +205,6 @@ async function promptForSelection(readline, {
 }
 
 function buildRepoSelectionOptions(entries) {
-  const sourceOwners = new Set(
-    entries
-      .map(entry => entry.repo.sourceOwner)
-      .filter(sourceOwner => typeof sourceOwner === "string" && sourceOwner !== "")
-  );
-  const hasMultipleSourceOwners = sourceOwners.size > 1;
   const repoNameCounts = new Map();
 
   for (const entry of entries) {
@@ -213,10 +215,14 @@ function buildRepoSelectionOptions(entries) {
   return entries.map(entry => {
     const repo = entry.repo;
     const hasAmbiguousName = (repoNameCounts.get(repo.name.toLowerCase()) || 0) > 1;
-    const label = (hasMultipleSourceOwners || hasAmbiguousName) && repo.sourceFullName
+    const label = hasAmbiguousName && repo.sourceFullName
       ? repo.sourceFullName
       : repo.name;
     const identifiers = [label];
+
+    if (repo.sourceFullName && repo.sourceFullName.toLowerCase() !== label.toLowerCase()) {
+      identifiers.push(repo.sourceFullName);
+    }
 
     if (!hasAmbiguousName && label.toLowerCase() !== repo.name.toLowerCase()) {
       identifiers.push(repo.name);
@@ -228,4 +234,94 @@ function buildRepoSelectionOptions(entries) {
       identifiers
     };
   });
+}
+
+function formatSelectionSectionLines({
+  title,
+  options,
+  primarySourceOwner
+}) {
+  if (options.length === 0) {
+    return [`${title}: none`];
+  }
+
+  const sourceOwners = new Set(
+    options
+      .map(option => option.repo.sourceOwner)
+      .filter(sourceOwner => typeof sourceOwner === "string" && sourceOwner !== "")
+  );
+
+  if (sourceOwners.size <= 1) {
+    return [`${title}: ${options.map(option => option.label).join(", ")}`];
+  }
+
+  const groupedOptions = groupSelectionOptionsByOwner(options, primarySourceOwner);
+
+  return [
+    `${title}:`,
+    ...groupedOptions.map(group => `${group.ownerLabel}: ${group.options.map(option => option.label).join(", ")}`)
+  ];
+}
+
+function groupSelectionOptionsByOwner(options, primarySourceOwner) {
+  const groupsByOwner = new Map();
+  const orderedOwners = [];
+
+  for (const option of options) {
+    const ownerLabel = getOwnerLabel(option.repo);
+    if (!groupsByOwner.has(ownerLabel)) {
+      groupsByOwner.set(ownerLabel, []);
+      orderedOwners.push(ownerLabel);
+    }
+
+    groupsByOwner.get(ownerLabel).push(option);
+  }
+
+  orderedOwners.sort((left, right) => compareOwnerLabels(left, right, primarySourceOwner));
+
+  return orderedOwners.map(ownerLabel => ({
+    ownerLabel,
+    options: groupsByOwner.get(ownerLabel)
+  }));
+}
+
+function getOwnerLabel(repo) {
+  return typeof repo.sourceOwner === "string" && repo.sourceOwner.trim() !== ""
+    ? repo.sourceOwner.trim()
+    : "Other";
+}
+
+function compareOwnerLabels(left, right, primarySourceOwner) {
+  const normalizedPrimaryOwner = typeof primarySourceOwner === "string"
+    ? primarySourceOwner.trim().toLowerCase()
+    : "";
+  const normalizedLeft = left.toLowerCase();
+  const normalizedRight = right.toLowerCase();
+
+  if (normalizedPrimaryOwner) {
+    if (normalizedLeft === normalizedPrimaryOwner && normalizedRight !== normalizedPrimaryOwner) {
+      return -1;
+    }
+
+    if (normalizedRight === normalizedPrimaryOwner && normalizedLeft !== normalizedPrimaryOwner) {
+      return 1;
+    }
+  }
+
+  return normalizedLeft.localeCompare(normalizedRight);
+}
+
+function getPrimarySourceOwner(plan) {
+  if (typeof plan.ownerDisplay !== "string") {
+    return null;
+  }
+
+  const [primaryOwner] = plan.ownerDisplay.split(" + orgs");
+  return primaryOwner?.trim() || null;
+}
+
+function getRepoSelectionKey(repo) {
+  return typeof repo.sourceFullName === "string" && repo.sourceFullName.trim() !== ""
+    ? repo.sourceFullName.trim().toLowerCase()
+    : repo.name.toLowerCase();
 }

@@ -157,7 +157,7 @@ describe("render", () => {
     expect(applied).toContain("Repos overridden: 2");
   });
 
-  it("renders source-qualified repo labels for accessible discovery previews", () => {
+  it("renders owner-grouped sections for accessible discovery previews", () => {
     const preview = renderGithubDiscovery({
       owner: "@accessible",
       ownerDisplay: "leanish + orgs",
@@ -201,8 +201,55 @@ describe("render", () => {
     });
 
     expect(preview).toContain("GitHub repo discovery for leanish + orgs (Accessible):");
-    expect(preview).toContain("- leanish/archa [new]");
-    expect(preview).toContain("- Nosto/playcart [new]");
+    expect(preview).toContain("leanish:\n- archa [new]");
+    expect(preview).toContain("Nosto:\n- playcart [new]");
     expect(preview).toContain("Run: archa config discover-github --owner @accessible --apply");
+  });
+
+  it("falls back to owner-qualified labels inside grouped previews when names collide", () => {
+    const preview = renderGithubDiscovery({
+      owner: "@accessible",
+      ownerDisplay: "leanish + orgs",
+      ownerType: "Accessible",
+      entries: [
+        {
+          status: "new",
+          repo: {
+            name: "shared",
+            sourceOwner: "leanish",
+            sourceFullName: "leanish/shared",
+            description: "",
+            topics: [],
+            classifications: []
+          },
+          suggestions: []
+        },
+        {
+          status: "new",
+          repo: {
+            name: "shared",
+            sourceOwner: "Nosto",
+            sourceFullName: "Nosto/shared",
+            description: "",
+            topics: [],
+            classifications: []
+          },
+          suggestions: []
+        }
+      ],
+      counts: {
+        discovered: 2,
+        configured: 0,
+        new: 2,
+        conflicts: 0,
+        withSuggestions: 0
+      },
+      skippedForks: 0,
+      skippedArchived: 0,
+      applied: false
+    });
+
+    expect(preview).toContain("leanish:\n- leanish/shared [new]");
+    expect(preview).toContain("Nosto:\n- Nosto/shared [new]");
   });
 });

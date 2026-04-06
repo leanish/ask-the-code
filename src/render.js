@@ -53,21 +53,29 @@ export function renderGithubDiscovery(result) {
   const lines = [
     `GitHub repo discovery for ${result.ownerDisplay || result.owner} (${result.ownerType}):`
   ];
-  const useSourceLabels = new Set(
+  const sourceOwners = new Set(
     result.entries
       .map(entry => entry.repo.sourceOwner)
       .filter(sourceOwner => typeof sourceOwner === "string" && sourceOwner !== "")
-  ).size > 1;
+  );
 
-  for (const entry of result.entries) {
-    const status = formatDiscoveryStatus(entry);
-    const classifications = entry.repo.classifications?.length > 0
-      ? ` classifications=${entry.repo.classifications.join(",")}`
-      : "";
-    const topics = entry.repo.topics.length > 0 ? ` topics=${entry.repo.topics.join(",")}` : "";
-    const description = entry.repo.description ? ` ${entry.repo.description}` : "";
-    const suggestions = entry.suggestions.length > 0 ? ` review=${entry.suggestions.join("; ")}` : "";
-    lines.push(`- ${formatDiscoveryRepoLabel(entry.repo, useSourceLabels)} [${status}]${classifications}${topics}${suggestions}${description}`);
+  if (sourceOwners.size > 1) {
+    const groupedEntries = groupDiscoveryEntriesByOwner(result.entries, getPrimarySourceOwner(result));
+
+    for (const group of groupedEntries) {
+      lines.push(`${group.ownerLabel}:`);
+      for (const entry of group.entries) {
+        lines.push(formatDiscoveryEntry(entry, {
+          useSourceLabels: isAmbiguousDiscoveryName(entry.repo, result.entries)
+        }));
+      }
+    }
+  } else {
+    for (const entry of result.entries) {
+      lines.push(formatDiscoveryEntry(entry, {
+        useSourceLabels: false
+      }));
+    }
   }
 
   lines.push("");
@@ -117,4 +125,77 @@ function formatDiscoveryRepoLabel(repo, useSourceLabels) {
   }
 
   return repo.name;
+}
+
+function formatDiscoveryEntry(entry, {
+  useSourceLabels
+}) {
+  const status = formatDiscoveryStatus(entry);
+  const classifications = entry.repo.classifications?.length > 0
+    ? ` classifications=${entry.repo.classifications.join(",")}`
+    : "";
+  const topics = entry.repo.topics.length > 0 ? ` topics=${entry.repo.topics.join(",")}` : "";
+  const description = entry.repo.description ? ` ${entry.repo.description}` : "";
+  const suggestions = entry.suggestions.length > 0 ? ` review=${entry.suggestions.join("; ")}` : "";
+  return `- ${formatDiscoveryRepoLabel(entry.repo, useSourceLabels)} [${status}]${classifications}${topics}${suggestions}${description}`;
+}
+
+function groupDiscoveryEntriesByOwner(entries, primarySourceOwner) {
+  const groupsByOwner = new Map();
+  const orderedOwners = [];
+
+  for (const entry of entries) {
+    const ownerLabel = getDiscoveryOwnerLabel(entry.repo);
+    if (!groupsByOwner.has(ownerLabel)) {
+      groupsByOwner.set(ownerLabel, []);
+      orderedOwners.push(ownerLabel);
+    }
+    groupsByOwner.get(ownerLabel).push(entry);
+  }
+
+  orderedOwners.sort((left, right) => compareDiscoveryOwnerLabels(left, right, primarySourceOwner));
+
+  return orderedOwners.map(ownerLabel => ({
+    ownerLabel,
+    entries: groupsByOwner.get(ownerLabel)
+  }));
+}
+
+function getDiscoveryOwnerLabel(repo) {
+  return typeof repo.sourceOwner === "string" && repo.sourceOwner.trim() !== ""
+    ? repo.sourceOwner.trim()
+    : "Other";
+}
+
+function compareDiscoveryOwnerLabels(left, right, primarySourceOwner) {
+  const normalizedPrimaryOwner = typeof primarySourceOwner === "string"
+    ? primarySourceOwner.trim().toLowerCase()
+    : "";
+  const normalizedLeft = left.toLowerCase();
+  const normalizedRight = right.toLowerCase();
+
+  if (normalizedPrimaryOwner) {
+    if (normalizedLeft === normalizedPrimaryOwner && normalizedRight !== normalizedPrimaryOwner) {
+      return -1;
+    }
+
+    if (normalizedRight === normalizedPrimaryOwner && normalizedLeft !== normalizedPrimaryOwner) {
+      return 1;
+    }
+  }
+
+  return normalizedLeft.localeCompare(normalizedRight);
+}
+
+function getPrimarySourceOwner(result) {
+  if (typeof result.ownerDisplay !== "string") {
+    return null;
+  }
+
+  const [primaryOwner] = result.ownerDisplay.split(" + orgs");
+  return primaryOwner?.trim() || null;
+}
+
+function isAmbiguousDiscoveryName(repo, entries) {
+  return entries.filter(entry => entry.repo.name === repo.name).length > 1;
 }
