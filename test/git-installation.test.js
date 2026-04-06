@@ -1,0 +1,31 @@
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  ensureGitInstalled,
+  formatMissingGitMessage,
+  normalizeGitExecutionError
+} from "../src/git-installation.js";
+
+describe("git-installation", () => {
+  it("returns quietly when git is installed", () => {
+    expect(() => ensureGitInstalled({
+      spawnSyncFn: vi.fn(() => ({}))
+    })).not.toThrow();
+  });
+
+  it("throws an install hint when git is missing", () => {
+    expect(() => ensureGitInstalled({
+      spawnSyncFn: vi.fn(() => ({
+        error: Object.assign(new Error("spawnSync git ENOENT"), { code: "ENOENT" })
+      }))
+    })).toThrow(formatMissingGitMessage());
+  });
+
+  it("normalizes ENOENT runtime errors into the install hint", () => {
+    const normalized = normalizeGitExecutionError(
+      Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" })
+    );
+
+    expect(normalized).toEqual(new Error(formatMissingGitMessage()));
+  });
+});

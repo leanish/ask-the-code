@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   ensureInteractiveConfigSetup: vi.fn(),
   renderConfigInit: vi.fn(),
   ensureCodexInstalled: vi.fn(),
+  ensureGitInstalled: vi.fn(),
   loadConfig: vi.fn(),
   initializeConfig: vi.fn(),
   applyGithubDiscoveryToConfig: vi.fn(),
@@ -45,6 +46,10 @@ vi.mock("../src/config.js", () => ({
 
 vi.mock("../src/codex-installation.js", () => ({
   ensureCodexInstalled: mocks.ensureCodexInstalled
+}));
+
+vi.mock("../src/git-installation.js", () => ({
+  ensureGitInstalled: mocks.ensureGitInstalled
 }));
 
 vi.mock("../src/config-paths.js", () => ({
@@ -94,6 +99,7 @@ describe("cli", () => {
     });
     mocks.getConfigPath.mockReturnValue("/tmp/archa-config.json");
     mocks.ensureCodexInstalled.mockImplementation(() => {});
+    mocks.ensureGitInstalled.mockImplementation(() => {});
     mocks.canPromptInteractively.mockReturnValue(true);
     mocks.promptToInitializeConfig.mockResolvedValue(true);
     mocks.promptToContinueGithubDiscovery.mockResolvedValue(false);
@@ -206,6 +212,7 @@ describe("cli", () => {
 
     expect(stdout.join("")).toContain("Sync report:");
     expect(stdout.join("")).toContain("sqs-codec: updated (main)");
+    expect(mocks.ensureGitInstalled).toHaveBeenCalled();
   });
 
   it("fails repos sync when any selected repo failed to sync", async () => {
@@ -237,6 +244,7 @@ describe("cli", () => {
       })
     );
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
+    expect(mocks.ensureGitInstalled).toHaveBeenCalled();
   });
 
   it("does not require Codex for retrieval-only ask mode", async () => {
@@ -250,6 +258,21 @@ describe("cli", () => {
     await main(["--no-synthesis", "What", "is", "x-codec-meta?"]);
 
     expect(mocks.ensureCodexInstalled).not.toHaveBeenCalled();
+    expect(mocks.ensureGitInstalled).toHaveBeenCalled();
+  });
+
+  it("does not require Git for no-sync retrieval-only ask mode", async () => {
+    mocks.answerQuestion.mockResolvedValue({
+      mode: "retrieval-only",
+      question: "What is x-codec-meta?",
+      selectedRepos: [{ name: "sqs-codec" }],
+      syncReport: []
+    });
+
+    await main(["--no-sync", "--no-synthesis", "What", "is", "x-codec-meta?"]);
+
+    expect(mocks.ensureCodexInstalled).not.toHaveBeenCalled();
+    expect(mocks.ensureGitInstalled).not.toHaveBeenCalled();
   });
 
   it("prints the active config path", async () => {
@@ -391,6 +414,7 @@ describe("cli", () => {
     expect(stderr.join("")).toContain("Curating repos: 1/1 (archa)");
     expect(mocks.applyGithubDiscoveryToConfig).not.toHaveBeenCalled();
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
+    expect(mocks.ensureGitInstalled).toHaveBeenCalled();
     expect(mocks.discoverGithubOwnerRepos).toHaveBeenCalledWith(expect.objectContaining({
       inspectRepos: true,
       curateWithCodex: true
@@ -409,6 +433,7 @@ describe("cli", () => {
     await main(["config", "discover-github", "--owner", "leanish"]);
 
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
+    expect(mocks.ensureGitInstalled).toHaveBeenCalled();
   });
 
   it("applies interactively selected repo changes when requested", async () => {
@@ -486,6 +511,7 @@ describe("cli", () => {
     await main(["config", "discover-github", "--owner", "leanish", "--apply"]);
 
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
+    expect(mocks.ensureGitInstalled).toHaveBeenCalled();
     expect(mocks.promptGithubDiscoverySelection).toHaveBeenCalled();
     expect(mocks.discoverGithubOwnerRepos).toHaveBeenCalledWith(expect.objectContaining({
       inspectRepos: true,
@@ -572,6 +598,7 @@ describe("cli", () => {
       addRepoNames: ["java-conventions"],
       overrideRepoNames: ["sqs-codec"]
     });
+    expect(mocks.ensureGitInstalled).toHaveBeenCalled();
     expect(mocks.promptGithubDiscoverySelection).not.toHaveBeenCalled();
     expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledWith({
       env: process.env,

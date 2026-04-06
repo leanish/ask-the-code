@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
+import { normalizeGitExecutionError } from "./git-installation.js";
+
 export async function syncRepos(repos, callbacks = {}) {
   const report = [];
 
@@ -81,7 +83,9 @@ async function runCommand(command, args) {
     child.stderr.on("data", chunk => {
       stderr += chunk;
     });
-    child.on("error", reject);
+    child.on("error", error => {
+      reject(normalizeGitExecutionError(error));
+    });
     child.on("close", code => {
       if (code === 0) {
         resolve();

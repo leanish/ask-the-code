@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { getDefaultManagedReposRoot } from "./config-paths.js";
+import { normalizeGitExecutionError } from "./git-installation.js";
 import { curateRepoMetadataWithCodex } from "./repo-metadata-codex-curator.js";
 
 const FRONTEND_CONFIG_FILES = [
@@ -680,7 +681,9 @@ async function runCommand(command, args) {
     child.stderr.on("data", chunk => {
       stderr += chunk;
     });
-    child.on("error", reject);
+    child.on("error", error => {
+      reject(normalizeGitExecutionError(error));
+    });
     child.on("close", code => {
       if (code === 0) {
         resolve();

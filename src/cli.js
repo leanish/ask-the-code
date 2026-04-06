@@ -8,6 +8,7 @@ import {
 import { applyGithubDiscoveryToConfig, loadConfig, initializeConfig } from "./config.js";
 import { ensureCodexInstalled } from "./codex-installation.js";
 import { getConfigPath } from "./config-paths.js";
+import { ensureGitInstalled } from "./git-installation.js";
 import {
   discoverGithubOwnerRepos,
   planGithubRepoDiscovery
@@ -28,6 +29,9 @@ import { createStreamStatusReporter } from "./status-reporter.js";
 
 export async function main(argv) {
   const options = parseArgs(argv, process.env);
+  if (commandRequiresGit(options)) {
+    ensureGitInstalled();
+  }
   if (commandRequiresCodex(options)) {
     ensureCodexInstalled();
   }
@@ -88,6 +92,12 @@ export async function main(argv) {
 
 function commandRequiresCodex(options) {
   return options.command === "ask" && !options.noSynthesis;
+}
+
+function commandRequiresGit(options) {
+  return options.command === "repos-sync"
+    || options.command === "config-discover-github"
+    || (options.command === "ask" && !options.noSync);
 }
 
 function filterRepos(repos, requestedNames) {

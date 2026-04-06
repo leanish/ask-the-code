@@ -32,12 +32,13 @@ flowchart LR
 ## High-level flow
 
 1. A transport adapter receives a request, including the question plus optional audience and execution overrides.
-2. Commands that require Codex check that the local `codex` CLI is installed and `codex login status` reports a logged-in session before continuing.
-3. Config is loaded from the user config path.
-4. Repo selection chooses explicit repos or heuristic candidates, keeps any pinned repos in scope, and falls back to all configured repos when nothing scores positively.
-5. Repo sync clones or fast-forwards the selected repos.
-6. Codex runs against either the single selected repo or the managed repos root.
-7. The adapter renders the result:
+2. Commands that require Git check that the local `git` CLI is installed before continuing.
+3. Commands that require Codex check that the local `codex` CLI is installed and `codex login status` reports a logged-in session before continuing.
+4. Config is loaded from the user config path.
+5. Repo selection chooses explicit repos or heuristic candidates, keeps any pinned repos in scope, and falls back to all configured repos when nothing scores positively.
+6. Repo sync clones or fast-forwards the selected repos.
+7. Codex runs against either the single selected repo or the managed repos root.
+8. The adapter renders the result:
    - CLI: text to stdout plus status to stderr
    - HTTP: async job state plus SSE status events, with the web UI optionally loading the configured repo catalog for picker-style selection
 
@@ -101,6 +102,8 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
   Resolves explicit repo names and aliases, or scores likely repos from repo-name tokens, descriptions, topics, and separately weighted classifications while keeping repos marked `alwaysSelect` in scope and falling back to all configured repos when nothing scores positively.
 - `src/repo-sync.js`
   Clones missing repos and fast-forwards existing repos to `main` or `master`.
+- `src/git-installation.js`
+  Checks whether the local `git` CLI is installed and formats user-facing installation guidance when it is missing.
 - `src/repo-sync-coordinator.js`
   Deduplicates concurrent syncs for the same repo within a single server process.
 - `src/codex-runner.js`

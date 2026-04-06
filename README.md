@@ -16,9 +16,10 @@ The project is intentionally split in two:
 
 This keeps the tool reusable while still letting each installation decide which repos to manage.
 
-Archa requires the local `codex` CLI on `PATH` and a logged-in Codex session for asking questions, starting `archa-server`, and running `config discover-github`. Install it with:
+Archa requires local `git` on `PATH` for repo sync and GitHub discovery, plus the local `codex` CLI on `PATH` and a logged-in Codex session for synthesis and curated discovery. Install them with:
 
 ```bash
+brew install git
 brew install codex
 ```
 

@@ -112,6 +112,31 @@ describe("syncRepos", () => {
     ]);
   });
 
+  it("normalizes missing git errors into an install hint", async () => {
+    mocks.access.mockRejectedValueOnce(new Error("missing"));
+    mocks.spawn.mockReturnValue(createErroringChild(
+      Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" })
+    ));
+
+    const report = await syncRepos([
+      {
+        name: "sqs-codec",
+        url: "git@github.com:leanish/sqs-codec.git",
+        directory: "/workspace/repos/sqs-codec",
+        defaultBranch: "main"
+      }
+    ]);
+
+    expect(report).toEqual([
+      {
+        name: "sqs-codec",
+        directory: "/workspace/repos/sqs-codec",
+        action: "failed",
+        detail: 'Git CLI is required but was not found on PATH. Install it with "brew install git", then retry later.'
+      }
+    ]);
+  });
+
   it("records unsupported trunk branches per repo and continues syncing others", async () => {
     mocks.access.mockRejectedValueOnce(new Error("missing"));
     mocks.spawn.mockReturnValue(createSuccessfulChild());
@@ -188,5 +213,33 @@ function createChild({ exitCode, stderrChunks = [] }) {
     emitError(error) {
       errorHandlers.forEach(handler => handler(error));
     }
+  };
+}
+
+function createErroringChild(error) {
+  const stderrHandlers = [];
+  const closeHandlers = [];
+  const errorHandlers = [];
+
+  setTimeout(() => {
+    errorHandlers.forEach(handler => handler(error));
+  }, 0);
+
+  return {
+    stderr: {
+      on: vi.fn((event, handler) => {
+        if (event === "data") {
+          stderrHandlers.push(handler);
+        }
+      })
+    },
+    on: vi.fn((event, handler) => {
+      if (event === "close") {
+        closeHandlers.push(handler);
+      }
+      if (event === "error") {
+        errorHandlers.push(handler);
+      }
+    })
   };
 }

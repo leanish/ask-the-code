@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   startHttpServer: vi.fn(),
   ensureInteractiveConfigSetup: vi.fn(),
   ensureCodexInstalled: vi.fn(),
+  ensureGitInstalled: vi.fn(),
   loadConfig: vi.fn(),
   applyGithubDiscoveryToConfig: vi.fn(),
   discoverGithubOwnerRepos: vi.fn(),
@@ -29,6 +30,10 @@ vi.mock("../src/config.js", () => ({
 
 vi.mock("../src/codex-installation.js", () => ({
   ensureCodexInstalled: mocks.ensureCodexInstalled
+}));
+
+vi.mock("../src/git-installation.js", () => ({
+  ensureGitInstalled: mocks.ensureGitInstalled
 }));
 
 vi.mock("../src/github-catalog.js", () => ({
@@ -68,6 +73,7 @@ describe("server-main", () => {
       return true;
     });
     mocks.ensureCodexInstalled.mockImplementation(() => {});
+    mocks.ensureGitInstalled.mockImplementation(() => {});
     mocks.ensureInteractiveConfigSetup.mockResolvedValue(true);
     mocks.loadConfig.mockResolvedValue({
       configPath: "/tmp/archa-config.json",
@@ -129,6 +135,7 @@ describe("server-main", () => {
     const result = await main([]);
 
     expect(result).toBe(serverHandle);
+    expect(mocks.ensureGitInstalled).toHaveBeenCalled();
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
     expect(mocks.ensureInteractiveConfigSetup).toHaveBeenCalled();
     expect(stdout.join("")).toBe("Archa server listening on http://127.0.0.1:8787\n");
@@ -207,6 +214,16 @@ describe("server-main", () => {
     });
 
     await expect(main([])).rejects.toThrow("Codex CLI is required but was not found on PATH.");
+    expect(mocks.ensureInteractiveConfigSetup).not.toHaveBeenCalled();
+    expect(mocks.startHttpServer).not.toHaveBeenCalled();
+  });
+
+  it("fails before setup when Git is missing", async () => {
+    mocks.ensureGitInstalled.mockImplementation(() => {
+      throw new Error("Git CLI is required but was not found on PATH.");
+    });
+
+    await expect(main([])).rejects.toThrow("Git CLI is required but was not found on PATH.");
     expect(mocks.ensureInteractiveConfigSetup).not.toHaveBeenCalled();
     expect(mocks.startHttpServer).not.toHaveBeenCalled();
   });
