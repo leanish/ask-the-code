@@ -159,6 +159,14 @@ export async function discoverGithubOwnerRepos({
     }
 
     discoveredRepos.push(...reposPage);
+    if (page > 1 || reposPage.length === PAGE_SIZE) {
+      onProgress?.({
+        type: "discovery-page",
+        owner: normalizedOwner,
+        page,
+        fetchedCount: discoveredRepos.length
+      });
+    }
 
     if (reposPage.length < PAGE_SIZE) {
       break;

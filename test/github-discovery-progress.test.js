@@ -41,6 +41,68 @@ describe("github-discovery-progress", () => {
     expect(output.write).toHaveBeenNthCalledWith(4, "Loading repos: 2/2 (terminator)\n");
   });
 
+  it("shows paginated listing progress before the discovery summary", () => {
+    const output = {
+      write: vi.fn(),
+      isTTY: false
+    };
+    const reporter = createGithubDiscoveryProgressReporter({
+      output,
+      isInteractive: false
+    });
+
+    reporter.start("Nosto");
+    reporter.onProgress({
+      type: "discovery-page",
+      fetchedCount: 100
+    });
+    reporter.onProgress({
+      type: "discovery-page",
+      fetchedCount: 200
+    });
+    reporter.onProgress({
+      type: "discovery-listed",
+      discoveredCount: 238,
+      eligibleCount: 232,
+      hydrateMetadata: false,
+      inspectRepos: false
+    });
+
+    expect(output.write).toHaveBeenNthCalledWith(1, "Discovering GitHub repos for Nosto...\n");
+    expect(output.write).toHaveBeenNthCalledWith(2, "Listing repos: 100 fetched so far\n");
+    expect(output.write).toHaveBeenNthCalledWith(3, "Listing repos: 200 fetched so far\n");
+    expect(output.write).toHaveBeenNthCalledWith(4, "Found 238 repo(s); ready to choose from 232 eligible repo(s).\n");
+  });
+
+  it("closes inline listing progress before writing the discovery summary", () => {
+    const output = {
+      write: vi.fn(),
+      isTTY: true
+    };
+    const reporter = createGithubDiscoveryProgressReporter({
+      output,
+      isInteractive: true
+    });
+
+    reporter.start("Nosto");
+    reporter.onProgress({
+      type: "discovery-page",
+      fetchedCount: 100
+    });
+    reporter.onProgress({
+      type: "discovery-listed",
+      discoveredCount: 138,
+      eligibleCount: 132,
+      hydrateMetadata: false,
+      inspectRepos: false
+    });
+
+    expect(output.write).toHaveBeenNthCalledWith(1, "Discovering GitHub repos for Nosto...\n");
+    expect(output.write).toHaveBeenNthCalledWith(2, "\rListing repos: 100 fetched so far");
+    expect(output.write).toHaveBeenNthCalledWith(3, "\n");
+    expect(output.write).toHaveBeenNthCalledWith(4, "Found 138 repo(s); ready to choose from 132 eligible repo(s).\n");
+  });
+
   it("uses inline progress updates for interactive output and finishes with a newline", () => {
     const output = {
       write: vi.fn(),

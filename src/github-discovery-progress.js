@@ -14,6 +14,16 @@ export function createGithubDiscoveryProgressReporter({
     hasActiveInlineProgress = !isFinalMessage;
   }
 
+  function closeInlineProgressIfNeeded() {
+    if (!hasActiveInlineProgress) {
+      return;
+    }
+
+    hasActiveInlineProgress = false;
+    lastInlineMessageLength = 0;
+    output.write("\n");
+  }
+
   return {
     start(owner) {
       output.write(`Discovering GitHub repos for ${owner}...\n`);
@@ -23,7 +33,20 @@ export function createGithubDiscoveryProgressReporter({
         return;
       }
 
+      if (event.type === "discovery-page") {
+        const message = `Listing repos: ${event.fetchedCount} fetched so far`;
+        if (isInteractive) {
+          writeInlineProgress(message, false);
+          return;
+        }
+
+        output.write(`${message}\n`);
+        return;
+      }
+
       if (event.type === "discovery-listed") {
+        closeInlineProgressIfNeeded();
+
         if (!event.hydrateMetadata) {
           output.write(
             `Found ${event.discoveredCount} repo(s); ready to choose from ${event.eligibleCount} eligible repo(s).\n`
@@ -62,13 +85,7 @@ export function createGithubDiscoveryProgressReporter({
       }
     },
     finish() {
-      if (!hasActiveInlineProgress) {
-        return;
-      }
-
-      hasActiveInlineProgress = false;
-      lastInlineMessageLength = 0;
-      output.write("\n");
+      closeInlineProgressIfNeeded();
     }
   };
 }

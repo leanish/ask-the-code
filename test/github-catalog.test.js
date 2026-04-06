@@ -265,6 +265,83 @@ describe("github-catalog", () => {
     });
   });
 
+  it("emits listing progress while fetching paginated repo results", async () => {
+    const onProgress = vi.fn();
+    const inspectRepoFn = vi.fn();
+    const firstPageRepos = Array.from({ length: 100 }, (_, index) => ({
+      name: `repo-${index + 1}`,
+      clone_url: `https://github.com/leanish/repo-${index + 1}.git`,
+      default_branch: "main",
+      description: "",
+      topics: [],
+      size: 1,
+      fork: false,
+      archived: false
+    }));
+    const secondPageRepo = {
+      name: "repo-101",
+      clone_url: "https://github.com/leanish/repo-101.git",
+      default_branch: "main",
+      description: "",
+      topics: [],
+      size: 1,
+      fork: false,
+      archived: false
+    };
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
+        return createJsonResponse(200, firstPageRepos);
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=2&sort=full_name&type=owner") {
+        return createJsonResponse(200, [secondPageRepo]);
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    await discoverGithubOwnerRepos({
+      owner: "leanish",
+      fetchFn,
+      inspectRepoFn,
+      hydrateMetadata: false,
+      inspectRepos: false,
+      onProgress
+    });
+
+    expect(onProgress).toHaveBeenNthCalledWith(1, {
+      type: "discovery-page",
+      owner: "leanish",
+      page: 1,
+      fetchedCount: 100
+    });
+    expect(onProgress).toHaveBeenNthCalledWith(2, {
+      type: "discovery-page",
+      owner: "leanish",
+      page: 2,
+      fetchedCount: 101
+    });
+    expect(onProgress).toHaveBeenNthCalledWith(3, {
+      type: "discovery-listed",
+      owner: "leanish",
+      discoveredCount: 101,
+      eligibleCount: 101,
+      inspectRepos: false,
+      hydrateMetadata: false,
+      curateWithCodex: true,
+      skippedForks: 0,
+      skippedArchived: 0
+    });
+    expect(inspectRepoFn).not.toHaveBeenCalled();
+  });
+
   it("processes repo inspection sequentially during discovery", async () => {
     let resolveFirstStarted;
     const firstStarted = new Promise(resolve => {
