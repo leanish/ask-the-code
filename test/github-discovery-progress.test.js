@@ -68,6 +68,12 @@ describe("github-discovery-progress", () => {
       hasMorePages: true
     });
     reporter.onProgress({
+      type: "discovery-page",
+      page: 3,
+      fetchedCount: 238,
+      hasMorePages: false
+    });
+    reporter.onProgress({
       type: "discovery-listed",
       discoveredCount: 238,
       eligibleCount: 232,
@@ -77,13 +83,10 @@ describe("github-discovery-progress", () => {
 
     expect(output.write).toHaveBeenNthCalledWith(1, "Discovering GitHub repos for Nosto...\n");
     expect(output.write).toHaveBeenNthCalledWith(2, "Fetching repos...\n");
-    expect(output.write).toHaveBeenNthCalledWith(3, "Fetching repos, page 1...\n");
-    expect(output.write).toHaveBeenNthCalledWith(4, "100 repos fetched\n");
-    expect(output.write).toHaveBeenNthCalledWith(5, "Fetching repos, page 2...\n");
-    expect(output.write).toHaveBeenNthCalledWith(6, "Fetching repos, page 2...\n");
-    expect(output.write).toHaveBeenNthCalledWith(7, "200 repos fetched\n");
-    expect(output.write).toHaveBeenNthCalledWith(8, "Fetching repos, page 3...\n");
-    expect(output.write).toHaveBeenNthCalledWith(9, "Found 238 repo(s); ready to choose from 232 eligible repo(s).\n");
+    expect(output.write).toHaveBeenNthCalledWith(3, "Fetching repos... page 1 (100 fetched so far)\n");
+    expect(output.write).toHaveBeenNthCalledWith(4, "Fetching repos... page 2 (200 fetched so far)\n");
+    expect(output.write).toHaveBeenNthCalledWith(5, "238 repos fetched\n");
+    expect(output.write).toHaveBeenNthCalledWith(6, "Found 238 repo(s); ready to choose from 232 eligible repo(s).\n");
   });
 
   it("closes inline listing progress before writing the discovery summary", () => {
@@ -107,6 +110,12 @@ describe("github-discovery-progress", () => {
       hasMorePages: true
     });
     reporter.onProgress({
+      type: "discovery-page",
+      page: 2,
+      fetchedCount: 138,
+      hasMorePages: false
+    });
+    reporter.onProgress({
       type: "discovery-listed",
       discoveredCount: 138,
       eligibleCount: 132,
@@ -116,11 +125,12 @@ describe("github-discovery-progress", () => {
 
     expect(output.write).toHaveBeenNthCalledWith(1, "Discovering GitHub repos for Nosto...\n");
     expect(output.write).toHaveBeenNthCalledWith(2, "\rFetching repos...");
-    expect(output.write).toHaveBeenNthCalledWith(3, "\rFetching repos, page 1...\n");
-    expect(output.write).toHaveBeenNthCalledWith(4, "100 repos fetched\n");
-    expect(output.write).toHaveBeenNthCalledWith(5, "\rFetching repos, page 2...");
-    expect(output.write).toHaveBeenNthCalledWith(6, "\n");
-    expect(output.write).toHaveBeenNthCalledWith(7, "Found 138 repo(s); ready to choose from 132 eligible repo(s).\n");
+    expect(output.write).toHaveBeenNthCalledWith(3, "\rFetching repos... page 1 (100 fetched so far)");
+    expect(output.write).toHaveBeenNthCalledWith(
+      4,
+      `\r${"138 repos fetched".padEnd("Fetching repos... page 1 (100 fetched so far)".length)}\n`
+    );
+    expect(output.write).toHaveBeenNthCalledWith(5, "Found 138 repo(s); ready to choose from 132 eligible repo(s).\n");
   });
 
   it("uses inline progress updates for interactive output and finishes with a newline", () => {

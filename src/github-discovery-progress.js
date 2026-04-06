@@ -51,22 +51,15 @@ export function createGithubDiscoveryProgressReporter({
       }
 
       if (event.type === "discovery-page") {
-        const pageMessage = `Fetching repos, page ${event.page}...`;
-        const fetchedMessage = `${event.fetchedCount} repos fetched`;
+        const message = event.hasMorePages
+          ? `Fetching repos... page ${event.page} (${event.fetchedCount} fetched so far)`
+          : `${event.fetchedCount} repos fetched`;
         if (isInteractive) {
-          writeInlineProgress(pageMessage, true);
-          output.write(`${fetchedMessage}\n`);
-          if (event.hasMorePages) {
-            writeInlineProgress(`Fetching repos, page ${event.page + 1}...`, false);
-          }
+          writeInlineProgress(message, !event.hasMorePages);
           return;
         }
 
-        output.write(`${pageMessage}\n`);
-        output.write(`${fetchedMessage}\n`);
-        if (event.hasMorePages) {
-          output.write(`Fetching repos, page ${event.page + 1}...\n`);
-        }
+        output.write(`${message}\n`);
         return;
       }
 
