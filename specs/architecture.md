@@ -88,7 +88,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/config.js`
   Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and applies selected GitHub discovery additions or overrides into the active config.
 - `src/github-catalog.js`
-  Discovers repos from a GitHub user or org, using authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used, normalizes them into repo definitions, enriches them with repo-content inspection plus a Codex cleanup pass for both preview and apply, and compares the result with the current config to classify additions, conflicts, and metadata review suggestions.
+  Discovers repos from a GitHub user or org, using authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used, normalizes them into repo definitions, enriches them with one-repo-at-a-time repo-content inspection plus a Codex cleanup pass for both preview and apply, and compares the result with the current config to classify additions, conflicts, and metadata review suggestions.
 - `src/github-discovery-auth.js`
   Checks whether GitHub discovery can authenticate via `GH_TOKEN` / `GITHUB_TOKEN` or, as a fallback, via a usable `gh` CLI session, and formats user-facing setup guidance when neither path is available.
 - `src/github-discovery-progress.js`

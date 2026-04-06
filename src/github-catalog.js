@@ -204,31 +204,30 @@ export async function discoverGithubOwnerRepos({
   }
 
   let processedCount = 0;
-  const repos = await Promise.all(
-    reposToProcess.map(async repo => {
-      const hydratedRepo = await hydrateGithubRepoTopics({
-        owner: normalizedOwner,
-        repo,
-        env,
-        fetchFn,
-        token: githubToken,
-        inspectRepoFn,
-        curateWithCodex,
-        inspectRepos
-      });
+  const repos = [];
+  for (const repo of reposToProcess) {
+    const hydratedRepo = await hydrateGithubRepoTopics({
+      owner: normalizedOwner,
+      repo,
+      env,
+      fetchFn,
+      token: githubToken,
+      inspectRepoFn,
+      curateWithCodex,
+      inspectRepos
+    });
 
-      processedCount += 1;
-      onProgress?.({
-        type: inspectRepos ? "repo-curated" : "repo-processed",
-        owner: normalizedOwner,
-        repoName: repo.name,
-        processedCount,
-        totalCount: reposToProcess.length
-      });
+    processedCount += 1;
+    onProgress?.({
+      type: inspectRepos ? "repo-curated" : "repo-processed",
+      owner: normalizedOwner,
+      repoName: repo.name,
+      processedCount,
+      totalCount: reposToProcess.length
+    });
 
-      return hydratedRepo;
-    })
-  );
+    repos.push(hydratedRepo);
+  }
   repos.sort((left, right) => left.name.localeCompare(right.name));
 
   return {

@@ -265,6 +265,85 @@ describe("github-catalog", () => {
     });
   });
 
+  it("processes repo inspection sequentially during discovery", async () => {
+    let resolveFirstStarted;
+    const firstStarted = new Promise(resolve => {
+      resolveFirstStarted = resolve;
+    });
+    let resolveFirstInspection;
+    const firstInspection = new Promise(resolve => {
+      resolveFirstInspection = resolve;
+    });
+    const inspectRepoFn = vi.fn(async ({ repo }) => {
+      if (repo.name === "archa") {
+        resolveFirstStarted();
+        await firstInspection;
+      }
+
+      return [];
+    });
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
+        return createJsonResponse(200, [
+          {
+            name: "archa",
+            clone_url: "https://github.com/leanish/archa.git",
+            default_branch: "main",
+            description: "Repo-aware CLI for engineering Q&A with local Codex",
+            topics: ["cli"],
+            size: 6400,
+            fork: false,
+            archived: false
+          },
+          {
+            name: "terminator",
+            clone_url: "https://github.com/leanish/terminator.git",
+            default_branch: "main",
+            description: "Small Java library for orderly shutdown coordination.",
+            topics: ["java"],
+            size: 175,
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const discoveryPromise = discoverGithubOwnerRepos({
+      owner: "leanish",
+      fetchFn,
+      inspectRepoFn
+    });
+
+    await firstStarted;
+
+    expect(inspectRepoFn).toHaveBeenCalledTimes(1);
+    expect(inspectRepoFn).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      repo: expect.objectContaining({
+        name: "archa"
+      })
+    }));
+
+    resolveFirstInspection();
+    await discoveryPromise;
+
+    expect(inspectRepoFn).toHaveBeenCalledTimes(2);
+    expect(inspectRepoFn).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      repo: expect.objectContaining({
+        name: "terminator"
+      })
+    }));
+  });
+
   it("can skip local inspection during the initial discovery phase", async () => {
     const inspectRepoFn = vi.fn(async () => ({
       description: "Should not be used",
