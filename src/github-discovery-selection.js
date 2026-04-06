@@ -258,7 +258,7 @@ function buildRepoSelectionOptions(entries, {
 
   return entries.map(entry => {
     const repo = entry.repo;
-    const hasAmbiguousName = (repoNameCounts.get(repo.name.toLowerCase()) || 0) > 1;
+    const hasAmbiguousName = (repoNameCounts.get(getDiscoveryRepoBaseName(repo).toLowerCase()) || 0) > 1;
     const qualifiedLabel = getQualifiedRepoLabel(repo, defaultSourceOwner);
     const label = hasAmbiguousName && qualifiedLabel
       ? qualifiedLabel
@@ -285,7 +285,7 @@ function buildRepoNameCounts(entries) {
   const repoNameCounts = new Map();
 
   for (const entry of entries) {
-    const normalizedName = entry.repo.name.toLowerCase();
+    const normalizedName = getDiscoveryRepoBaseName(entry.repo).toLowerCase();
     repoNameCounts.set(normalizedName, (repoNameCounts.get(normalizedName) || 0) + 1);
   }
 
@@ -414,6 +414,18 @@ function getRepoSelectionKey(repo) {
   return typeof repo.sourceFullName === "string" && repo.sourceFullName.trim() !== ""
     ? repo.sourceFullName.trim().toLowerCase()
     : repo.name.toLowerCase();
+}
+
+function getDiscoveryRepoBaseName(repo) {
+  if (typeof repo.sourceFullName === "string" && repo.sourceFullName.includes("/")) {
+    return repo.sourceFullName.split("/").pop().trim();
+  }
+
+  if (typeof repo.name === "string" && repo.name.includes("/")) {
+    return repo.name.split("/").pop().trim();
+  }
+
+  return repo.name;
 }
 
 function getQualifiedRepoLabel(repo, defaultSourceOwner) {

@@ -1555,7 +1555,7 @@ describe("github-catalog", () => {
     ]);
   });
 
-  it("treats owner-colliding repo names as conflicts instead of configured matches", () => {
+  it("qualifies owner-colliding repo names so they can coexist", () => {
     const plan = planGithubRepoDiscovery({
       repos: [
         {
@@ -1602,8 +1602,8 @@ describe("github-catalog", () => {
     expect(plan.counts).toEqual({
       discovered: 2,
       configured: 1,
-      new: 0,
-      conflicts: 1,
+      new: 1,
+      conflicts: 0,
       withSuggestions: 0
     });
     expect(plan.entries.find(entry => entry.repo.sourceFullName === "leanish/nullability")).toMatchObject({
@@ -1614,10 +1614,11 @@ describe("github-catalog", () => {
       }
     });
     expect(plan.entries.find(entry => entry.repo.sourceFullName === "Nosto/nullability")).toMatchObject({
-      status: "conflict",
-      configuredRepo: {
-        name: "nullability",
-        url: "https://github.com/leanish/nullability.git"
+      status: "new",
+      repo: {
+        name: "nosto/nullability",
+        sourceFullName: "Nosto/nullability",
+        url: "https://github.com/Nosto/nullability.git"
       }
     });
   });

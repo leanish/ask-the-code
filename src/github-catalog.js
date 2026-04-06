@@ -526,16 +526,20 @@ export function planGithubRepoDiscovery(config, discovery) {
   const reposByName = new Map();
   const reposByIdentifier = new Map();
   const reposByGithubIdentity = new Map();
+  const reservedIdentifiers = new Set();
+  const discoveryNameCounts = buildDiscoveryRepoNameCounts(discovery.repos);
 
   for (const repo of config.repos) {
     reposByName.set(repo.name.toLowerCase(), repo);
     reposByIdentifier.set(repo.name.toLowerCase(), repo);
+    reservedIdentifiers.add(repo.name.toLowerCase());
     const githubIdentity = getConfiguredGithubRepoIdentity(repo);
     if (githubIdentity) {
       reposByGithubIdentity.set(githubIdentity, repo);
     }
     for (const alias of repo.aliases || []) {
       reposByIdentifier.set(alias.toLowerCase(), repo);
+      reservedIdentifiers.add(alias.toLowerCase());
     }
   }
 
@@ -543,6 +547,7 @@ export function planGithubRepoDiscovery(config, discovery) {
     const discoveryIdentity = getDiscoveryRepoIdentity(repo, {
       fallbackOwner: discovery.owner
     });
+    const sameNamedConfiguredRepo = reposByName.get(repo.name.toLowerCase());
     const exactMatch = discoveryIdentity
       ? reposByGithubIdentity.get(discoveryIdentity)
       : reposByName.get(repo.name.toLowerCase());
@@ -552,6 +557,22 @@ export function planGithubRepoDiscovery(config, discovery) {
         status: "configured",
         configuredRepo: exactMatch,
         suggestions: buildRepoSuggestions(exactMatch, repo)
+      };
+    }
+
+    const qualifiedRepo = maybeQualifyDiscoveryRepo({
+      repo,
+      discoveryIdentity,
+      discoveryNameCounts,
+      sameNamedConfiguredRepo
+    });
+    if (qualifiedRepo) {
+      reservedIdentifiers.add(qualifiedRepo.name.toLowerCase());
+      return {
+        repo: qualifiedRepo,
+        status: "new",
+        configuredRepo: null,
+        suggestions: []
       };
     }
 
@@ -565,6 +586,7 @@ export function planGithubRepoDiscovery(config, discovery) {
       };
     }
 
+    reservedIdentifiers.add(repo.name.toLowerCase());
     return {
       repo,
       status: "new",
@@ -590,6 +612,43 @@ export function planGithubRepoDiscovery(config, discovery) {
       conflicts: entries.filter(entry => entry.status === "conflict").length,
       withSuggestions: entries.filter(entry => entry.suggestions.length > 0).length
     }
+  };
+}
+
+function buildDiscoveryRepoNameCounts(repos) {
+  const counts = new Map();
+
+  for (const repo of repos) {
+    const normalizedName = repo.name.toLowerCase();
+    counts.set(normalizedName, (counts.get(normalizedName) || 0) + 1);
+  }
+
+  return counts;
+}
+
+function maybeQualifyDiscoveryRepo({
+  repo,
+  discoveryIdentity,
+  discoveryNameCounts,
+  sameNamedConfiguredRepo
+}) {
+  if (!discoveryIdentity || discoveryIdentity === repo.name.toLowerCase()) {
+    return null;
+  }
+
+  const hasPlainNameCollision = (discoveryNameCounts.get(repo.name.toLowerCase()) || 0) > 1
+    || (
+      sameNamedConfiguredRepo
+      && getConfiguredGithubRepoIdentity(sameNamedConfiguredRepo) !== discoveryIdentity
+    );
+
+  if (!hasPlainNameCollision) {
+    return null;
+  }
+
+  return {
+    ...repo,
+    name: discoveryIdentity
   };
 }
 

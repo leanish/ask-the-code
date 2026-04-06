@@ -267,7 +267,7 @@ async function runGithubDiscovery(options, config = null) {
       });
       const refinedPlan = planGithubRepoDiscovery(resolvedConfig, refinedDiscovery);
       const refinedReposByName = new Map(
-        refinedDiscovery.repos.map(repo => [getGithubDiscoveryRepoKey(repo), repo])
+        refinedPlan.entries.map(entry => [getGithubDiscoveryRepoKey(entry.repo), entry.repo])
       );
 
       plan = mergeGithubDiscoveryPlan(plan, refinedPlan);

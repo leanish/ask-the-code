@@ -208,5 +208,18 @@ function getPrimarySourceOwner(result) {
 }
 
 function isAmbiguousDiscoveryName(repo, entries) {
-  return entries.filter(entry => entry.repo.name === repo.name).length > 1;
+  const repoBaseName = getDiscoveryRepoBaseName(repo);
+  return entries.filter(entry => getDiscoveryRepoBaseName(entry.repo) === repoBaseName).length > 1;
+}
+
+function getDiscoveryRepoBaseName(repo) {
+  if (typeof repo.sourceFullName === "string" && repo.sourceFullName.includes("/")) {
+    return repo.sourceFullName.split("/").pop().trim();
+  }
+
+  if (typeof repo.name === "string" && repo.name.includes("/")) {
+    return repo.name.split("/").pop().trim();
+  }
+
+  return repo.name;
 }
