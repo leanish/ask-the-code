@@ -90,7 +90,7 @@ export function renderGithubDiscovery(result) {
 
   if (result.counts.new > 0 || result.counts.configured > 0) {
     lines.push(`Run: archa config discover-github --owner ${result.owner} --apply`);
-    lines.push("Apply mode lets you choose which repos to add and which configured repos to override, then writes the same curated metadata shown above.");
+    lines.push("Apply mode lets you choose which repos to add and which configured repos to override, then refines only that selected subset before writing config.");
   } else {
     lines.push("No new repos to add.");
   }

@@ -88,7 +88,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/config.js`
   Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and applies selected GitHub discovery additions or overrides into the active config.
 - `src/github-catalog.js`
-  Discovers repos from a GitHub user or org, using authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used, normalizes them into repo definitions, enriches them with one-repo-at-a-time repo-content inspection plus a Codex cleanup pass for both preview and apply, and compares the result with the current config to classify additions, conflicts, and metadata review suggestions.
+  Discovers repos from a GitHub user or org, using authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used, normalizes them into repo definitions, supports a lightweight metadata-only preview pass across all candidates, and then refines only the selected subset with one-repo-at-a-time repo-content inspection plus a Codex cleanup pass before comparing the result with the current config to classify additions, conflicts, and metadata review suggestions.
 - `src/github-discovery-auth.js`
   Checks whether GitHub discovery can authenticate via `GH_TOKEN` / `GITHUB_TOKEN` or, as a fallback, via a usable `gh` CLI session, and formats user-facing setup guidance when neither path is available.
 - `src/github-discovery-progress.js`
@@ -98,7 +98,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/repo-classification-inspector.js`
   Reuses an existing managed checkout when available, otherwise shallow-clones a selected repo temporarily, then inspects repo structure, manifests, dependencies, and README cues to infer fallback descriptions, fallback topics, and high-signal classifications such as `external`, `internal`, `infra`, `frontend`, `backend`, and `cli`, keeping `external` limited to clearly outward-facing surfaces rather than generic API mentions.
 - `src/repo-metadata-codex-curator.js`
-  Runs a Codex cleanup pass in the inspected repo checkout to refine the heuristic discovery draft into the final description, topics, and classifications used for both preview and config writes.
+  Runs a Codex cleanup pass in the inspected repo checkout to refine the heuristic discovery draft into the final description, topics, and classifications written during selected-repo discovery apply flows.
 - `src/question-answering.js`
   Implements the transport-agnostic ask flow and accepts injectable adapters such as status reporters and sync functions.
 - `src/repo-selection.js`

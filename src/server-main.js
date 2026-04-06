@@ -8,6 +8,7 @@ import { ensureGithubDiscoveryAuthAvailable } from "./github-discovery-auth.js";
 import { ensureInteractiveConfigSetup } from "./cli-bootstrap.js";
 import {
   discoverGithubOwnerRepos,
+  mergeGithubDiscoveryPlan,
   planGithubRepoDiscovery
 } from "./github-catalog.js";
 import { createGithubDiscoveryProgressReporter } from "./github-discovery-progress.js";
@@ -55,53 +56,69 @@ async function runServerGithubDiscovery(options) {
   const config = await loadConfig(process.env);
   const progressReporter = createGithubDiscoveryProgressReporter();
   progressReporter.start(options.owner);
-  let discovery;
+
   try {
-    discovery = await discoverGithubOwnerRepos({
+    const discovery = await discoverGithubOwnerRepos({
       owner: options.owner,
       env: process.env,
-      curateWithCodex: true,
-      inspectRepos: true,
+      curateWithCodex: false,
+      inspectRepos: false,
       onProgress: event => progressReporter.onProgress(event),
       includeForks: options.includeForks,
       includeArchived: options.includeArchived
     });
+    let plan = planGithubRepoDiscovery(config, discovery);
+    let selection = await promptGithubDiscoverySelection(plan, {
+      input: process.stdin,
+      output: process.stdout
+    });
+    const selectedRepoNames = collectSelectedRepoNames(selection);
+
+    if (selectedRepoNames.length > 0) {
+      const refinedDiscovery = await discoverGithubOwnerRepos({
+        owner: options.owner,
+        env: process.env,
+        curateWithCodex: true,
+        inspectRepos: true,
+        selectedRepoNames,
+        onProgress: event => progressReporter.onProgress(event),
+        includeForks: options.includeForks,
+        includeArchived: options.includeArchived
+      });
+      const refinedPlan = planGithubRepoDiscovery(config, refinedDiscovery);
+      const refinedReposByName = new Map(
+        refinedDiscovery.repos.map(repo => [repo.name, repo])
+      );
+
+      plan = mergeGithubDiscoveryPlan(plan, refinedPlan);
+      selection = {
+        reposToAdd: selection.reposToAdd.map(repo => refinedReposByName.get(repo.name) || repo),
+        reposToOverride: selection.reposToOverride.map(repo => refinedReposByName.get(repo.name) || repo)
+      };
+    }
+
+    const applyResult = selection.reposToAdd.length > 0 || selection.reposToOverride.length > 0
+      ? await applyGithubDiscoveryToConfig({
+          env: process.env,
+          reposToAdd: selection.reposToAdd,
+          reposToOverride: selection.reposToOverride
+        })
+      : {
+          configPath: config.configPath,
+          addedCount: 0,
+          overriddenCount: 0
+        };
+
+    process.stdout.write(`${renderGithubDiscovery({
+      ...plan,
+      applied: true,
+      configPath: applyResult.configPath,
+      addedCount: applyResult.addedCount,
+      overriddenCount: applyResult.overriddenCount
+    })}\n`);
   } finally {
     progressReporter.finish();
   }
-  let plan = planGithubRepoDiscovery(config, discovery);
-  const initialSelection = await promptGithubDiscoverySelection(plan, {
-    input: process.stdin,
-    output: process.stdout
-  });
-
-  const selection = {
-    reposToAdd: plan.entries
-      .filter(entry => entry.status === "new" && initialSelection.reposToAdd.some(repo => repo.name === entry.repo.name))
-      .map(entry => entry.repo),
-    reposToOverride: plan.entries
-      .filter(entry => entry.status === "configured" && initialSelection.reposToOverride.some(repo => repo.name === entry.repo.name))
-      .map(entry => entry.repo)
-  };
-  const applyResult = selection.reposToAdd.length > 0 || selection.reposToOverride.length > 0
-    ? await applyGithubDiscoveryToConfig({
-        env: process.env,
-        reposToAdd: selection.reposToAdd,
-        reposToOverride: selection.reposToOverride
-      })
-    : {
-        configPath: config.configPath,
-        addedCount: 0,
-        overriddenCount: 0
-      };
-
-  process.stdout.write(`${renderGithubDiscovery({
-    ...plan,
-    applied: true,
-    configPath: applyResult.configPath,
-    addedCount: applyResult.addedCount,
-    overriddenCount: applyResult.overriddenCount
-  })}\n`);
 }
 
 export function setupShutdownHandlers(serverHandle, { processRef = process } = {}) {
@@ -127,3 +144,10 @@ export function setupShutdownHandlers(serverHandle, { processRef = process } = {
 }
 
 export { HelpError };
+
+function collectSelectedRepoNames(selection) {
+  return [...new Set([
+    ...selection.reposToAdd.map(repo => repo.name),
+    ...selection.reposToOverride.map(repo => repo.name)
+  ])];
+}

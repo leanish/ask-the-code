@@ -132,7 +132,7 @@ describe("render", () => {
     expect(preview).toContain("Configured with review suggestions: 1");
     expect(preview).toContain("classifications=cli topics=cli");
     expect(preview).toContain("classifications=infra topics=java");
-    expect(preview).toContain("Apply mode lets you choose which repos to add and which configured repos to override, then writes the same curated metadata shown above.");
+    expect(preview).toContain("Apply mode lets you choose which repos to add and which configured repos to override, then refines only that selected subset before writing config.");
 
     const applied = renderGithubDiscovery({
       owner: "leanish",

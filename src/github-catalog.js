@@ -117,7 +117,8 @@ export async function discoverGithubOwnerRepos({
   onProgress = null,
   includeForks = true,
   includeArchived = false,
-  inspectRepos = true
+  inspectRepos = true,
+  selectedRepoNames = []
 }) {
   const normalizedOwner = normalizeOwner(owner);
 
@@ -168,6 +169,7 @@ export async function discoverGithubOwnerRepos({
   let skippedForks = 0;
   let skippedArchived = 0;
   const eligibleRepos = [];
+  const selectedRepoNameSet = normalizeSelectedRepoNames(selectedRepoNames);
 
   for (const repo of discoveredRepos) {
     if (!includeForks && repo.fork) {
@@ -183,11 +185,15 @@ export async function discoverGithubOwnerRepos({
     eligibleRepos.push(repo);
   }
 
+  const reposToProcess = selectedRepoNameSet
+    ? eligibleRepos.filter(repo => selectedRepoNameSet.has(repo.name.toLowerCase()))
+    : eligibleRepos;
+
   onProgress?.({
     type: "discovery-listed",
     owner: normalizedOwner,
     discoveredCount: discoveredRepos.length,
-    eligibleCount: eligibleRepos.length,
+    eligibleCount: reposToProcess.length,
     inspectRepos,
     curateWithCodex,
     skippedForks,
@@ -195,7 +201,7 @@ export async function discoverGithubOwnerRepos({
   });
 
   const repos = [];
-  for (const [index, repo] of eligibleRepos.entries()) {
+  for (const [index, repo] of reposToProcess.entries()) {
     const hydratedRepo = await hydrateGithubRepoTopics({
       owner: normalizedOwner,
       repo,
@@ -212,7 +218,7 @@ export async function discoverGithubOwnerRepos({
       owner: normalizedOwner,
       repoName: repo.name,
       processedCount: index + 1,
-      totalCount: eligibleRepos.length
+      totalCount: reposToProcess.length
     });
 
     repos.push(hydratedRepo);
@@ -225,6 +231,18 @@ export async function discoverGithubOwnerRepos({
     repos,
     skippedForks,
     skippedArchived
+  };
+}
+
+export function mergeGithubDiscoveryPlan(basePlan, refinedPlan) {
+  const refinedEntriesByName = new Map(
+    refinedPlan.entries.map(entry => [entry.repo.name, entry])
+  );
+
+  return {
+    ...basePlan,
+    entries: basePlan.entries.map(entry => refinedEntriesByName.get(entry.repo.name) || entry),
+    reposToAdd: (basePlan.reposToAdd || []).map(repo => refinedEntriesByName.get(repo.name)?.repo || repo)
   };
 }
 
@@ -494,6 +512,19 @@ async function hydrateGithubRepoTopics({ owner, repo, env, fetchFn, token, inspe
     topics,
     classifications
   };
+}
+
+function normalizeSelectedRepoNames(selectedRepoNames) {
+  if (!Array.isArray(selectedRepoNames) || selectedRepoNames.length === 0) {
+    return null;
+  }
+
+  const names = selectedRepoNames
+    .filter(name => typeof name === "string")
+    .map(name => name.trim().toLowerCase())
+    .filter(Boolean);
+
+  return names.length > 0 ? new Set(names) : null;
 }
 
 function resolveTopics({ rawGithubTopics, repo, sizeKb, inspectedTopics }) {
