@@ -356,6 +356,7 @@ async function finalizeGithubDiscovery({
 }) {
   let skippedForks = 0;
   let skippedArchived = 0;
+  let skippedDisabled = 0;
   const eligibleRepos = [];
   const selectedRepoNameSet = normalizeSelectedRepoNames(selectedRepoNames);
 
@@ -367,6 +368,11 @@ async function finalizeGithubDiscovery({
 
     if (!includeArchived && repo.archived) {
       skippedArchived += 1;
+      continue;
+    }
+
+    if (!includeArchived && repo.disabled) {
+      skippedDisabled += 1;
       continue;
     }
 
@@ -386,7 +392,8 @@ async function finalizeGithubDiscovery({
     hydrateMetadata,
     curateWithCodex,
     skippedForks,
-    skippedArchived
+    skippedArchived,
+    ...(skippedDisabled > 0 ? { skippedDisabled } : {})
   });
 
   const repos = !hydrateMetadata
@@ -431,7 +438,8 @@ async function finalizeGithubDiscovery({
     ownerType,
     repos,
     skippedForks,
-    skippedArchived
+    skippedArchived,
+    ...(skippedDisabled > 0 ? { skippedDisabled } : {})
   };
 }
 

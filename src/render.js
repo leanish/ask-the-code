@@ -108,6 +108,10 @@ export function renderGithubDiscovery(result) {
     lines.push(`Skipped archived repos: ${result.skippedArchived}`);
   }
 
+  if (result.skippedDisabled > 0) {
+    lines.push(`Skipped disabled repos: ${result.skippedDisabled}`);
+  }
+
   if (result.counts.new > 0 || result.counts.configured > 0) {
     lines.push(`Run: archa config discover-github --owner ${result.owner} --apply`);
     lines.push("Apply mode lets you choose from the combined list of new and already configured repos. Press Enter to add all new repos, or customize the selection before only that subset is refined and saved incrementally.");

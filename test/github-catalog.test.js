@@ -99,6 +99,77 @@ describe("github-catalog", () => {
     });
   });
 
+  it("filters disabled repos by default", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
+        return createJsonResponse(200, [
+          {
+            name: "active-repo",
+            clone_url: "https://github.com/leanish/active-repo.git",
+            default_branch: "main",
+            description: "",
+            topics: [],
+            size: 20,
+            fork: false,
+            archived: false,
+            disabled: false
+          },
+          {
+            name: "disabled-repo",
+            clone_url: "https://github.com/leanish/disabled-repo.git",
+            default_branch: "main",
+            description: "",
+            topics: [],
+            size: 20,
+            fork: false,
+            archived: false,
+            disabled: true
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/leanish/active-repo/topics") {
+        return createJsonResponse(200, {
+          names: []
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerRepos({
+      owner: "leanish",
+      fetchFn,
+      inspectRepoFn
+    });
+
+    expect(result).toEqual({
+      owner: "leanish",
+      ownerType: "User",
+      repos: [
+        {
+          name: "active-repo",
+          url: "https://github.com/leanish/active-repo.git",
+          defaultBranch: "main",
+          description: "",
+          topics: [],
+          classifications: []
+        }
+      ],
+      skippedForks: 0,
+      skippedArchived: 0,
+      skippedDisabled: 1
+    });
+  });
+
   it("includes private user repos when discovery is authenticated for the same owner", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const fetchFn = vi.fn(async url => {

@@ -185,6 +185,28 @@ describe("render", () => {
     expect(applied).toContain("Repos overridden: 2");
   });
 
+  it("renders skipped disabled repos in discovery previews", () => {
+    const preview = renderGithubDiscovery({
+      owner: "leanish",
+      ownerType: "User",
+      entries: [],
+      counts: {
+        discovered: 3,
+        configured: 0,
+        new: 1,
+        conflicts: 0,
+        withSuggestions: 0
+      },
+      skippedForks: 0,
+      skippedArchived: 1,
+      skippedDisabled: 2,
+      applied: false
+    });
+
+    expect(preview).toContain("Skipped archived repos: 1");
+    expect(preview).toContain("Skipped disabled repos: 2");
+  });
+
   it("renders owner-grouped sections for accessible discovery previews", () => {
     const preview = renderGithubDiscovery({
       owner: "@accessible",
