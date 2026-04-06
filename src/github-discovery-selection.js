@@ -308,15 +308,38 @@ function formatSelectionSectionLines({
   );
 
   if (sourceOwners.size <= 1) {
-    return [`${title}: ${options.map(option => option.label).join(", ")}`];
+    return [`${title}: ${options.map(formatSelectionOptionLabel).join(", ")}`];
   }
 
   const groupedOptions = groupSelectionOptionsByOwner(options, primarySourceOwner);
 
   return [
     `${title}:`,
-    ...groupedOptions.map(group => `${group.ownerLabel}: ${group.options.map(option => option.label).join(", ")}`)
+    ...groupedOptions.map(group => `${group.ownerLabel}: ${group.options.map(formatSelectionOptionLabel).join(", ")}`)
   ];
+}
+
+function formatSelectionOptionLabel(option) {
+  if (option.status !== "conflict" || !option.configuredRepo) {
+    return option.label;
+  }
+
+  return `${option.label} -> ${formatConfiguredRepoLabel(option.configuredRepo)}`;
+}
+
+function formatConfiguredRepoLabel(repo) {
+  if (typeof repo.sourceFullName === "string" && repo.sourceFullName.trim() !== "") {
+    return repo.sourceFullName.trim();
+  }
+
+  if (typeof repo.url === "string" && repo.url.trim() !== "") {
+    const match = repo.url.trim().match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?$/i);
+    if (match) {
+      return `${match[1]}/${match[2]}`;
+    }
+  }
+
+  return repo.name;
 }
 
 function groupSelectionOptionsByOwner(options, primarySourceOwner) {

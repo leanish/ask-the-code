@@ -173,7 +173,7 @@ describe("github-discovery-selection", () => {
     expect(outputWrites.join("")).toContain("Press Enter to add all new repos");
     expect(outputWrites.join("")).toContain("New (2): archa, java-conventions");
     expect(outputWrites.join("")).toContain("Configured already (1): foundation");
-    expect(outputWrites.join("")).toContain("Name conflicts (1): shared");
+    expect(outputWrites.join("")).toContain("Name conflicts (1): shared -> foundation");
   });
 
   it("defaults Enter to all new repos after confirmation", async () => {
@@ -203,7 +203,7 @@ describe("github-discovery-selection", () => {
         + "Press Enter to add all new repos, or type repo names to customize.\n"
         + "New (2): archa, java-conventions\n"
         + "Configured already (1): foundation\n"
-        + "Name conflicts (1): shared\n"
+        + "Name conflicts (1): shared -> foundation\n"
         + "> ",
       "Add all 2 new repo(s)? Press Enter to confirm, or type repo names to customize.\n> "
     ]);
@@ -267,7 +267,7 @@ describe("github-discovery-selection", () => {
       reposToOverride: []
     });
     expect(prompts[0]).toContain("Configured already (1): leanish/nullability");
-    expect(prompts[0]).toContain("Name conflicts (1): Nosto/nullability");
+    expect(prompts[0]).toContain("Name conflicts (1): Nosto/nullability -> leanish/nullability");
   });
 
   it("groups repos by source owner when multiple owners are in scope", async () => {
