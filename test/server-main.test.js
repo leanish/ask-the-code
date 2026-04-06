@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   ensureInteractiveConfigSetup: vi.fn(),
   ensureCodexInstalled: vi.fn(),
   ensureGitInstalled: vi.fn(),
+  ensureGithubDiscoveryAuthAvailable: vi.fn(),
   loadConfig: vi.fn(),
   applyGithubDiscoveryToConfig: vi.fn(),
   discoverGithubOwnerRepos: vi.fn(),
@@ -34,6 +35,10 @@ vi.mock("../src/codex-installation.js", () => ({
 
 vi.mock("../src/git-installation.js", () => ({
   ensureGitInstalled: mocks.ensureGitInstalled
+}));
+
+vi.mock("../src/github-discovery-auth.js", () => ({
+  ensureGithubDiscoveryAuthAvailable: mocks.ensureGithubDiscoveryAuthAvailable
 }));
 
 vi.mock("../src/github-catalog.js", () => ({
@@ -74,6 +79,7 @@ describe("server-main", () => {
     });
     mocks.ensureCodexInstalled.mockImplementation(() => {});
     mocks.ensureGitInstalled.mockImplementation(() => {});
+    mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {});
     mocks.ensureInteractiveConfigSetup.mockResolvedValue(true);
     mocks.loadConfig.mockResolvedValue({
       configPath: "/tmp/archa-config.json",
@@ -204,6 +210,7 @@ describe("server-main", () => {
     expect(stderr.join("")).toContain("Discovering GitHub repos for leanish...");
     expect(stderr.join("")).toContain("Found 2 repo(s); loading and curating metadata for 1 eligible repo(s)...");
     expect(stderr.join("")).toContain("Curating repos: 1/1 (archa)");
+    expect(mocks.ensureGithubDiscoveryAuthAvailable).toHaveBeenCalled();
     expect(stdout.join("")).toContain("discovery summary");
     expect(mocks.startHttpServer).not.toHaveBeenCalled();
   });
@@ -225,6 +232,25 @@ describe("server-main", () => {
 
     await expect(main([])).rejects.toThrow("Git CLI is required but was not found on PATH.");
     expect(mocks.ensureInteractiveConfigSetup).not.toHaveBeenCalled();
+    expect(mocks.startHttpServer).not.toHaveBeenCalled();
+  });
+
+  it("fails interactive discovery when GitHub auth is unavailable", async () => {
+    mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {
+      throw new Error("GitHub discovery requires either GH_TOKEN/GITHUB_TOKEN or a usable gh CLI session.");
+    });
+    mocks.ensureInteractiveConfigSetup.mockImplementation(async ({ runDiscoveryFn }) => {
+      await runDiscoveryFn({
+        owner: "leanish",
+        includeForks: true,
+        includeArchived: false
+      });
+      return false;
+    });
+
+    await expect(main([])).rejects.toThrow(
+      "GitHub discovery requires either GH_TOKEN/GITHUB_TOKEN or a usable gh CLI session."
+    );
     expect(mocks.startHttpServer).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   renderConfigInit: vi.fn(),
   ensureCodexInstalled: vi.fn(),
   ensureGitInstalled: vi.fn(),
+  ensureGithubDiscoveryAuthAvailable: vi.fn(),
   loadConfig: vi.fn(),
   initializeConfig: vi.fn(),
   applyGithubDiscoveryToConfig: vi.fn(),
@@ -50,6 +51,10 @@ vi.mock("../src/codex-installation.js", () => ({
 
 vi.mock("../src/git-installation.js", () => ({
   ensureGitInstalled: mocks.ensureGitInstalled
+}));
+
+vi.mock("../src/github-discovery-auth.js", () => ({
+  ensureGithubDiscoveryAuthAvailable: mocks.ensureGithubDiscoveryAuthAvailable
 }));
 
 vi.mock("../src/config-paths.js", () => ({
@@ -100,6 +105,7 @@ describe("cli", () => {
     mocks.getConfigPath.mockReturnValue("/tmp/archa-config.json");
     mocks.ensureCodexInstalled.mockImplementation(() => {});
     mocks.ensureGitInstalled.mockImplementation(() => {});
+    mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {});
     mocks.canPromptInteractively.mockReturnValue(true);
     mocks.promptToInitializeConfig.mockResolvedValue(true);
     mocks.promptToContinueGithubDiscovery.mockResolvedValue(false);
@@ -415,6 +421,7 @@ describe("cli", () => {
     expect(mocks.applyGithubDiscoveryToConfig).not.toHaveBeenCalled();
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
     expect(mocks.ensureGitInstalled).toHaveBeenCalled();
+    expect(mocks.ensureGithubDiscoveryAuthAvailable).toHaveBeenCalled();
     expect(mocks.discoverGithubOwnerRepos).toHaveBeenCalledWith(expect.objectContaining({
       inspectRepos: true,
       curateWithCodex: true
@@ -434,6 +441,7 @@ describe("cli", () => {
 
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
     expect(mocks.ensureGitInstalled).toHaveBeenCalled();
+    expect(mocks.ensureGithubDiscoveryAuthAvailable).toHaveBeenCalled();
   });
 
   it("applies interactively selected repo changes when requested", async () => {
@@ -512,6 +520,7 @@ describe("cli", () => {
 
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
     expect(mocks.ensureGitInstalled).toHaveBeenCalled();
+    expect(mocks.ensureGithubDiscoveryAuthAvailable).toHaveBeenCalled();
     expect(mocks.promptGithubDiscoverySelection).toHaveBeenCalled();
     expect(mocks.discoverGithubOwnerRepos).toHaveBeenCalledWith(expect.objectContaining({
       inspectRepos: true,
@@ -599,6 +608,7 @@ describe("cli", () => {
       overrideRepoNames: ["sqs-codec"]
     });
     expect(mocks.ensureGitInstalled).toHaveBeenCalled();
+    expect(mocks.ensureGithubDiscoveryAuthAvailable).toHaveBeenCalled();
     expect(mocks.promptGithubDiscoverySelection).not.toHaveBeenCalled();
     expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledWith({
       env: process.env,
@@ -606,6 +616,17 @@ describe("cli", () => {
       reposToOverride
     });
     expect(stdout.join("")).toContain("Repos overridden: 1");
+  });
+
+  it("fails discovery early when GitHub auth is unavailable", async () => {
+    mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {
+      throw new Error("GitHub discovery requires either GH_TOKEN/GITHUB_TOKEN or a usable gh CLI session.");
+    });
+
+    await expect(main(["config", "discover-github", "--owner", "leanish"])).rejects.toThrow(
+      "GitHub discovery requires either GH_TOKEN/GITHUB_TOKEN or a usable gh CLI session."
+    );
+    expect(mocks.discoverGithubOwnerRepos).not.toHaveBeenCalled();
   });
 
   it("throws for unknown requested repos during sync", async () => {

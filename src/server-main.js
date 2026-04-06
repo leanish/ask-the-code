@@ -4,6 +4,7 @@ import { applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "./co
 import { ensureCodexInstalled } from "./codex-installation.js";
 import { getConfigPath } from "./config-paths.js";
 import { ensureGitInstalled } from "./git-installation.js";
+import { ensureGithubDiscoveryAuthAvailable } from "./github-discovery-auth.js";
 import { ensureInteractiveConfigSetup } from "./cli-bootstrap.js";
 import {
   discoverGithubOwnerRepos,
@@ -50,6 +51,7 @@ export async function main(argv) {
 }
 
 async function runServerGithubDiscovery(options) {
+  ensureGithubDiscoveryAuthAvailable({ env: process.env });
   const config = await loadConfig(process.env);
   const progressReporter = createGithubDiscoveryProgressReporter();
   progressReporter.start(options.owner);

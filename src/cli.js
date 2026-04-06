@@ -9,6 +9,7 @@ import { applyGithubDiscoveryToConfig, loadConfig, initializeConfig } from "./co
 import { ensureCodexInstalled } from "./codex-installation.js";
 import { getConfigPath } from "./config-paths.js";
 import { ensureGitInstalled } from "./git-installation.js";
+import { ensureGithubDiscoveryAuthAvailable } from "./github-discovery-auth.js";
 import {
   discoverGithubOwnerRepos,
   planGithubRepoDiscovery
@@ -179,6 +180,7 @@ async function ensureCliConfig(options) {
 }
 
 async function runGithubDiscovery(options, config = null) {
+  ensureGithubDiscoveryAuthAvailable({ env: process.env });
   ensureCodexInstalled();
   const resolvedConfig = config || await loadConfig(process.env);
   const progressReporter = createGithubDiscoveryProgressReporter();
