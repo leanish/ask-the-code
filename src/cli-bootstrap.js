@@ -1,3 +1,4 @@
+import { emitKeypressEvents } from "node:readline";
 import { createInterface } from "node:readline/promises";
 import process from "node:process";
 
@@ -14,14 +15,12 @@ export async function promptToInitializeConfig({
   output = process.stdout,
   createInterfaceFn = createInterface
 } = {}) {
-  return withReadline({
+  return promptEnterOrCancel({
     input,
     output,
-    createInterfaceFn
-  }, readline => promptEnterOrCancel(
-    readline,
-    `Archa is not initialized yet: ${configPath} is missing.\nPress Enter to initialize it now, or press Esc then Enter to cancel.\n> `
-  ));
+    createInterfaceFn,
+    prompt: `Archa is not initialized yet: ${configPath} is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> `
+  });
 }
 
 export async function promptToContinueGithubDiscovery({
@@ -29,14 +28,12 @@ export async function promptToContinueGithubDiscovery({
   output = process.stdout,
   createInterfaceFn = createInterface
 } = {}) {
-  return withReadline({
+  return promptEnterOrCancel({
     input,
     output,
-    createInterfaceFn
-  }, readline => promptEnterOrCancel(
-    readline,
-    "No repos are configured yet.\nPress Enter to continue with GitHub discovery, or press Esc then Enter to cancel.\n> "
-  ));
+    createInterfaceFn,
+    prompt: "No repos are configured yet.\nPress Enter to continue with GitHub discovery, or press Esc to cancel.\n> "
+  });
 }
 
 export async function promptForGithubOwner({
@@ -190,7 +187,28 @@ async function withReadline({
   }
 }
 
-async function promptEnterOrCancel(readline, prompt) {
+async function promptEnterOrCancel({
+  input,
+  output,
+  createInterfaceFn,
+  prompt
+}) {
+  if (supportsImmediateEscape(input)) {
+    return await promptEnterOrEscape({
+      input,
+      output,
+      prompt
+    });
+  }
+
+  return withReadline({
+    input,
+    output,
+    createInterfaceFn
+  }, readline => promptEnterOrCancelWithReadline(readline, prompt));
+}
+
+async function promptEnterOrCancelWithReadline(readline, prompt) {
   while (true) {
     const answer = (await readline.question(prompt)).trim();
     const normalizedAnswer = answer.toLowerCase();
@@ -209,8 +227,57 @@ async function promptEnterOrCancel(readline, prompt) {
       return false;
     }
 
-    readline.write('Press Enter to continue, or press Esc then Enter to cancel.\n');
+    readline.write("Press Enter to continue, or press Esc to cancel.\n");
   }
+}
+
+async function promptEnterOrEscape({
+  input,
+  output,
+  prompt
+}) {
+  output.write(prompt);
+  emitKeypressEvents(input);
+  const previousRawMode = input.isRaw === true;
+  input.setRawMode?.(true);
+
+  try {
+    return await new Promise(resolve => {
+      const handleKeypress = (_, key) => {
+        if (key?.name === "return" || key?.name === "enter") {
+          cleanup();
+          output.write("\n");
+          resolve(true);
+          return;
+        }
+
+        if (key?.name === "escape") {
+          cleanup();
+          output.write("\n");
+          resolve(false);
+        }
+      };
+
+      const cleanup = () => {
+        input.off("keypress", handleKeypress);
+        input.setRawMode?.(previousRawMode);
+      };
+
+      input.on("keypress", handleKeypress);
+    });
+  } catch (error) {
+    input.setRawMode?.(previousRawMode);
+    throw error;
+  }
+}
+
+function supportsImmediateEscape(input) {
+  return Boolean(
+    input
+    && typeof input.on === "function"
+    && typeof input.off === "function"
+    && typeof input.setRawMode === "function"
+  );
 }
 
 async function promptGithubOwnerOrAccessible(readline, prompt) {

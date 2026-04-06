@@ -1,3 +1,5 @@
+import { EventEmitter } from "node:events";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -33,9 +35,37 @@ describe("cli-bootstrap", () => {
 
     expect(result).toBe(true);
     expect(readline.question).toHaveBeenCalledWith(
-      "Archa is not initialized yet: /tmp/archa-config.json is missing.\nPress Enter to initialize it now, or press Esc then Enter to cancel.\n> "
+      "Archa is not initialized yet: /tmp/archa-config.json is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> "
     );
     expect(readline.close).toHaveBeenCalled();
+  });
+
+  it("cancels immediately on Esc when raw keypress input is available", async () => {
+    const input = createRawKeypressInput();
+    const output = {
+      isTTY: true,
+      write: vi.fn()
+    };
+    const resultPromise = promptToInitializeConfig({
+      configPath: "/tmp/archa-config.json",
+      input,
+      output
+    });
+
+    input.emit("keypress", "\u001b", {
+      name: "escape"
+    });
+
+    const result = await resultPromise;
+
+    expect(result).toBe(false);
+    expect(output.write).toHaveBeenNthCalledWith(
+      1,
+      "Archa is not initialized yet: /tmp/archa-config.json is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> "
+    );
+    expect(output.write).toHaveBeenNthCalledWith(2, "\n");
+    expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
+    expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
   });
 
   it("re-prompts for discovery confirmation until a valid answer is given", async () => {
@@ -48,7 +78,7 @@ describe("cli-bootstrap", () => {
     });
 
     expect(result).toBe(false);
-    expect(readline.write).toHaveBeenCalledWith('Press Enter to continue, or press Esc then Enter to cancel.\n');
+    expect(readline.write).toHaveBeenCalledWith("Press Enter to continue, or press Esc to cancel.\n");
   });
 
   it("defaults a blank GitHub owner prompt to accessible discovery", async () => {
@@ -151,4 +181,16 @@ function createReadline(answers) {
     write: vi.fn(),
     close: vi.fn()
   };
+}
+
+function createRawKeypressInput() {
+  const input = new EventEmitter();
+
+  input.isTTY = true;
+  input.isRaw = false;
+  input.setRawMode = vi.fn(enabled => {
+    input.isRaw = enabled;
+  });
+
+  return input;
 }
