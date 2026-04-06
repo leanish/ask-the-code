@@ -26,6 +26,22 @@ brew install gh
 
 Then make sure `codex login status` reports a logged-in session, and either export `GH_TOKEN` / `GITHUB_TOKEN` or run `gh auth login` for discovery. If Codex is still not connected afterwards, complete the Codex connection/login flow and retry later.
 
+## Quick Start
+
+Start either adapter and follow the built-in setup guidance from there:
+
+```bash
+archa "How does this codebase behave?"
+```
+
+or
+
+```bash
+archa-server
+```
+
+When no config exists yet, Archa will prompt to initialize it and can continue directly into GitHub discovery from that flow. You do not need to run `archa config init` first unless you prefer to manage setup manually.
+
 This project follows a simple layout:
 
 - source in `src/`
