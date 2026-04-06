@@ -66,6 +66,8 @@ describe("cli-bootstrap", () => {
     expect(output.write).toHaveBeenNthCalledWith(2, "\n");
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
     expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
+    expect(input.resume).toHaveBeenCalledTimes(1);
+    expect(input.pause).toHaveBeenCalledTimes(1);
   });
 
   it("re-prompts for discovery confirmation until a valid answer is given", async () => {
@@ -191,6 +193,8 @@ function createRawKeypressInput() {
   input.setRawMode = vi.fn(enabled => {
     input.isRaw = enabled;
   });
+  input.resume = vi.fn();
+  input.pause = vi.fn();
 
   return input;
 }

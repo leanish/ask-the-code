@@ -240,6 +240,7 @@ async function promptEnterOrEscape({
   emitKeypressEvents(input);
   const previousRawMode = input.isRaw === true;
   input.setRawMode?.(true);
+  input.resume?.();
 
   try {
     return await new Promise(resolve => {
@@ -261,6 +262,7 @@ async function promptEnterOrEscape({
       const cleanup = () => {
         input.off("keypress", handleKeypress);
         input.setRawMode?.(previousRawMode);
+        input.pause?.();
       };
 
       input.on("keypress", handleKeypress);
