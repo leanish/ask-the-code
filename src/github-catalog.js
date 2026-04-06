@@ -5,6 +5,7 @@ import { inspectRepoMetadata } from "./repo-classification-inspector.js";
 const GITHUB_API_URL = "https://api.github.com";
 const PAGE_SIZE = 100;
 const ACCESSIBLE_GITHUB_OWNER = "@accessible";
+const discoveryContextByResult = new WeakMap();
 const SMALL_REPO_MAX_INFERRED_TOPICS = 3;
 const MEDIUM_REPO_MAX_INFERRED_TOPICS = 5;
 const LARGE_REPO_MAX_INFERRED_TOPICS = 8;
@@ -204,85 +205,82 @@ export async function discoverGithubOwnerRepos({
     page += 1;
   }
 
-  let skippedForks = 0;
-  let skippedArchived = 0;
-  const eligibleRepos = [];
-  const selectedRepoNameSet = normalizeSelectedRepoNames(selectedRepoNames);
-
-  for (const repo of discoveredRepos) {
-    if (!includeForks && repo.fork) {
-      skippedForks += 1;
-      continue;
-    }
-
-    if (!includeArchived && repo.archived) {
-      skippedArchived += 1;
-      continue;
-    }
-
-    eligibleRepos.push(repo);
-  }
-
-  const reposToProcess = selectedRepoNameSet
-    ? eligibleRepos.filter(repo => matchesSelectedRepo(repo, selectedRepoNameSet, { sourceOwnerFallback }))
-    : eligibleRepos;
-
-  onProgress?.({
-    type: "discovery-listed",
+  const result = await finalizeGithubDiscovery({
     owner: normalizedOwner,
-    discoveredCount: discoveredRepos.length,
-    eligibleCount: reposToProcess.length,
+    ownerType,
+    ownerDisplay,
+    discoveredRepos,
+    env,
+    fetchFn,
+    token: githubToken,
+    inspectRepoFn,
+    curateWithCodex,
+    onProgress,
+    onHydratedRepo,
+    includeForks,
+    includeArchived,
     inspectRepos,
     hydrateMetadata,
-    curateWithCodex,
-    skippedForks,
-    skippedArchived
+    selectedRepoNames,
+    includeSourceMetadata: isAccessibleDiscovery,
+    sourceOwnerFallback
   });
 
-  const repos = !hydrateMetadata
-    ? reposToProcess.map(repo => normalizeGithubRepo(repo, {
-        includeSourceMetadata: isAccessibleDiscovery,
-        sourceOwnerFallback
-      }))
-    : inspectRepos
-    ? await hydrateReposSequentially({
-        reposToProcess,
-        owner: normalizedOwner,
-        env,
-        fetchFn,
-        token: githubToken,
-        inspectRepoFn,
-        curateWithCodex,
-        inspectRepos,
-        includeSourceMetadata: isAccessibleDiscovery,
-        sourceOwnerFallback,
-        onProgress,
-        onHydratedRepo
-      })
-    : await hydrateReposInParallel({
-        reposToProcess,
-        owner: normalizedOwner,
-        env,
-        fetchFn,
-        token: githubToken,
-        inspectRepoFn,
-        curateWithCodex,
-        inspectRepos,
-        includeSourceMetadata: isAccessibleDiscovery,
-        sourceOwnerFallback,
-        onProgress,
-        onHydratedRepo
-      });
-  repos.sort((left, right) => left.name.localeCompare(right.name));
+  discoveryContextByResult.set(result, {
+    discoveredRepos,
+    includeSourceMetadata: isAccessibleDiscovery,
+    sourceOwnerFallback
+  });
 
-  return {
-    owner: normalizedOwner,
-    ...(ownerDisplay ? { ownerDisplay } : {}),
-    ownerType,
-    repos,
-    skippedForks,
-    skippedArchived
-  };
+  return result;
+}
+
+export async function refineDiscoveredGithubRepos({
+  discovery,
+  env = process.env,
+  fetchFn = globalThis.fetch,
+  inspectRepoFn = inspectRepoMetadata,
+  resolveGithubAuthTokenFn = readGithubCliAuthToken,
+  curateWithCodex = true,
+  onProgress = null,
+  onHydratedRepo = null,
+  includeForks = true,
+  includeArchived = false,
+  inspectRepos = true,
+  hydrateMetadata = true,
+  selectedRepoNames = []
+}) {
+  const context = discoveryContextByResult.get(discovery);
+
+  if (!context) {
+    throw new Error("Cannot refine GitHub discovery results after the original repo list is unavailable.");
+  }
+
+  const githubToken = await resolveGithubAuthToken({
+    env,
+    resolveGithubAuthTokenFn
+  });
+
+  return await finalizeGithubDiscovery({
+    owner: discovery.owner,
+    ownerType: discovery.ownerType,
+    ownerDisplay: discovery.ownerDisplay || null,
+    discoveredRepos: context.discoveredRepos,
+    env,
+    fetchFn,
+    token: githubToken,
+    inspectRepoFn,
+    curateWithCodex,
+    onProgress,
+    onHydratedRepo,
+    includeForks,
+    includeArchived,
+    inspectRepos,
+    hydrateMetadata,
+    selectedRepoNames,
+    includeSourceMetadata: context.includeSourceMetadata,
+    sourceOwnerFallback: context.sourceOwnerFallback
+  });
 }
 
 async function hydrateReposSequentially({
@@ -334,6 +332,107 @@ async function hydrateReposSequentially({
   }
 
   return repos;
+}
+
+async function finalizeGithubDiscovery({
+  owner,
+  ownerType,
+  ownerDisplay,
+  discoveredRepos,
+  env,
+  fetchFn,
+  token,
+  inspectRepoFn,
+  curateWithCodex,
+  onProgress,
+  onHydratedRepo,
+  includeForks,
+  includeArchived,
+  inspectRepos,
+  hydrateMetadata,
+  selectedRepoNames,
+  includeSourceMetadata,
+  sourceOwnerFallback
+}) {
+  let skippedForks = 0;
+  let skippedArchived = 0;
+  const eligibleRepos = [];
+  const selectedRepoNameSet = normalizeSelectedRepoNames(selectedRepoNames);
+
+  for (const repo of discoveredRepos) {
+    if (!includeForks && repo.fork) {
+      skippedForks += 1;
+      continue;
+    }
+
+    if (!includeArchived && repo.archived) {
+      skippedArchived += 1;
+      continue;
+    }
+
+    eligibleRepos.push(repo);
+  }
+
+  const reposToProcess = selectedRepoNameSet
+    ? eligibleRepos.filter(repo => matchesSelectedRepo(repo, selectedRepoNameSet, { sourceOwnerFallback }))
+    : eligibleRepos;
+
+  onProgress?.({
+    type: "discovery-listed",
+    owner,
+    discoveredCount: discoveredRepos.length,
+    eligibleCount: reposToProcess.length,
+    inspectRepos,
+    hydrateMetadata,
+    curateWithCodex,
+    skippedForks,
+    skippedArchived
+  });
+
+  const repos = !hydrateMetadata
+    ? reposToProcess.map(repo => normalizeGithubRepo(repo, {
+        includeSourceMetadata,
+        sourceOwnerFallback
+      }))
+    : inspectRepos
+      ? await hydrateReposSequentially({
+          reposToProcess,
+          owner,
+          env,
+          fetchFn,
+          token,
+          inspectRepoFn,
+          curateWithCodex,
+          inspectRepos,
+          includeSourceMetadata,
+          sourceOwnerFallback,
+          onProgress,
+          onHydratedRepo
+        })
+      : await hydrateReposInParallel({
+          reposToProcess,
+          owner,
+          env,
+          fetchFn,
+          token,
+          inspectRepoFn,
+          curateWithCodex,
+          inspectRepos,
+          includeSourceMetadata,
+          sourceOwnerFallback,
+          onProgress,
+          onHydratedRepo
+        });
+  repos.sort((left, right) => left.name.localeCompare(right.name));
+
+  return {
+    owner,
+    ...(ownerDisplay ? { ownerDisplay } : {}),
+    ownerType,
+    repos,
+    skippedForks,
+    skippedArchived
+  };
 }
 
 async function hydrateReposInParallel({

@@ -14,7 +14,8 @@ import {
   discoverGithubOwnerRepos,
   getGithubDiscoveryRepoKey,
   mergeGithubDiscoveryPlan,
-  planGithubRepoDiscovery
+  planGithubRepoDiscovery,
+  refineDiscoveredGithubRepos
 } from "./github-catalog.js";
 import { createGithubDiscoveryProgressReporter } from "./github-discovery-progress.js";
 import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "./github-discovery-selection.js";
@@ -225,8 +226,8 @@ async function runGithubDiscovery(options, config = null) {
 
     if (selectedRepoNames.length > 0) {
       const selectedRepoActions = buildSelectedRepoActions(selection);
-      const refinedDiscovery = await discoverGithubOwnerRepos({
-        owner: options.owner,
+      const refinedDiscovery = await refineDiscoveredGithubRepos({
+        discovery,
         env: process.env,
         curateWithCodex: true,
         inspectRepos: true,

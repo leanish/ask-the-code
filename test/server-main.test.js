@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getGithubDiscoveryRepoKey: vi.fn(),
   mergeGithubDiscoveryPlan: vi.fn(),
   planGithubRepoDiscovery: vi.fn(),
+  refineDiscoveredGithubRepos: vi.fn(),
   promptGithubDiscoverySelection: vi.fn(),
   renderGithubDiscovery: vi.fn()
 }));
@@ -46,7 +47,8 @@ vi.mock("../src/github-catalog.js", () => ({
   discoverGithubOwnerRepos: mocks.discoverGithubOwnerRepos,
   getGithubDiscoveryRepoKey: mocks.getGithubDiscoveryRepoKey,
   mergeGithubDiscoveryPlan: mocks.mergeGithubDiscoveryPlan,
-  planGithubRepoDiscovery: mocks.planGithubRepoDiscovery
+  planGithubRepoDiscovery: mocks.planGithubRepoDiscovery,
+  refineDiscoveredGithubRepos: mocks.refineDiscoveredGithubRepos
 }));
 
 vi.mock("../src/github-discovery-selection.js", () => ({
@@ -83,6 +85,13 @@ describe("server-main", () => {
     mocks.ensureGitInstalled.mockImplementation(() => {});
     mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {});
     mocks.getGithubDiscoveryRepoKey.mockImplementation(repo => repo.sourceFullName || repo.name);
+    mocks.refineDiscoveredGithubRepos.mockResolvedValue({
+      owner: "leanish",
+      ownerType: "User",
+      skippedForks: 0,
+      skippedArchived: 0,
+      repos: []
+    });
     mocks.ensureInteractiveConfigSetup.mockResolvedValue(true);
     mocks.loadConfig.mockResolvedValue({
       configPath: "/tmp/archa-config.json",
@@ -248,8 +257,8 @@ describe("server-main", () => {
           skippedForks: 0,
           skippedArchived: 0
         };
-      })
-      .mockImplementationOnce(async ({ onProgress, onHydratedRepo, selectedRepoNames }) => {
+      });
+    mocks.refineDiscoveredGithubRepos.mockImplementationOnce(async ({ onProgress, onHydratedRepo, selectedRepoNames }) => {
         expect(selectedRepoNames).toEqual(["archa"]);
         onProgress?.({
           type: "discovery-listed",
@@ -329,7 +338,10 @@ describe("server-main", () => {
       hydrateMetadata: false,
       curateWithCodex: false
     }));
-    expect(mocks.discoverGithubOwnerRepos).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    expect(mocks.refineDiscoveredGithubRepos).toHaveBeenCalledWith(expect.objectContaining({
+      discovery: expect.objectContaining({
+        owner: "leanish"
+      }),
       inspectRepos: true,
       curateWithCodex: true,
       selectedRepoNames: ["archa"]

@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   discoverGithubOwnerRepos,
-  planGithubRepoDiscovery
+  planGithubRepoDiscovery,
+  refineDiscoveredGithubRepos
 } from "../src/github-catalog.js";
 
 describe("github-catalog", () => {
@@ -703,6 +704,90 @@ describe("github-catalog", () => {
         name: "terminator"
       })
     }));
+  });
+
+  it("can refine a selected repo subset without refetching owner pages", async () => {
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
+        return createJsonResponse(200, [
+          {
+            name: "archa",
+            clone_url: "https://github.com/leanish/archa.git",
+            default_branch: "main",
+            description: "Repo-aware CLI for engineering Q&A with local Codex",
+            topics: ["cli"],
+            size: 6400,
+            fork: false,
+            archived: false
+          },
+          {
+            name: "terminator",
+            clone_url: "https://github.com/leanish/terminator.git",
+            default_branch: "main",
+            description: "",
+            topics: [],
+            size: 175,
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/leanish/terminator/topics") {
+        return createJsonResponse(200, {
+          names: []
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    const inspectRepoFn = vi.fn(async ({ repo }) => ({
+      description: repo.name === "terminator"
+        ? "Small Java library for orderly shutdown coordination."
+        : "",
+      topics: repo.name === "terminator" ? ["java", "shutdown"] : [],
+      classifications: repo.name === "terminator" ? ["library"] : []
+    }));
+
+    const discovery = await discoverGithubOwnerRepos({
+      owner: "leanish",
+      fetchFn,
+      inspectRepoFn,
+      hydrateMetadata: false,
+      inspectRepos: false
+    });
+
+    fetchFn.mockClear();
+
+    const result = await refineDiscoveredGithubRepos({
+      discovery,
+      fetchFn,
+      inspectRepoFn,
+      selectedRepoNames: ["terminator"]
+    });
+
+    expect(result.repos).toEqual([
+      {
+        name: "terminator",
+        url: "https://github.com/leanish/terminator.git",
+        defaultBranch: "main",
+        description: "Small Java library for orderly shutdown coordination.",
+        topics: ["java", "shutdown"],
+        classifications: ["library"]
+      }
+    ]);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(fetchFn).toHaveBeenCalledWith(
+      "https://api.github.com/repos/leanish/terminator/topics",
+      expect.any(Object)
+    );
   });
 
   it("keeps inline repo topics without an extra topics request", async () => {

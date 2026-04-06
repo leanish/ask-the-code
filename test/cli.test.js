@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   getGithubDiscoveryRepoKey: vi.fn(),
   mergeGithubDiscoveryPlan: vi.fn(),
   planGithubRepoDiscovery: vi.fn(),
+  refineDiscoveredGithubRepos: vi.fn(),
   promptGithubDiscoverySelection: vi.fn(),
   selectGithubDiscoveryRepos: vi.fn(),
   answerQuestion: vi.fn(),
@@ -66,7 +67,8 @@ vi.mock("../src/github-catalog.js", () => ({
   discoverGithubOwnerRepos: mocks.discoverGithubOwnerRepos,
   getGithubDiscoveryRepoKey: mocks.getGithubDiscoveryRepoKey,
   mergeGithubDiscoveryPlan: mocks.mergeGithubDiscoveryPlan,
-  planGithubRepoDiscovery: mocks.planGithubRepoDiscovery
+  planGithubRepoDiscovery: mocks.planGithubRepoDiscovery,
+  refineDiscoveredGithubRepos: mocks.refineDiscoveredGithubRepos
 }));
 
 vi.mock("../src/github-discovery-selection.js", () => ({
@@ -109,6 +111,13 @@ describe("cli", () => {
     mocks.ensureGitInstalled.mockImplementation(() => {});
     mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {});
     mocks.getGithubDiscoveryRepoKey.mockImplementation(repo => repo.sourceFullName || repo.name);
+    mocks.refineDiscoveredGithubRepos.mockResolvedValue({
+      owner: "leanish",
+      ownerType: "Organization",
+      skippedForks: 0,
+      skippedArchived: 0,
+      repos: []
+    });
     mocks.canPromptInteractively.mockReturnValue(true);
     mocks.promptToInitializeConfig.mockResolvedValue(true);
     mocks.promptToContinueGithubDiscovery.mockResolvedValue(false);
@@ -482,8 +491,8 @@ describe("cli", () => {
           skippedArchived: 0,
           repos: reposToAdd
         };
-      })
-      .mockImplementationOnce(async ({ onProgress, onHydratedRepo, selectedRepoNames }) => {
+      });
+    mocks.refineDiscoveredGithubRepos.mockImplementationOnce(async ({ onProgress, onHydratedRepo, selectedRepoNames }) => {
         expect(selectedRepoNames).toEqual(["java-conventions"]);
         onProgress?.({
           type: "discovery-listed",
@@ -562,7 +571,10 @@ describe("cli", () => {
       hydrateMetadata: false,
       curateWithCodex: false
     }));
-    expect(mocks.discoverGithubOwnerRepos).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    expect(mocks.refineDiscoveredGithubRepos).toHaveBeenCalledWith(expect.objectContaining({
+      discovery: expect.objectContaining({
+        owner: "leanish"
+      }),
       inspectRepos: true,
       curateWithCodex: true,
       selectedRepoNames: ["java-conventions"]
@@ -606,8 +618,9 @@ describe("cli", () => {
         skippedForks: 0,
         skippedArchived: 0,
         repos: [...reposToAdd, ...reposToOverride]
-      })
-      .mockImplementationOnce(async ({ onHydratedRepo }) => {
+      });
+    mocks.refineDiscoveredGithubRepos.mockImplementationOnce(async ({ onHydratedRepo, selectedRepoNames }) => {
+        expect(selectedRepoNames).toEqual(["java-conventions", "sqs-codec"]);
         await onHydratedRepo?.(reposToAdd[0], {
           owner: "leanish",
           processedCount: 1,
@@ -686,7 +699,10 @@ describe("cli", () => {
       hydrateMetadata: false,
       curateWithCodex: false
     }));
-    expect(mocks.discoverGithubOwnerRepos).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    expect(mocks.refineDiscoveredGithubRepos).toHaveBeenCalledWith(expect.objectContaining({
+      discovery: expect.objectContaining({
+        owner: "leanish"
+      }),
       inspectRepos: true,
       curateWithCodex: true,
       selectedRepoNames: ["java-conventions", "sqs-codec"]
