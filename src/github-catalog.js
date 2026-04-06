@@ -115,6 +115,7 @@ export async function discoverGithubOwnerRepos({
   resolveGithubAuthTokenFn = readGithubCliAuthToken,
   curateWithCodex = true,
   onProgress = null,
+  onHydratedRepo = null,
   includeForks = true,
   includeArchived = false,
   inspectRepos = true,
@@ -227,7 +228,8 @@ export async function discoverGithubOwnerRepos({
         inspectRepoFn,
         curateWithCodex,
         inspectRepos,
-        onProgress
+        onProgress,
+        onHydratedRepo
       })
     : await hydrateReposInParallel({
         reposToProcess,
@@ -238,7 +240,8 @@ export async function discoverGithubOwnerRepos({
         inspectRepoFn,
         curateWithCodex,
         inspectRepos,
-        onProgress
+        onProgress,
+        onHydratedRepo
       });
   repos.sort((left, right) => left.name.localeCompare(right.name));
 
@@ -260,7 +263,8 @@ async function hydrateReposSequentially({
   inspectRepoFn,
   curateWithCodex,
   inspectRepos,
-  onProgress
+  onProgress,
+  onHydratedRepo
 }) {
   const repos = [];
 
@@ -283,6 +287,13 @@ async function hydrateReposSequentially({
       processedCount: index + 1,
       totalCount: reposToProcess.length
     });
+    if (typeof onHydratedRepo === "function") {
+      await onHydratedRepo(hydratedRepo, {
+        owner,
+        processedCount: index + 1,
+        totalCount: reposToProcess.length
+      });
+    }
 
     repos.push(hydratedRepo);
   }
@@ -299,7 +310,8 @@ async function hydrateReposInParallel({
   inspectRepoFn,
   curateWithCodex,
   inspectRepos,
-  onProgress
+  onProgress,
+  onHydratedRepo
 }) {
   let processedCount = 0;
 
@@ -323,6 +335,13 @@ async function hydrateReposInParallel({
       processedCount,
       totalCount: reposToProcess.length
     });
+    if (typeof onHydratedRepo === "function") {
+      await onHydratedRepo(hydratedRepo, {
+        owner,
+        processedCount,
+        totalCount: reposToProcess.length
+      });
+    }
 
     return hydratedRepo;
   }));

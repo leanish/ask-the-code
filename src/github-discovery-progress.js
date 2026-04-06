@@ -92,6 +92,17 @@ export function createGithubDiscoveryProgressReporter({
         }
 
         output.write(`${message}\n`);
+        return;
+      }
+
+      if (event.type === "repo-applied") {
+        const message = `Saving repos: ${event.processedCount}/${event.totalCount} (${event.repoName})`;
+        if (isInteractive) {
+          writeInlineProgress(message, event.processedCount === event.totalCount);
+          return;
+        }
+
+        output.write(`${message}\n`);
       }
     },
     finish() {

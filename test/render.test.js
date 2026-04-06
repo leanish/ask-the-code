@@ -132,7 +132,7 @@ describe("render", () => {
     expect(preview).toContain("Configured with review suggestions: 1");
     expect(preview).toContain("classifications=cli topics=cli");
     expect(preview).toContain("classifications=infra topics=java");
-    expect(preview).toContain("Apply mode lets you choose from the combined list of new and already configured repos. Press Enter to add all new repos, or customize the selection before only that subset is refined and written.");
+    expect(preview).toContain("Apply mode lets you choose from the combined list of new and already configured repos. Press Enter to add all new repos, or customize the selection before only that subset is refined and saved incrementally.");
 
     const applied = renderGithubDiscovery({
       owner: "leanish",

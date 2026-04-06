@@ -246,7 +246,7 @@ describe("server-main", () => {
           skippedArchived: 0
         };
       })
-      .mockImplementationOnce(async ({ onProgress, selectedRepoNames }) => {
+      .mockImplementationOnce(async ({ onProgress, onHydratedRepo, selectedRepoNames }) => {
         expect(selectedRepoNames).toEqual(["archa"]);
         onProgress?.({
           type: "discovery-listed",
@@ -262,6 +262,11 @@ describe("server-main", () => {
           type: "repo-curated",
           owner: "leanish",
           repoName: "archa",
+          processedCount: 1,
+          totalCount: 1
+        });
+        await onHydratedRepo?.(selectedRepo, {
+          owner: "leanish",
           processedCount: 1,
           totalCount: 1
         });
@@ -315,6 +320,7 @@ describe("server-main", () => {
     expect(stderr.join("")).toContain("Found 2 repo(s); ready to choose from 2 eligible repo(s).");
     expect(stderr.join("")).toContain("Found 2 repo(s); loading and curating metadata for 1 eligible repo(s)...");
     expect(stderr.join("")).toContain("Curating repos: 1/1 (archa)");
+    expect(stderr.join("")).toContain("Saving repos: 1/1 (archa)");
     expect(mocks.discoverGithubOwnerRepos).toHaveBeenNthCalledWith(1, expect.objectContaining({
       inspectRepos: false,
       hydrateMetadata: false,
@@ -325,6 +331,12 @@ describe("server-main", () => {
       curateWithCodex: true,
       selectedRepoNames: ["archa"]
     }));
+    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledTimes(1);
+    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledWith({
+      env: process.env,
+      reposToAdd: [selectedRepo],
+      reposToOverride: []
+    });
   });
 
   it("fails before setup when Codex is missing", async () => {

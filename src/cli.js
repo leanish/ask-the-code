@@ -218,14 +218,42 @@ async function runGithubDiscovery(options, config = null) {
           output: process.stdout
         });
     const selectedRepoNames = collectSelectedRepoNames(selection);
+    let configPath = resolvedConfig.configPath;
+    let addedCount = 0;
+    let overriddenCount = 0;
 
     if (selectedRepoNames.length > 0) {
+      const selectedRepoActions = buildSelectedRepoActions(selection);
       const refinedDiscovery = await discoverGithubOwnerRepos({
         owner: options.owner,
         env: process.env,
         curateWithCodex: true,
         inspectRepos: true,
         selectedRepoNames,
+        onHydratedRepo: async repo => {
+          const action = selectedRepoActions.get(repo.name);
+          if (!action) {
+            return;
+          }
+
+          const applyResult = await applyGithubDiscoveryToConfig({
+            env: process.env,
+            reposToAdd: action === "add" ? [repo] : [],
+            reposToOverride: action === "override" ? [repo] : []
+          });
+          configPath = applyResult.configPath;
+          if (action === "add") {
+            addedCount += 1;
+          } else {
+            overriddenCount += 1;
+          }
+          progressReporter.onProgress({
+            type: "repo-applied",
+            repoName: repo.name,
+            processedCount: addedCount + overriddenCount,
+            totalCount: selectedRepoNames.length
+          });
+        },
         onProgress: event => progressReporter.onProgress(event),
         includeForks: options.includeForks,
         includeArchived: options.includeArchived
@@ -242,23 +270,12 @@ async function runGithubDiscovery(options, config = null) {
       };
     }
 
-    const applyResult = selection.reposToAdd.length > 0 || selection.reposToOverride.length > 0
-      ? await applyGithubDiscoveryToConfig({
-          env: process.env,
-          reposToAdd: selection.reposToAdd,
-          reposToOverride: selection.reposToOverride
-        })
-      : {
-          configPath: resolvedConfig.configPath,
-          addedCount: 0,
-          overriddenCount: 0
-        };
     process.stdout.write(`${renderGithubDiscovery({
       ...plan,
       applied: true,
-      configPath: applyResult.configPath,
-      addedCount: applyResult.addedCount,
-      overriddenCount: applyResult.overriddenCount
+      configPath,
+      addedCount,
+      overriddenCount
     })}\n`);
   } finally {
     progressReporter.finish();
@@ -277,4 +294,11 @@ function collectSelectedRepoNames(selection) {
     ...selection.reposToAdd.map(repo => repo.name),
     ...selection.reposToOverride.map(repo => repo.name)
   ])];
+}
+
+function buildSelectedRepoActions(selection) {
+  return new Map([
+    ...selection.reposToAdd.map(repo => [repo.name, "add"]),
+    ...selection.reposToOverride.map(repo => [repo.name, "override"])
+  ]);
 }

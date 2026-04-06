@@ -480,7 +480,7 @@ describe("cli", () => {
           repos: reposToAdd
         };
       })
-      .mockImplementationOnce(async ({ onProgress, selectedRepoNames }) => {
+      .mockImplementationOnce(async ({ onProgress, onHydratedRepo, selectedRepoNames }) => {
         expect(selectedRepoNames).toEqual(["java-conventions"]);
         onProgress?.({
           type: "discovery-listed",
@@ -496,6 +496,11 @@ describe("cli", () => {
           type: "repo-curated",
           owner: "leanish",
           repoName: "java-conventions",
+          processedCount: 1,
+          totalCount: 1
+        });
+        await onHydratedRepo?.(reposToAdd[0], {
+          owner: "leanish",
           processedCount: 1,
           totalCount: 1
         });
@@ -559,13 +564,15 @@ describe("cli", () => {
       curateWithCodex: true,
       selectedRepoNames: ["java-conventions"]
     }));
+    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledTimes(1);
     expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledWith({
       env: process.env,
-      reposToAdd,
+      reposToAdd: [reposToAdd[0]],
       reposToOverride: []
     });
     expect(stderr.join("")).toContain("Found 1 repo(s); ready to choose from 1 eligible repo(s).");
     expect(stderr.join("")).toContain("Curating repos: 1/1 (java-conventions)");
+    expect(stderr.join("")).toContain("Saving repos: 1/1 (java-conventions)");
     expect(stdout.join("")).toContain("Config updated: /tmp/archa-config.json");
     expect(stdout.join("")).toContain("Repos added: 1");
   });
@@ -597,12 +604,24 @@ describe("cli", () => {
         skippedArchived: 0,
         repos: [...reposToAdd, ...reposToOverride]
       })
-      .mockResolvedValueOnce({
-        owner: "leanish",
-        ownerType: "Organization",
-        skippedForks: 0,
-        skippedArchived: 0,
-        repos: [...reposToAdd, ...reposToOverride]
+      .mockImplementationOnce(async ({ onHydratedRepo }) => {
+        await onHydratedRepo?.(reposToAdd[0], {
+          owner: "leanish",
+          processedCount: 1,
+          totalCount: 2
+        });
+        await onHydratedRepo?.(reposToOverride[0], {
+          owner: "leanish",
+          processedCount: 2,
+          totalCount: 2
+        });
+        return {
+          owner: "leanish",
+          ownerType: "Organization",
+          skippedForks: 0,
+          skippedArchived: 0,
+          repos: [...reposToAdd, ...reposToOverride]
+        };
       });
     mocks.planGithubRepoDiscovery.mockReturnValue({
       owner: "leanish",
@@ -669,10 +688,16 @@ describe("cli", () => {
       curateWithCodex: true,
       selectedRepoNames: ["java-conventions", "sqs-codec"]
     }));
-    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledWith({
+    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledTimes(2);
+    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenNthCalledWith(1, {
       env: process.env,
-      reposToAdd,
-      reposToOverride
+      reposToAdd: [reposToAdd[0]],
+      reposToOverride: []
+    });
+    expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenNthCalledWith(2, {
+      env: process.env,
+      reposToAdd: [],
+      reposToOverride: [reposToOverride[0]]
     });
     expect(stdout.join("")).toContain("Repos overridden: 1");
   });
