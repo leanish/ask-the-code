@@ -104,8 +104,41 @@ describe("github-discovery-selection", () => {
       reposToOverride: [plan.entries[2].repo]
     });
     expect(outputWrites.join("")).toContain("Select repos to add or override");
-    expect(outputWrites.join("")).toContain("New: archa, java-conventions");
-    expect(outputWrites.join("")).toContain("Configured already: foundation");
+    expect(outputWrites.join("")).toContain("Press Enter to add all new repos");
+    expect(outputWrites.join("")).toContain("New (2): archa, java-conventions");
+    expect(outputWrites.join("")).toContain("Configured already (1): foundation");
+  });
+
+  it("defaults Enter to all new repos after confirmation", async () => {
+    const prompts = [];
+    const fakeReadline = {
+      question: async prompt => {
+        prompts.push(prompt);
+        return "";
+      },
+      close() {}
+    };
+
+    const result = await promptGithubDiscoverySelection(plan, {
+      input: { isTTY: true },
+      output: { isTTY: true },
+      createInterfaceFn() {
+        return fakeReadline;
+      }
+    });
+
+    expect(result).toEqual({
+      reposToAdd: [plan.entries[0].repo, plan.entries[1].repo],
+      reposToOverride: []
+    });
+    expect(prompts).toEqual([
+      'Select repos to add or override (comma-separated, "*" for all)\n'
+        + "Press Enter to add all new repos, or type repo names to customize.\n"
+        + "New (2): archa, java-conventions\n"
+        + "Configured already (1): foundation\n"
+        + "> ",
+      "Add all 2 new repo(s)? Press Enter to confirm, or type repo names to customize.\n> "
+    ]);
   });
 
   it("rejects interactive selection without a tty", async () => {

@@ -117,28 +117,55 @@ async function promptForSelection(readline, {
   const newNames = selectableEntries
     .filter(entry => entry.status === "new")
     .map(entry => entry.repo.name);
+  const newRepos = selectableEntries
+    .filter(entry => entry.status === "new")
+    .map(entry => entry.repo);
   const configuredNames = selectableEntries
     .filter(entry => entry.status === "configured")
     .map(entry => entry.repo.name);
   const promptSections = [
-    `New: ${newNames.join(", ") || "none"}`
+    `New (${newNames.length}): ${newNames.join(", ") || "none"}`
   ];
 
   if (configuredNames.length > 0) {
-    promptSections.push(`Configured already: ${configuredNames.join(", ")}`);
+    promptSections.push(`Configured already (${configuredNames.length}): ${configuredNames.join(", ")}`);
   }
   const reposByName = new Map(
     selectableEntries.map(entry => [entry.repo.name.toLowerCase(), entry])
   );
+  const selectionPrompt = newNames.length > 0
+    ? 'Select repos to add or override (comma-separated, "*" for all)\nPress Enter to add all new repos, or type repo names to customize.'
+    : 'Select repos to add or override (comma-separated, "*" for all)\nPress Enter to keep the current config unchanged, or type repo names to customize.';
 
   while (true) {
-    const answer = await readline.question(
-      `Select repos to add or override (comma-separated, "*" for all, blank for none)\n${promptSections.join("\n")}\n> `
-    );
+    const answer = await readline.question(`${selectionPrompt}\n${promptSections.join("\n")}\n> `);
+
+    let rawSelection = answer;
+    if (answer.trim() === "") {
+      if (newRepos.length === 0) {
+        return {
+          reposToAdd: [],
+          reposToOverride: []
+        };
+      }
+
+      const confirmation = await readline.question(
+        `Add all ${newRepos.length} new repo(s)? Press Enter to confirm, or type repo names to customize.\n> `
+      );
+
+      if (confirmation.trim() === "") {
+        return {
+          reposToAdd: newRepos,
+          reposToOverride: []
+        };
+      }
+
+      rawSelection = confirmation;
+    }
 
     try {
       const selectedRepos = resolveSelectedRepos(
-        answer.split(","),
+        rawSelection.split(","),
         selectableEntries.map(entry => entry.repo),
         "selection",
         "selectable"
