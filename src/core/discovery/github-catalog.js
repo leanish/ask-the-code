@@ -1285,7 +1285,12 @@ function buildRepoSuggestions(configuredRepo, githubRepo) {
     suggestions.push("review description");
   }
 
-  const missingTopics = githubRepo.topics.filter(topic => !(configuredRepo.topics || []).includes(topic));
+  const configuredTopics = new Set(
+    (configuredRepo.topics || [])
+      .filter(topic => typeof topic === "string")
+      .map(topic => topic.toLowerCase())
+  );
+  const missingTopics = githubRepo.topics.filter(topic => !configuredTopics.has(topic.toLowerCase()));
   if (missingTopics.length > 0) {
     suggestions.push(`consider topics: ${missingTopics.join(", ")}`);
   }

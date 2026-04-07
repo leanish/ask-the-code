@@ -1731,6 +1731,42 @@ describe("github-catalog", () => {
     );
   });
 
+  it("compares suggested topics case-insensitively against configured repos", () => {
+    const plan = planGithubRepoDiscovery({
+      repos: [
+        {
+          name: "foundation",
+          url: "https://github.com/leanish/foundation.git",
+          defaultBranch: "main",
+          description: "",
+          topics: ["React"],
+          classifications: [],
+          aliases: [],
+          directory: "/repos/foundation"
+        }
+      ]
+    }, {
+      owner: "leanish",
+      ownerType: "User",
+      skippedForks: 0,
+      skippedArchived: 0,
+      repos: [
+        {
+          name: "foundation",
+          url: "https://github.com/leanish/foundation.git",
+          defaultBranch: "main",
+          description: "",
+          topics: ["react"],
+          classifications: []
+        }
+      ]
+    });
+
+    expect(plan.entries).toHaveLength(1);
+    expect(plan.entries[0].status).toBe("configured");
+    expect(plan.entries[0].suggestions).not.toContain("consider topics: react");
+  });
+
   it("qualifies owner-colliding repo names so they can coexist", () => {
     const plan = planGithubRepoDiscovery({
       repos: [
