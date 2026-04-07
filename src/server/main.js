@@ -117,7 +117,8 @@ async function runServerGithubDiscovery(options) {
         includeForks: options.includeForks,
         includeArchived: options.includeArchived
       });
-      const refinedPlan = planGithubRepoDiscovery(config, refinedDiscovery);
+      const refreshedConfig = await loadConfig(process.env);
+      const refinedPlan = planGithubRepoDiscovery(refreshedConfig, refinedDiscovery);
       const refinedReposByName = new Map(
         refinedPlan.entries.map(entry => [getGithubDiscoveryRepoKey(entry.repo), entry.repo])
       );

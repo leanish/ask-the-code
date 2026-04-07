@@ -368,6 +368,96 @@ describe("server-main", () => {
     });
   });
 
+  it("reloads config before planning the applied discovery summary during server bootstrap", async () => {
+    const selectedRepo = {
+      name: "archa",
+      url: "https://github.com/leanish/archa.git",
+      defaultBranch: "main",
+      description: "Repo-aware CLI",
+      topics: ["cli"],
+      classifications: ["cli"]
+    };
+    const initialConfig = {
+      configPath: "/tmp/archa-config.json",
+      repos: []
+    };
+    const refreshedConfig = {
+      configPath: "/tmp/archa-config.json",
+      repos: [{
+        ...selectedRepo,
+        aliases: [],
+        alwaysSelect: false,
+        directory: "/workspace/repos/archa"
+      }]
+    };
+
+    mocks.loadConfig
+      .mockReset()
+      .mockResolvedValueOnce(initialConfig)
+      .mockResolvedValueOnce(refreshedConfig);
+    mocks.discoverGithubOwnerRepos.mockResolvedValueOnce({
+      owner: "leanish",
+      ownerType: "Organization",
+      skippedForks: 0,
+      skippedArchived: 0,
+      repos: [selectedRepo]
+    });
+    mocks.planGithubRepoDiscovery.mockImplementation((config, discovery) => ({
+      owner: discovery.owner,
+      ownerType: discovery.ownerType,
+      skippedForks: discovery.skippedForks,
+      skippedArchived: discovery.skippedArchived,
+      entries: discovery.repos.map(repo => ({
+        repo,
+        status: config.repos.length === 0 ? "new" : "configured",
+        configuredRepo: config.repos.find(candidate => candidate.name === repo.name) || null,
+        suggestions: []
+      })),
+      reposToAdd: config.repos.length === 0 ? discovery.repos : [],
+      counts: {
+        discovered: discovery.repos.length,
+        configured: config.repos.length === 0 ? 0 : discovery.repos.length,
+        new: config.repos.length === 0 ? discovery.repos.length : 0,
+        conflicts: 0,
+        withSuggestions: 0
+      }
+    }));
+    mocks.promptGithubDiscoverySelection.mockResolvedValue({
+      reposToAdd: [selectedRepo],
+      reposToOverride: []
+    });
+    mocks.refineDiscoveredGithubRepos.mockImplementationOnce(async ({ onHydratedRepo }) => {
+      await onHydratedRepo?.(selectedRepo, {
+        owner: "leanish",
+        processedCount: 1,
+        totalCount: 1
+      });
+
+      return {
+        owner: "leanish",
+        ownerType: "Organization",
+        skippedForks: 0,
+        skippedArchived: 0,
+        repos: [selectedRepo]
+      };
+    });
+    mocks.ensureInteractiveConfigSetup.mockImplementation(async ({ runDiscoveryFn }) => {
+      await runDiscoveryFn({
+        owner: "leanish",
+        includeForks: true,
+        includeArchived: false
+      });
+      return false;
+    });
+
+    const result = await main([]);
+
+    expect(result).toBeNull();
+    expect(mocks.planGithubRepoDiscovery).toHaveBeenNthCalledWith(2, refreshedConfig, expect.objectContaining({
+      owner: "leanish"
+    }));
+  });
+
   it("fails before setup when Codex is missing", async () => {
     mocks.ensureCodexInstalled.mockImplementation(() => {
       throw new Error("Codex CLI is required but was not found on PATH.");
