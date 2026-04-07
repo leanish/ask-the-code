@@ -1,8 +1,8 @@
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createAskJobManager } from "../src/ask-job-manager.js";
-import { createHttpHandler } from "../src/http-server.js";
+import { createAskJobManager } from "../src/core/jobs/ask-job-manager.js";
+import { createHttpHandler } from "../src/server/api/http-server.js";
 
 const managers = [];
 

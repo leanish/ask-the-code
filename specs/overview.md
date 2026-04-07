@@ -4,6 +4,12 @@ Archa is your personal code archaeologist. Ask your codebase how it behaves.
 
 Archa exposes the same repo-aware question-answering core through a CLI and an optional HTTP server. Both adapters manage a configured set of repositories, keep local clones up to date, and run the local `codex exec` CLI against either a user-selected repo workspace or the managed repos root chosen by automatic selection.
 
+The source tree is organized by adapter and shared logic:
+
+- `src/cli/` for terminal-facing command dispatch, parsing, rendering, and interactive setup
+- `src/server/` for server startup, HTTP routes, and the built-in web UI
+- `src/core/` for shared config, discovery, repo, Codex, and job logic
+
 ## Goals
 
 - keep the repo-aware question-answering workflow reusable across installations

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { selectRepos } from "../src/repo-selection.js";
+import { selectRepos } from "../src/core/repos/repo-selection.js";
 
 const config = {
   repos: [

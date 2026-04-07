@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
-import { getDefaultManagedReposRoot } from "./config-paths.js";
-import { normalizeGitExecutionError } from "./git-installation.js";
+import { getDefaultManagedReposRoot } from "../config/config-paths.js";
+import { normalizeGitExecutionError } from "../git/git-installation.js";
 import { curateRepoMetadataWithCodex } from "./repo-metadata-codex-curator.js";
 
 const FRONTEND_CONFIG_FILES = [

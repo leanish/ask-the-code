@@ -52,7 +52,9 @@ When no config exists yet, Archa will prompt to initialize it and can continue d
 
 This project follows a simple layout:
 
-- source in `src/`
+- `src/cli/` for the CLI entrypoint, argument parsing, terminal rendering, and interactive setup UX
+- `src/server/` for the server entrypoint, HTTP API, and built-in web UI
+- `src/core/` for shared application logic such as config, discovery, repo sync, job execution, and Codex integration
 - tests in `test/`
 - coverage target: 80% statements and branches
 

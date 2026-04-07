@@ -4,8 +4,8 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { appendReposToConfig, applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "../src/config.js";
-import { getConfigPath, getDefaultManagedReposRoot } from "../src/config-paths.js";
+import { appendReposToConfig, applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "../src/core/config/config.js";
+import { getConfigPath, getDefaultManagedReposRoot } from "../src/core/config/config-paths.js";
 
 describe("config", () => {
   let tempRoot;

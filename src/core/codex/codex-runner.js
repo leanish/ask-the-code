@@ -8,7 +8,7 @@ import {
   isSupportedAnswerAudience,
   resolveAnswerAudience,
   SUPPORTED_ANSWER_AUDIENCES
-} from "./answer-audience.js";
+} from "../answer/answer-audience.js";
 import { normalizeCodexExecutionError } from "./codex-installation.js";
 import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "./codex-defaults.js";
 

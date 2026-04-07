@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "../src/github-discovery-selection.js";
+import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "../src/cli/setup/discovery-selection.js";
 
 describe("github-discovery-selection", () => {
   const plan = {

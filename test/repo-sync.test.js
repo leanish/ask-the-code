@@ -17,7 +17,7 @@ vi.mock("node:child_process", () => ({
   spawn: mocks.spawn
 }));
 
-import { syncRepos } from "../src/repo-sync.js";
+import { syncRepos } from "../src/core/repos/repo-sync.js";
 
 describe("syncRepos", () => {
   beforeEach(() => {

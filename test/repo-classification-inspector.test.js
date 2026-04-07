@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { inspectRepoClassifications, inspectRepoMetadata } from "../src/repo-classification-inspector.js";
+import { inspectRepoClassifications, inspectRepoMetadata } from "../src/core/discovery/repo-classification-inspector.js";
 
 describe("repo-classification-inspector", () => {
   let tempRoot;

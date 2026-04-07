@@ -9,7 +9,7 @@ import {
   promptToContinueGithubDiscovery,
   promptToInitializeConfig,
   renderConfigInit
-} from "../src/cli-bootstrap.js";
+} from "../src/cli/setup/bootstrap.js";
 
 describe("cli-bootstrap", () => {
   it("detects whether interactive prompts are available", () => {

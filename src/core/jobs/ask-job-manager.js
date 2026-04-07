@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { resolveAnswerAudience } from "./answer-audience.js";
-import { answerQuestion } from "./question-answering.js";
-import { createRepoSyncCoordinator } from "./repo-sync-coordinator.js";
-import { createCallbackStatusReporter } from "./status-reporter.js";
+import { resolveAnswerAudience } from "../answer/answer-audience.js";
+import { answerQuestion } from "../answer/question-answering.js";
+import { createRepoSyncCoordinator } from "../repos/repo-sync-coordinator.js";
+import { createCallbackStatusReporter } from "../status/status-reporter.js";
 
 const DEFAULT_JOB_RETENTION_MS = 3_600_000;
 const DEFAULT_MAX_CONCURRENT_JOBS = 3;

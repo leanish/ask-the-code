@@ -4,7 +4,7 @@ import {
   ensureGitInstalled,
   formatMissingGitMessage,
   normalizeGitExecutionError
-} from "../src/git-installation.js";
+} from "../src/core/git/git-installation.js";
 
 describe("git-installation", () => {
   it("returns quietly when git is installed", () => {

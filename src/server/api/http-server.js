@@ -4,10 +4,10 @@ import {
   DEFAULT_ANSWER_AUDIENCE,
   isSupportedAnswerAudience,
   SUPPORTED_ANSWER_AUDIENCES
-} from "./answer-audience.js";
-import { loadConfig } from "./config.js";
-import { createAskJobManager } from "./ask-job-manager.js";
-import { HTML_UI } from "./ui.html.js";
+} from "../../core/answer/answer-audience.js";
+import { loadConfig } from "../../core/config/config.js";
+import { createAskJobManager } from "../../core/jobs/ask-job-manager.js";
+import { HTML_UI } from "../ui/html.js";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8787;

@@ -10,7 +10,7 @@ vi.mock("node:fs", () => ({
   }
 }));
 
-import { renderAnswer, renderGithubDiscovery, renderRepoList, renderRetrievalOnly, renderSyncReport } from "../src/render.js";
+import { renderAnswer, renderGithubDiscovery, renderRepoList, renderRetrievalOnly, renderSyncReport } from "../src/cli/render.js";
 
 describe("render", () => {
   beforeEach(() => {

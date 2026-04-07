@@ -10,7 +10,7 @@ vi.mock("node:http", () => ({
   }
 }));
 
-import { startHttpServer } from "../src/http-server.js";
+import { startHttpServer } from "../src/server/api/http-server.js";
 
 describe("http-server startup", () => {
   beforeEach(() => {

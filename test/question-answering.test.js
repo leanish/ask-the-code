@@ -15,24 +15,24 @@ vi.mock("node:fs", () => ({
   }
 }));
 
-vi.mock("../src/config.js", () => ({
+vi.mock("../src/core/config/config.js", () => ({
   loadConfig: mocks.loadConfig
 }));
 
-vi.mock("../src/codex-runner.js", () => ({
+vi.mock("../src/core/codex/codex-runner.js", () => ({
   getCodexTimeoutMs: mocks.getCodexTimeoutMs,
   runCodexQuestion: mocks.runCodexQuestion
 }));
 
-vi.mock("../src/repo-selection.js", () => ({
+vi.mock("../src/core/repos/repo-selection.js", () => ({
   selectRepos: mocks.selectRepos
 }));
 
-vi.mock("../src/repo-sync.js", () => ({
+vi.mock("../src/core/repos/repo-sync.js", () => ({
   syncRepos: mocks.syncRepos
 }));
 
-import { answerQuestion } from "../src/question-answering.js";
+import { answerQuestion } from "../src/core/answer/question-answering.js";
 
 describe("answerQuestion", () => {
   const config = {

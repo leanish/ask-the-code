@@ -4,7 +4,7 @@ import {
   discoverGithubOwnerRepos,
   planGithubRepoDiscovery,
   refineDiscoveredGithubRepos
-} from "../src/github-catalog.js";
+} from "../src/core/discovery/github-catalog.js";
 
 describe("github-catalog", () => {
   it("discovers user repos, keeping forks and filtering archived repos by default", async () => {

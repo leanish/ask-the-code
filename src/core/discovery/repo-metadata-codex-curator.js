@@ -1,4 +1,4 @@
-import { runCodexPrompt } from "./codex-runner.js";
+import { runCodexPrompt } from "../codex/codex-runner.js";
 
 const DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS = 60_000;
 const DISCOVERY_CODEX_REASONING_EFFORT = "none";

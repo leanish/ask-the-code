@@ -18,33 +18,33 @@ const mocks = vi.hoisted(() => ({
   renderGithubDiscovery: vi.fn()
 }));
 
-vi.mock("../src/http-server.js", () => ({
+vi.mock("../src/server/api/http-server.js", () => ({
   startHttpServer: mocks.startHttpServer
 }));
 
-vi.mock("../src/cli-bootstrap.js", () => ({
+vi.mock("../src/cli/setup/bootstrap.js", () => ({
   ensureInteractiveConfigSetup: mocks.ensureInteractiveConfigSetup
 }));
 
-vi.mock("../src/config.js", () => ({
+vi.mock("../src/core/config/config.js", () => ({
   loadConfig: mocks.loadConfig,
   initializeConfig: vi.fn(),
   applyGithubDiscoveryToConfig: mocks.applyGithubDiscoveryToConfig
 }));
 
-vi.mock("../src/codex-installation.js", () => ({
+vi.mock("../src/core/codex/codex-installation.js", () => ({
   ensureCodexInstalled: mocks.ensureCodexInstalled
 }));
 
-vi.mock("../src/git-installation.js", () => ({
+vi.mock("../src/core/git/git-installation.js", () => ({
   ensureGitInstalled: mocks.ensureGitInstalled
 }));
 
-vi.mock("../src/github-discovery-auth.js", () => ({
+vi.mock("../src/core/discovery/github-discovery-auth.js", () => ({
   ensureGithubDiscoveryAuthAvailable: mocks.ensureGithubDiscoveryAuthAvailable
 }));
 
-vi.mock("../src/github-catalog.js", () => ({
+vi.mock("../src/core/discovery/github-catalog.js", () => ({
   buildAppliedGithubDiscoveryEntries: mocks.buildAppliedGithubDiscoveryEntries,
   discoverGithubOwnerRepos: mocks.discoverGithubOwnerRepos,
   getGithubDiscoveryRepoKey: mocks.getGithubDiscoveryRepoKey,
@@ -53,15 +53,15 @@ vi.mock("../src/github-catalog.js", () => ({
   refineDiscoveredGithubRepos: mocks.refineDiscoveredGithubRepos
 }));
 
-vi.mock("../src/github-discovery-selection.js", () => ({
+vi.mock("../src/cli/setup/discovery-selection.js", () => ({
   promptGithubDiscoverySelection: mocks.promptGithubDiscoverySelection
 }));
 
-vi.mock("../src/render.js", () => ({
+vi.mock("../src/cli/render.js", () => ({
   renderGithubDiscovery: mocks.renderGithubDiscovery
 }));
 
-import { main, setupShutdownHandlers } from "../src/server-main.js";
+import { main, setupShutdownHandlers } from "../src/server/main.js";
 
 describe("server-main", () => {
   let stdout;

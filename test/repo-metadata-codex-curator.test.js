@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { curateRepoMetadataWithCodex } from "../src/repo-metadata-codex-curator.js";
+import { curateRepoMetadataWithCodex } from "../src/core/discovery/repo-metadata-codex-curator.js";
 
 describe("repo-metadata-codex-curator", () => {
   it("accepts Codex-curated metadata and normalizes it", async () => {

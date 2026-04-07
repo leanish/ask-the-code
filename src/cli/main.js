@@ -6,12 +6,12 @@ import {
   ensureInteractiveConfigSetup,
   promptForGithubOwner,
   renderConfigInit as renderConfigInitSummary
-} from "./cli-bootstrap.js";
-import { applyGithubDiscoveryToConfig, loadConfig, initializeConfig } from "./config.js";
-import { ensureCodexInstalled } from "./codex-installation.js";
-import { getConfigPath } from "./config-paths.js";
-import { ensureGitInstalled } from "./git-installation.js";
-import { ensureGithubDiscoveryAuthAvailable } from "./github-discovery-auth.js";
+} from "./setup/bootstrap.js";
+import { applyGithubDiscoveryToConfig, loadConfig, initializeConfig } from "../core/config/config.js";
+import { ensureCodexInstalled } from "../core/codex/codex-installation.js";
+import { getConfigPath } from "../core/config/config-paths.js";
+import { ensureGitInstalled } from "../core/git/git-installation.js";
+import { ensureGithubDiscoveryAuthAvailable } from "../core/discovery/github-discovery-auth.js";
 import {
   buildAppliedGithubDiscoveryEntries,
   discoverGithubOwnerRepos,
@@ -19,11 +19,11 @@ import {
   mergeGithubDiscoveryPlan,
   planGithubRepoDiscovery,
   refineDiscoveredGithubRepos
-} from "./github-catalog.js";
-import { createGithubDiscoveryProgressReporter } from "./github-discovery-progress.js";
-import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "./github-discovery-selection.js";
+} from "../core/discovery/github-catalog.js";
+import { createGithubDiscoveryProgressReporter } from "./setup/discovery-progress.js";
+import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "./setup/discovery-selection.js";
 import { parseArgs } from "./parse-args.js";
-import { answerQuestion } from "./question-answering.js";
+import { answerQuestion } from "../core/answer/question-answering.js";
 import {
   renderAnswer,
   renderGithubDiscovery,
@@ -31,8 +31,8 @@ import {
   renderRetrievalOnly,
   renderSyncReport
 } from "./render.js";
-import { syncRepos } from "./repo-sync.js";
-import { createStreamStatusReporter } from "./status-reporter.js";
+import { syncRepos } from "../core/repos/repo-sync.js";
+import { createStreamStatusReporter } from "../core/status/status-reporter.js";
 
 export async function main(argv) {
   const options = parseArgs(argv, process.env);

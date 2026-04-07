@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createAskJobManager } from "../src/ask-job-manager.js";
+import { createAskJobManager } from "../src/core/jobs/ask-job-manager.js";
 
 describe("ask-job-manager", () => {
   afterEach(() => {

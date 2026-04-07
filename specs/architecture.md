@@ -77,52 +77,52 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 
 ## Main modules
 
-- `src/cli.js`
+- `src/cli/main.js`
   Dispatches commands, resolves question files, prints output, handles interactive CLI bootstrap when config is missing or freshly initialized without repos, and lets direct `config discover-github` prompt for an owner or default to `@accessible` when `--owner` is omitted.
-- `src/server-main.js`
+- `src/server/main.js`
   Parses server startup arguments, reuses the same interactive config bootstrap flow as `archa`, and then boots the HTTP adapter.
-- `src/cli-bootstrap.js`
+- `src/cli/setup/bootstrap.js`
   Hosts the shared interactive CLI prompts and bootstrap flow for missing-config initialization and optional GitHub discovery continuation, including the Enter-to-use-`@accessible` owner shortcut.
-- `src/config-paths.js`
+- `src/core/config/config-paths.js`
   Resolves the active config path and default managed repos root.
-- `src/config.js`
+- `src/core/config/config.js`
   Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and applies selected GitHub discovery additions or overrides into the active config.
-- `src/github-catalog.js`
+- `src/core/discovery/github-catalog.js`
   Discovers repos from a GitHub user or org, or from the special `@accessible` scope that spans the authenticated user's personal and organization-visible repos, using authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used, normalizes them into repo definitions, preserves source-owner metadata for multi-owner discovery displays, auto-qualifies owner-colliding repo names as `<owner>/<repo>` so both repos can coexist in config, supports a names-first selection pass for `--apply` without per-repo topic fetches, and then refines only the selected subset with one-repo-at-a-time repo-content inspection plus a Codex cleanup pass before comparing the result with the current config to classify additions, conflicts, and metadata review suggestions.
 - During selected-repo `--apply` curation, the CLI/server adapters persist each curated repo into config as soon as its refined metadata is ready, instead of batching the entire subset until the end.
-- `src/github-discovery-auth.js`
+- `src/core/discovery/github-discovery-auth.js`
   Checks whether GitHub discovery can authenticate via `GH_TOKEN` / `GITHUB_TOKEN` or, as a fallback, via a usable `gh` CLI session, and formats user-facing setup guidance when neither path is available.
-- `src/github-discovery-progress.js`
+- `src/cli/setup/discovery-progress.js`
   Formats stderr progress updates for GitHub discovery so CLI and server bootstrap flows do not look stuck while repo names are being listed or selected repos are being curated.
-- `src/github-discovery-selection.js`
+- `src/cli/setup/discovery-selection.js`
   Resolves explicit or interactive discovery selections so GitHub imports can add only chosen repos and override only chosen configured repos, using a combined interactive list of new and already configured repos with an Enter-to-add-all-new confirmation path and owner-grouped multi-owner displays that only fall back to owner-qualified repo labels when names collide, while still accepting owner-qualified identifiers case-insensitively for explicit selections.
-- `src/repo-classification-inspector.js`
+- `src/core/discovery/repo-classification-inspector.js`
   Reuses an existing managed checkout when available, otherwise shallow-clones a selected repo temporarily, then inspects repo structure, manifests, dependencies, and README cues to infer fallback descriptions, fallback topics, and high-signal classifications such as `external`, `internal`, `infra`, `frontend`, `backend`, and `cli`, keeping `external` limited to clearly outward-facing surfaces rather than generic API mentions.
-- `src/repo-metadata-codex-curator.js`
+- `src/core/discovery/repo-metadata-codex-curator.js`
   Runs a Codex cleanup pass in the inspected repo checkout to refine the heuristic discovery draft into the final description, topics, and classifications written during selected-repo discovery apply flows.
-- `src/question-answering.js`
+- `src/core/answer/question-answering.js`
   Implements the transport-agnostic ask flow and accepts injectable adapters such as status reporters and sync functions.
-- `src/repo-selection.js`
+- `src/core/repos/repo-selection.js`
   Resolves explicit repo names and aliases, or scores likely repos from repo-name tokens, descriptions, topics, and separately weighted classifications while keeping repos marked `alwaysSelect` in scope and falling back to all configured repos when nothing scores positively.
-- `src/repo-sync.js`
+- `src/core/repos/repo-sync.js`
   Clones missing repos and fast-forwards existing repos to the latest remote `main` or `master` tip, first unshallowing any shallow managed checkout.
-- `src/git-installation.js`
+- `src/core/git/git-installation.js`
   Checks whether the local `git` CLI is installed and formats user-facing installation guidance when it is missing.
-- `src/repo-sync-coordinator.js`
+- `src/core/repos/repo-sync-coordinator.js`
   Deduplicates concurrent syncs for the same repo within a single server process.
-- `src/codex-runner.js`
+- `src/core/codex/codex-runner.js`
   Wraps `codex exec`, manages the audience-aware prompt, heartbeats, execution timeout, and final-message capture.
-- `src/codex-installation.js`
+- `src/core/codex/codex-installation.js`
   Checks whether the local `codex` CLI is installed and logged in, and formats user-facing installation/login guidance when it is not ready.
-- `src/ask-job-manager.js`
+- `src/core/jobs/ask-job-manager.js`
   Maintains in-memory async jobs, per-job event history, and bounded execution concurrency.
-- `src/http-server.js`
+- `src/server/api/http-server.js`
   Exposes the HTTP API, request validation, repo catalog responses, polling responses, and SSE streams.
-- `src/ui.html.js`
+- `src/server/ui/html.js`
   Self-contained HTML, CSS, and JavaScript for the browser-based question UI, including the config-backed repo picker, exported as a string constant.
-- `src/render.js`
+- `src/cli/render.js`
   Converts results into simple CLI output.
-- `src/status-reporter.js`
+- `src/core/status/status-reporter.js`
   Adapts status messages to stderr or other consumers such as job event streams.
 
 ## Configuration model

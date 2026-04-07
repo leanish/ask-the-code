@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HelpError, parseServerArgs } from "../src/server-args.js";
+import { HelpError, parseServerArgs } from "../src/server/args.js";
 
 describe("server-args", () => {
   it("parses explicit host and port overrides", () => {

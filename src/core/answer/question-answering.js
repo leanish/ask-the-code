@@ -1,10 +1,10 @@
 import fs from "node:fs";
 
 import { resolveAnswerAudience } from "./answer-audience.js";
-import { loadConfig } from "./config.js";
-import { getCodexTimeoutMs, runCodexQuestion } from "./codex-runner.js";
-import { selectRepos } from "./repo-selection.js";
-import { syncRepos } from "./repo-sync.js";
+import { loadConfig } from "../config/config.js";
+import { getCodexTimeoutMs, runCodexQuestion } from "../codex/codex-runner.js";
+import { selectRepos } from "../repos/repo-selection.js";
+import { syncRepos } from "../repos/repo-sync.js";
 
 export async function answerQuestion(options, envOrExecution = process.env, legacyStatusReporter = null) {
   const execution = normalizeExecutionOptions(envOrExecution, legacyStatusReporter);

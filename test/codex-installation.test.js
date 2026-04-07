@@ -5,7 +5,7 @@ import {
   formatMissingCodexMessage,
   formatUnconfiguredCodexMessage,
   normalizeCodexExecutionError
-} from "../src/codex-installation.js";
+} from "../src/core/codex/codex-installation.js";
 
 describe("codex-installation", () => {
   it("returns quietly when codex is installed and logged in", () => {

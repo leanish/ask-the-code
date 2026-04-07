@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ensureGithubDiscoveryAuthAvailable,
   formatMissingGithubDiscoveryAuthMessage
-} from "../src/github-discovery-auth.js";
+} from "../src/core/discovery/github-discovery-auth.js";
 
 describe("github-discovery-auth", () => {
   it("returns quietly when GH_TOKEN is set", () => {

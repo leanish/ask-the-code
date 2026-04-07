@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createCallbackStatusReporter, createStreamStatusReporter } from "../src/status-reporter.js";
+import { createCallbackStatusReporter, createStreamStatusReporter } from "../src/core/status/status-reporter.js";
 
 describe("status-reporter", () => {
   it("writes prefixed messages to a stream reporter", () => {

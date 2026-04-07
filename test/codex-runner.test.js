@@ -36,7 +36,7 @@ import {
   runCodexQuestion,
   summarizeCodexTimeoutStderr,
   summarizeCodexStderr
-} from "../src/codex-runner.js";
+} from "../src/core/codex/codex-runner.js";
 
 describe("codex-runner", () => {
   beforeEach(() => {

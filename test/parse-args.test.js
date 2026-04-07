@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { HelpError, parseArgs } from "../src/parse-args.js";
+import { HelpError, parseArgs } from "../src/cli/parse-args.js";
 
 describe("parseArgs", () => {
   it("defaults ask command to gpt-5.4 low", () => {

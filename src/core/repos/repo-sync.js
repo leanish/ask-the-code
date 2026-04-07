@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
-import { normalizeGitExecutionError } from "./git-installation.js";
+import { normalizeGitExecutionError } from "../git/git-installation.js";
 
 export async function syncRepos(repos, callbacks = {}) {
   const report = [];

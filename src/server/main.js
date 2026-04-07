@@ -1,11 +1,11 @@
 import process from "node:process";
 
-import { applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "./config.js";
-import { ensureCodexInstalled } from "./codex-installation.js";
-import { getConfigPath } from "./config-paths.js";
-import { ensureGitInstalled } from "./git-installation.js";
-import { ensureGithubDiscoveryAuthAvailable } from "./github-discovery-auth.js";
-import { ensureInteractiveConfigSetup } from "./cli-bootstrap.js";
+import { applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "../core/config/config.js";
+import { ensureCodexInstalled } from "../core/codex/codex-installation.js";
+import { getConfigPath } from "../core/config/config-paths.js";
+import { ensureGitInstalled } from "../core/git/git-installation.js";
+import { ensureGithubDiscoveryAuthAvailable } from "../core/discovery/github-discovery-auth.js";
+import { ensureInteractiveConfigSetup } from "../cli/setup/bootstrap.js";
 import {
   buildAppliedGithubDiscoveryEntries,
   discoverGithubOwnerRepos,
@@ -13,12 +13,12 @@ import {
   mergeGithubDiscoveryPlan,
   planGithubRepoDiscovery,
   refineDiscoveredGithubRepos
-} from "./github-catalog.js";
-import { createGithubDiscoveryProgressReporter } from "./github-discovery-progress.js";
-import { promptGithubDiscoverySelection } from "./github-discovery-selection.js";
-import { startHttpServer } from "./http-server.js";
-import { renderGithubDiscovery } from "./render.js";
-import { HelpError, parseServerArgs } from "./server-args.js";
+} from "../core/discovery/github-catalog.js";
+import { createGithubDiscoveryProgressReporter } from "../cli/setup/discovery-progress.js";
+import { promptGithubDiscoverySelection } from "../cli/setup/discovery-selection.js";
+import { startHttpServer } from "./api/http-server.js";
+import { renderGithubDiscovery } from "../cli/render.js";
+import { HelpError, parseServerArgs } from "./args.js";
 
 export async function main(argv) {
   const options = parseServerArgs(argv, process.env);
