@@ -21,7 +21,7 @@ export async function renderRepoList(repos) {
     const status = await exists(repo.directory) ? "local" : "missing";
     const aliases = repo.aliases && repo.aliases.length > 0 ? ` aliases=${repo.aliases.join(",")}` : "";
     const trackedBranch = repo.defaultBranch || repo.branch || "?";
-    lines.push(`- ${repo.name} [${status}] ${trackedBranch}:${aliases} ${repo.description}`);
+    lines.push(`- ${repo.name} [${status}] ${trackedBranch}${aliases} ${repo.description}`);
   }
 
   return lines.join("\n");
@@ -133,13 +133,23 @@ export function renderGithubDiscovery(result) {
   }
 
   if (result.counts.new > 0 || result.counts.configured > 0) {
-    lines.push(`Run: archa config discover-github --owner ${result.owner} --apply`);
+    lines.push(`Run: archa config discover-github --owner ${formatShellArgument(result.owner)} --apply`);
     lines.push("Apply mode lets you choose from the combined list of new and already configured repos. Press Enter to add all new repos, or customize the selection before only that subset is refined and saved incrementally.");
   } else {
     lines.push("No new repos to add.");
   }
 
   return lines.join("\n");
+}
+
+function formatShellArgument(value) {
+  if (typeof value !== "string" || value === "") {
+    return "\"\"";
+  }
+
+  return /^[A-Za-z0-9._/-]+$/.test(value)
+    ? value
+    : JSON.stringify(value);
 }
 
 function formatDiscoveryStatus(entry) {

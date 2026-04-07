@@ -31,7 +31,7 @@ describe("render", () => {
     ]);
 
     expect(output).toContain("Managed repos:");
-    expect(output).toContain("- sqs-codec [local] main: aliases=codec SQS execution interceptor with compression and checksum metadata");
+    expect(output).toContain("- sqs-codec [local] main aliases=codec SQS execution interceptor with compression and checksum metadata");
   });
 
   it("renders an unknown branch marker when a repo has no tracked branch", async () => {
@@ -46,7 +46,7 @@ describe("render", () => {
       }
     ]);
 
-    expect(output).toContain("- broken-config-repo [local] ?: Missing branch metadata");
+    expect(output).toContain("- broken-config-repo [local] ? Missing branch metadata");
   });
 
   it("renders an explicit discovery hint when no repos are configured", async () => {
@@ -303,7 +303,7 @@ describe("render", () => {
     expect(preview).toContain("GitHub repo discovery for leanish + orgs (Accessible):");
     expect(preview).toContain("leanish:\n- archa [new]");
     expect(preview).toContain("Nosto:\n- playcart [new]");
-    expect(preview).toContain("Run: archa config discover-github --owner @accessible --apply");
+    expect(preview).toContain("Run: archa config discover-github --owner \"@accessible\" --apply");
   });
 
   it("falls back to owner-qualified labels inside grouped previews when names collide", () => {

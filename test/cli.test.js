@@ -368,7 +368,7 @@ describe("cli", () => {
     await main(["repos", "list"]);
 
     expect(stdout.join("")).toContain("Managed repos:");
-    expect(stdout.join("")).toContain("sqs-codec [missing] main: aliases=codec SQS execution interceptor with compression and checksum metadata");
+    expect(stdout.join("")).toContain("sqs-codec [missing] main aliases=codec SQS execution interceptor with compression and checksum metadata");
   });
 
   it("prints a GitHub discovery preview without changing config", async () => {
