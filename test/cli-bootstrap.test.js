@@ -70,6 +70,37 @@ describe("cli-bootstrap", () => {
     expect(input.pause).toHaveBeenCalledTimes(1);
   });
 
+  it("cancels immediately on Ctrl+C when raw keypress input is available", async () => {
+    const input = createRawKeypressInput();
+    const output = {
+      isTTY: true,
+      write: vi.fn()
+    };
+    const resultPromise = promptToInitializeConfig({
+      configPath: "/tmp/archa-config.json",
+      input,
+      output
+    });
+
+    input.emit("keypress", "\u0003", {
+      name: "c",
+      ctrl: true
+    });
+
+    const result = await resultPromise;
+
+    expect(result).toBe(false);
+    expect(output.write).toHaveBeenNthCalledWith(
+      1,
+      "Archa is not initialized yet: /tmp/archa-config.json is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> "
+    );
+    expect(output.write).toHaveBeenNthCalledWith(2, "\n");
+    expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
+    expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
+    expect(input.resume).toHaveBeenCalledTimes(1);
+    expect(input.pause).toHaveBeenCalledTimes(1);
+  });
+
   it("re-prompts for discovery confirmation until a valid answer is given", async () => {
     const readline = createReadline(["wat", "\u001b"]);
 

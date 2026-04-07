@@ -245,6 +245,13 @@ async function promptEnterOrEscape({
   try {
     return await new Promise(resolve => {
       const handleKeypress = (_, key) => {
+        if (key?.name === "c" && key?.ctrl) {
+          cleanup();
+          output.write("\n");
+          resolve(false);
+          return;
+        }
+
         if (key?.name === "return" || key?.name === "enter") {
           cleanup();
           output.write("\n");
