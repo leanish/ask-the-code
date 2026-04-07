@@ -5,6 +5,7 @@ export function formatDuration(durationMs) {
 
   const normalizedMs = Math.max(0, Math.floor(durationMs));
   if (normalizedMs === 0) {
+    // Exact zero and any positive sub-millisecond input both floor to 0 and render as 0s.
     return "0s";
   }
 
