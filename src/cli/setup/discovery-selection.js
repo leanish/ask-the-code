@@ -2,12 +2,12 @@ import { createInterface } from "node:readline/promises";
 import process from "node:process";
 
 import {
-  compareDiscoveryOwnerLabels,
   getDiscoveryOwnerLabel,
   getDiscoveryRepoBaseName,
   getGithubRepoDisplayIdentity,
   getGithubRepoIdentityFromUrl,
-  getPrimarySourceOwner
+  getPrimarySourceOwner,
+  groupDiscoveryItemsByOwner
 } from "../../core/discovery/repo-display-utils.js";
 
 export function selectGithubDiscoveryRepos(plan, {
@@ -320,11 +320,14 @@ function formatSelectionSectionLines({
     return [`${title}: ${options.map(formatSelectionOptionLabel).join(", ")}`];
   }
 
-  const groupedOptions = groupSelectionOptionsByOwner(options, primarySourceOwner);
+  const groupedOptions = groupDiscoveryItemsByOwner(options, {
+    getRepo: option => option.repo,
+    primarySourceOwner
+  });
 
   return [
     `${title}:`,
-    ...groupedOptions.map(group => `${group.ownerLabel}: ${group.options.map(formatSelectionOptionLabel).join(", ")}`)
+    ...groupedOptions.map(group => `${group.ownerLabel}: ${group.items.map(formatSelectionOptionLabel).join(", ")}`)
   ];
 }
 
@@ -343,28 +346,6 @@ function formatConfiguredRepoLabel(repo) {
   }
 
   return repo.name;
-}
-
-function groupSelectionOptionsByOwner(options, primarySourceOwner) {
-  const groupsByOwner = new Map();
-  const orderedOwners = [];
-
-  for (const option of options) {
-    const ownerLabel = getDiscoveryOwnerLabel(option.repo);
-    if (!groupsByOwner.has(ownerLabel)) {
-      groupsByOwner.set(ownerLabel, []);
-      orderedOwners.push(ownerLabel);
-    }
-
-    groupsByOwner.get(ownerLabel).push(option);
-  }
-
-  orderedOwners.sort((left, right) => compareDiscoveryOwnerLabels(left, right, primarySourceOwner));
-
-  return orderedOwners.map(ownerLabel => ({
-    ownerLabel,
-    options: groupsByOwner.get(ownerLabel)
-  }));
 }
 
 function getDefaultSourceOwner(plan) {

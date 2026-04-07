@@ -72,3 +72,28 @@ export function getPrimarySourceOwner(ownerDisplay) {
   const [primaryOwner] = ownerDisplay.split(" + orgs");
   return primaryOwner?.trim() || null;
 }
+
+export function groupDiscoveryItemsByOwner(items, {
+  getRepo = item => item?.repo,
+  primarySourceOwner = null
+} = {}) {
+  const groupsByOwner = new Map();
+  const orderedOwners = [];
+
+  for (const item of items) {
+    const ownerLabel = getDiscoveryOwnerLabel(getRepo(item));
+    if (!groupsByOwner.has(ownerLabel)) {
+      groupsByOwner.set(ownerLabel, []);
+      orderedOwners.push(ownerLabel);
+    }
+
+    groupsByOwner.get(ownerLabel).push(item);
+  }
+
+  orderedOwners.sort((left, right) => compareDiscoveryOwnerLabels(left, right, primarySourceOwner));
+
+  return orderedOwners.map(ownerLabel => ({
+    ownerLabel,
+    items: groupsByOwner.get(ownerLabel)
+  }));
+}

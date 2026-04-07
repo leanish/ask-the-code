@@ -1,11 +1,11 @@
 import fs from "node:fs";
 
 import {
-  compareDiscoveryOwnerLabels,
   getDiscoveryOwnerLabel,
   getDiscoveryRepoBaseName,
   getGithubRepoDisplayIdentity,
-  getPrimarySourceOwner
+  getPrimarySourceOwner,
+  groupDiscoveryItemsByOwner
 } from "../core/discovery/repo-display-utils.js";
 
 export function renderRepoList(repos) {
@@ -71,11 +71,13 @@ export function renderGithubDiscovery(result) {
   );
 
   if (sourceOwners.size > 1) {
-    const groupedEntries = groupDiscoveryEntriesByOwner(entries, getPrimarySourceOwner(result.ownerDisplay));
+    const groupedEntries = groupDiscoveryItemsByOwner(entries, {
+      primarySourceOwner: getPrimarySourceOwner(result.ownerDisplay)
+    });
 
     for (const group of groupedEntries) {
       lines.push(`${group.ownerLabel}:`);
-      for (const entry of group.entries) {
+      for (const entry of group.items) {
         lines.push(formatDiscoveryEntry(entry, {
           useSourceLabels: isAmbiguousDiscoveryName(entry.repo, entries)
         }));
@@ -160,27 +162,6 @@ function formatDiscoveryEntry(entry, {
   const description = entry.repo.description ? ` ${entry.repo.description}` : "";
   const suggestions = entry.suggestions.length > 0 ? ` review=${entry.suggestions.join("; ")}` : "";
   return `- ${formatDiscoveryRepoLabel(entry.repo, useSourceLabels)} [${status}]${classifications}${topics}${suggestions}${description}`;
-}
-
-function groupDiscoveryEntriesByOwner(entries, primarySourceOwner) {
-  const groupsByOwner = new Map();
-  const orderedOwners = [];
-
-  for (const entry of entries) {
-    const ownerLabel = getDiscoveryOwnerLabel(entry.repo);
-    if (!groupsByOwner.has(ownerLabel)) {
-      groupsByOwner.set(ownerLabel, []);
-      orderedOwners.push(ownerLabel);
-    }
-    groupsByOwner.get(ownerLabel).push(entry);
-  }
-
-  orderedOwners.sort((left, right) => compareDiscoveryOwnerLabels(left, right, primarySourceOwner));
-
-  return orderedOwners.map(ownerLabel => ({
-    ownerLabel,
-    entries: groupsByOwner.get(ownerLabel)
-  }));
 }
 
 function isAmbiguousDiscoveryName(repo, entries) {

@@ -89,9 +89,13 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
   Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and applies selected GitHub discovery additions or overrides into the active config.
 - `src/core/discovery/github-catalog.js`
   Discovers repos from a GitHub user or org, or from the special `@accessible` scope that spans the authenticated user's personal and organization-visible repos, using authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used, normalizes them into repo definitions, preserves source-owner metadata for multi-owner discovery displays, auto-qualifies owner-colliding repo names as `<owner>/<repo>` so both repos can coexist in config, supports a names-first selection pass for `--apply` without per-repo topic fetches, and then refines only the selected subset with one-repo-at-a-time repo-content inspection plus a Codex cleanup pass before comparing the result with the current config to classify additions, conflicts, and metadata review suggestions.
+- `src/core/discovery/discovery-pipeline.js`
+  Orchestrates the shared discovery apply flow used by both CLI and server bootstrap: fetch discovery results, plan additions and overrides, resolve the selected subset, refine only that subset, apply repos incrementally into config, reload config, and build the final applied summary.
 - During selected-repo `--apply` curation, the CLI/server adapters persist each curated repo into config as soon as its refined metadata is ready, instead of batching the entire subset until the end.
 - `src/core/discovery/github-discovery-auth.js`
   Checks whether GitHub discovery can authenticate via `GH_TOKEN` / `GITHUB_TOKEN` or, as a fallback, via a usable `gh` CLI session, and formats user-facing setup guidance when neither path is available.
+- `src/core/discovery/repo-display-utils.js`
+  Provides shared owner-label, repo-identity, and grouping helpers so interactive selection and rendered discovery summaries stay aligned on how owner-qualified names are derived and displayed.
 - `src/cli/setup/discovery-progress.js`
   Formats stderr progress updates for GitHub discovery so CLI and server bootstrap flows do not look stuck while repo names are being listed or selected repos are being curated.
 - `src/cli/setup/discovery-selection.js`
