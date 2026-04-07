@@ -290,7 +290,7 @@ describe("http-server", () => {
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
       repos: [],
-      setupHint: 'No configured repos available. Try "archa config discover-github --apply" to discover and add repos.'
+      setupHint: 'No configured repos available. Try "archa config discover-github" to discover and add repos.'
     });
   });
 
@@ -323,7 +323,7 @@ describe("http-server", () => {
     expect(htmlResponse.body).toContain("/repos");
     expect(htmlResponse.body).toContain("Search configured repos");
     expect(htmlResponse.body).toContain('id="setup-hint"');
-    expect(htmlResponse.body).toContain('archa config discover-github --apply');
+    expect(htmlResponse.body).toContain('archa config discover-github');
     expect(htmlResponse.body).toContain("automatic");
     expect(htmlResponse.body).toContain('id="advanced-options" hidden');
     expect(htmlResponse.body).toContain('params.get("admin")');

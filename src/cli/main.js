@@ -96,7 +96,6 @@ function commandRequiresCodex(options) {
 
 function commandRequiresGit(options) {
   return options.command === "repos-sync"
-    || options.command === "config-discover-github"
     || (options.command === "ask" && !options.noSync);
 }
 
@@ -179,10 +178,15 @@ async function ensureCliConfig(options) {
 }
 
 async function runGithubDiscovery(options, config = null) {
-  ensureGithubDiscoveryAuthAvailable({ env: process.env });
+  ensureGitInstalled();
   ensureCodexInstalled();
+  ensureGithubDiscoveryAuthAvailable({ env: process.env });
   const resolvedConfig = config || await loadConfig(process.env);
   const resolvedOwner = await resolveGithubDiscoveryOwner(options.owner);
+  if (resolvedOwner === null) {
+    process.stdout.write("GitHub discovery cancelled.\n");
+    return;
+  }
   const progressReporter = createGithubDiscoveryProgressReporter();
   progressReporter.start(resolvedOwner);
 
@@ -191,8 +195,6 @@ async function runGithubDiscovery(options, config = null) {
       config: resolvedConfig,
       owner: resolvedOwner,
       env: process.env,
-      apply: options.apply,
-      hydrateMetadata: !options.apply,
       includeForks: options.includeForks,
       includeArchived: options.includeArchived,
       resolveSelectionFn: async plan => hasExplicitGithubDiscoverySelection(options)
@@ -207,20 +209,14 @@ async function runGithubDiscovery(options, config = null) {
       onProgress: event => progressReporter.onProgress(event)
     });
 
-    process.stdout.write(`${renderGithubDiscovery(result.applied
-      ? {
-          ...result.plan,
-          applied: true,
-          appliedEntries: result.appliedEntries,
-          selectedCount: result.selectedCount,
-          configPath: result.configPath,
-          addedCount: result.addedCount,
-          overriddenCount: result.overriddenCount
-        }
-      : {
-          ...result.plan,
-          applied: false
-        })}\n`);
+    process.stdout.write(`${renderGithubDiscovery({
+      ...result.plan,
+      appliedEntries: result.appliedEntries,
+      selectedCount: result.selectedCount,
+      configPath: result.configPath,
+      addedCount: result.addedCount,
+      overriddenCount: result.overriddenCount
+    })}\n`);
   } finally {
     progressReporter.finish();
   }

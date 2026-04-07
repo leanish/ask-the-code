@@ -29,11 +29,10 @@ describe("parseArgs", () => {
         managedReposRoot: "/tmp/repos",
         force: true
       });
-    expect(parseArgs(["config", "discover-github", "--owner", "leanish", "--apply"], {}))
+    expect(parseArgs(["config", "discover-github", "--owner", "leanish"], {}))
       .toEqual({
         command: "config-discover-github",
         owner: "leanish",
-        apply: true,
         includeForks: true,
         includeArchived: false,
         addRepoNames: [],
@@ -43,7 +42,6 @@ describe("parseArgs", () => {
       .toEqual({
         command: "config-discover-github",
         owner: null,
-        apply: false,
         includeForks: true,
         includeArchived: false,
         addRepoNames: [],
@@ -57,7 +55,6 @@ describe("parseArgs", () => {
       "discover-github",
       "--owner",
       "leanish",
-      "--apply",
       "--add",
       "archa,java-conventions",
       "--override",
@@ -67,7 +64,6 @@ describe("parseArgs", () => {
     ], {})).toEqual({
       command: "config-discover-github",
       owner: "leanish",
-      apply: true,
       includeForks: false,
       includeArchived: true,
       addRepoNames: ["archa", "java-conventions"],
@@ -233,15 +229,22 @@ describe("parseArgs", () => {
       .toThrow(/Unknown config discover-github option: --wat/);
   });
 
-  it("throws when explicit GitHub discovery selections are passed without --apply", () => {
-    expect(() => parseArgs([
+  it("accepts explicit GitHub discovery selections without an apply flag", () => {
+    expect(parseArgs([
       "config",
       "discover-github",
       "--owner",
       "leanish",
       "--add",
       "archa"
-    ], {})).toThrow("Use --apply when passing --add or --override.");
+    ], {})).toEqual({
+      command: "config-discover-github",
+      owner: "leanish",
+      includeForks: true,
+      includeArchived: false,
+      addRepoNames: ["archa"],
+      overrideRepoNames: []
+    });
   });
 
 });

@@ -442,7 +442,7 @@ function serializeRepoSummary(repo) {
 }
 
 function getEmptyConfigSetupHint() {
-  return 'No configured repos available. Try "archa config discover-github --apply" to discover and add repos.';
+  return 'No configured repos available. Try "archa config discover-github" to discover and add repos.';
 }
 
 function setCorsHeaders(response) {

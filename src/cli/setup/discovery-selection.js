@@ -1,3 +1,4 @@
+import { emitKeypressEvents } from "node:readline";
 import { createInterface } from "node:readline/promises";
 import process from "node:process";
 
@@ -35,27 +36,21 @@ export async function promptGithubDiscoverySelection(plan, {
 } = {}) {
   if (!input.isTTY || !output.isTTY) {
     throw new Error(
-      'Interactive GitHub discovery requires a TTY. Re-run with --apply in a terminal, or pass explicit --add/--override selections.'
+      'Interactive GitHub discovery requires a TTY. Re-run in a terminal, or pass explicit --add/--override selections.'
     );
   }
 
   const selectableEntries = getSelectableEntries(plan);
   const conflictEntries = getConflictEntries(plan);
-  const readline = createInterfaceFn({
+  return await promptForSelection({
     input,
-    output
+    output,
+    createInterfaceFn,
+    selectableEntries,
+    conflictEntries,
+    primarySourceOwner: getPrimarySourceOwner(plan.ownerDisplay),
+    defaultSourceOwner: getDefaultSourceOwner(plan)
   });
-
-  try {
-    return await promptForSelection(readline, {
-      selectableEntries,
-      conflictEntries,
-      primarySourceOwner: getPrimarySourceOwner(plan.ownerDisplay),
-      defaultSourceOwner: getDefaultSourceOwner(plan)
-    });
-  } finally {
-    readline.close();
-  }
 }
 
 function getAddableRepos(plan) {
@@ -146,7 +141,10 @@ function normalizeRequestedNames(requestedNames) {
     .filter(Boolean);
 }
 
-async function promptForSelection(readline, {
+async function promptForSelection({
+  input,
+  output,
+  createInterfaceFn,
   selectableEntries,
   conflictEntries = [],
   primarySourceOwner = null,
@@ -207,14 +205,26 @@ async function promptForSelection(readline, {
       .map(entry => entry.repo)
   );
   const selectionPrompt = newOptions.length > 0
-    ? 'Select repos to add or override (comma-separated, "*" for all)\nPress Enter to add all new repos, or type repo names to customize.'
-    : 'Select repos to add or override (comma-separated, "*" for all)\nPress Enter to keep the current config unchanged, or type repo names to customize.';
+    ? 'Select repos to add or override (comma-separated, "*" for all)\nPress Enter to add all new repos, press Esc to cancel, or type repo names to customize.'
+    : 'Select repos to add or override (comma-separated, "*" for all)\nPress Enter to keep the current config unchanged, press Esc to cancel, or type repo names to customize.';
 
   while (true) {
-    const answer = await readline.question(`${selectionPrompt}\n${promptSections.join("\n")}\n> `);
+    const answer = await promptLineOrCancel({
+      input,
+      output,
+      createInterfaceFn,
+      prompt: `${selectionPrompt}\n${promptSections.join("\n")}\n> `
+    });
 
-    let rawSelection = answer;
-    if (answer.trim() === "") {
+    if (answer.type === "cancel") {
+      return {
+        reposToAdd: [],
+        reposToOverride: []
+      };
+    }
+
+    let rawSelection = answer.value;
+    if (answer.value.trim() === "") {
       if (newRepos.length === 0) {
         return {
           reposToAdd: [],
@@ -222,18 +232,28 @@ async function promptForSelection(readline, {
         };
       }
 
-      const confirmation = await readline.question(
-        `Add all ${newRepos.length} new repo(s)? Press Enter to confirm, or type repo names to customize.\n> `
-      );
+      const confirmation = await promptAddAllOrCustomize({
+        input,
+        output,
+        createInterfaceFn,
+        newRepoCount: newRepos.length
+      });
 
-      if (confirmation.trim() === "") {
+      if (confirmation.type === "cancel") {
+        return {
+          reposToAdd: [],
+          reposToOverride: []
+        };
+      }
+
+      if (confirmation.type === "confirm") {
         return {
           reposToAdd: newRepos,
           reposToOverride: []
         };
       }
 
-      rawSelection = confirmation;
+      rawSelection = confirmation.value;
     }
 
     try {
@@ -254,9 +274,183 @@ async function promptForSelection(readline, {
           .filter(repo => configuredRepoSet.has(repo))
       };
     } catch (error) {
-      readline.write(`${error.message}\n`);
+      output.write?.(`${error.message}\n`);
     }
   }
+}
+
+async function askQuestion({
+  input,
+  output,
+  createInterfaceFn,
+  prompt
+}) {
+  const readline = createInterfaceFn({
+    input,
+    output
+  });
+
+  try {
+    return await readline.question(prompt);
+  } finally {
+    readline.close();
+  }
+}
+
+async function promptAddAllOrCustomize({
+  input,
+  output,
+  createInterfaceFn,
+  newRepoCount
+}) {
+  const prompt = `Add all ${newRepoCount} new repo(s)? Press Enter to confirm, or type repo names to customize.\n> `;
+
+  const answer = await promptLineOrCancel({
+    input,
+    output,
+    createInterfaceFn,
+    prompt
+  });
+
+  if (answer.type === "cancel") {
+    return {
+      type: "cancel"
+    };
+  }
+
+  if (answer.value.trim() === "") {
+    return {
+      type: "confirm"
+    };
+  }
+
+  return {
+    type: "customize",
+    value: answer.value
+  };
+}
+
+async function promptLineOrCancel({
+  input,
+  output,
+  createInterfaceFn,
+  prompt
+}) {
+  if (supportsImmediateEscape(input)) {
+    return await promptLineOrEscape({
+      input,
+      output,
+      prompt
+    });
+  }
+
+  return {
+    type: "answer",
+    value: await askQuestion({
+      input,
+      output,
+      createInterfaceFn,
+      prompt
+    })
+  };
+}
+
+async function promptLineOrEscape({
+  input,
+  output,
+  prompt
+}) {
+  output.write?.(prompt);
+  emitKeypressEvents(input);
+  const previousRawMode = input.isRaw === true;
+  input.setRawMode?.(true);
+  input.resume?.();
+  let buffer = "";
+  let handleKeypress = null;
+  let cleanedUp = false;
+
+  const cleanup = () => {
+    if (cleanedUp) {
+      return;
+    }
+    cleanedUp = true;
+    if (handleKeypress) {
+      input.off("keypress", handleKeypress);
+      handleKeypress = null;
+    }
+    input.setRawMode?.(previousRawMode);
+    input.pause?.();
+  };
+
+  try {
+    return await new Promise(resolve => {
+      handleKeypress = (text, key) => {
+        if (key?.name === "c" && key?.ctrl) {
+          cleanup();
+          output.write?.("\n");
+          resolve({
+            type: "cancel"
+          });
+          return;
+        }
+
+        if (key?.name === "return" || key?.name === "enter") {
+          cleanup();
+          output.write?.("\n");
+          resolve({
+            type: "answer",
+            value: buffer
+          });
+          return;
+        }
+
+        if (key?.name === "escape") {
+          cleanup();
+          output.write?.("\n");
+          resolve({
+            type: "cancel"
+          });
+          return;
+        }
+
+        if (key?.name === "backspace") {
+          if (buffer.length === 0) {
+            return;
+          }
+          buffer = buffer.slice(0, -1);
+          output.write?.("\b \b");
+          return;
+        }
+
+        if (isPrintableText(text, key)) {
+          buffer += text;
+          output.write?.(text);
+        }
+      };
+
+      input.on("keypress", handleKeypress);
+    });
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+}
+
+function supportsImmediateEscape(input) {
+  return Boolean(
+    input
+    && typeof input.on === "function"
+    && typeof input.off === "function"
+    && typeof input.setRawMode === "function"
+  );
+}
+
+function isPrintableText(text, key) {
+  return typeof text === "string"
+    && text !== ""
+    && /^[\x20-\x7E]+$/.test(text)
+    && !key?.ctrl
+    && !key?.meta;
 }
 
 function buildRepoSelectionOptions(entries, {

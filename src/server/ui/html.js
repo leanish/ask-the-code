@@ -534,7 +534,7 @@ button[type="submit"]:disabled {
       if (repos.length === 0) {
         const setupHint = typeof payload.setupHint === "string" && payload.setupHint.trim()
           ? payload.setupHint.trim()
-          : 'No configured repos available. Try "archa config discover-github --apply" to discover and add repos.';
+          : 'No configured repos available. Try "archa config discover-github" to discover and add repos.';
         repoFilter.disabled = true;
         repoFilter.placeholder = "No configured repos available";
         repoHelp.textContent = setupHint;

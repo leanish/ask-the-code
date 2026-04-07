@@ -41,14 +41,22 @@ export async function promptForGithubOwner({
   output = process.stdout,
   createInterfaceFn = createInterface
 } = {}) {
-  return withReadline({
+  const answer = await promptLineOrCancel({
     input,
     output,
-    createInterfaceFn
-  }, readline => promptGithubOwnerOrAccessible(
-    readline,
-    "GitHub owner to discover from (user or org).\nPress Enter to use all accessible repos from your authenticated GitHub access.\n> "
-  ));
+    createInterfaceFn,
+    prompt: "GitHub owner to discover from (user or org).\nPress Enter to use all accessible repos from your authenticated GitHub access.\n> "
+  });
+
+  if (answer === null) {
+    return null;
+  }
+
+  if (answer.trim() === "") {
+    return "@accessible";
+  }
+
+  return answer.trim();
 }
 
 export async function ensureInteractiveConfigSetup({
@@ -113,7 +121,7 @@ export async function ensureInteractiveConfigSetup({
 
     if (!shouldDiscover) {
       output.write(
-        'GitHub discovery skipped. Add repos manually or run "archa config discover-github --apply" when you are ready.\n'
+        'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
       );
       return allowProceedWithoutRepos;
     }
@@ -122,9 +130,14 @@ export async function ensureInteractiveConfigSetup({
       input,
       output
     });
+    if (owner === null) {
+      output.write(
+        'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
+      );
+      return allowProceedWithoutRepos;
+    }
     await runDiscoveryFn({
       owner,
-      apply: true,
       includeForks: true,
       includeArchived: false,
       addRepoNames: [],
@@ -138,7 +151,7 @@ export async function ensureInteractiveConfigSetup({
     }
 
     output.write(
-      'No repos were added. Configure repos manually or run "archa config discover-github --apply".\n'
+      'No repos were added. Configure repos manually or run "archa config discover-github".\n'
     );
     return allowProceedWithoutRepos;
   }
@@ -155,7 +168,7 @@ export function renderConfigInit(result, {
 
   if (includeNextStepSuggestion && result.repoCount === 0) {
     lines.push("");
-    lines.push("Next step: archa config discover-github --apply");
+    lines.push("Next step: archa config discover-github");
     lines.push("That imports GitHub metadata plus curated descriptions, topics, and classifications into your config.");
   }
 
@@ -208,6 +221,27 @@ async function promptEnterOrCancel({
   }, readline => promptEnterOrCancelWithReadline(readline, prompt));
 }
 
+async function promptLineOrCancel({
+  input,
+  output,
+  createInterfaceFn,
+  prompt
+}) {
+  if (supportsImmediateEscape(input)) {
+    return await promptLineOrEscape({
+      input,
+      output,
+      prompt
+    });
+  }
+
+  return withReadline({
+    input,
+    output,
+    createInterfaceFn
+  }, readline => promptLineOrCancelWithReadline(readline, prompt));
+}
+
 async function promptEnterOrCancelWithReadline(readline, prompt) {
   while (true) {
     const answer = (await readline.question(prompt)).trim();
@@ -242,13 +276,19 @@ async function promptEnterOrEscape({
   input.setRawMode?.(true);
   input.resume?.();
   let handleKeypress = null;
+  let cleanedUp = false;
 
   const cleanup = () => {
+    if (cleanedUp) {
+      return;
+    }
+    cleanedUp = true;
     if (handleKeypress) {
       input.off("keypress", handleKeypress);
       handleKeypress = null;
     }
     input.setRawMode?.(previousRawMode);
+    input.pause?.();
   };
 
   try {
@@ -283,6 +323,23 @@ async function promptEnterOrEscape({
   }
 }
 
+async function promptLineOrCancelWithReadline(readline, prompt) {
+  const answer = await readline.question(prompt);
+  const normalizedAnswer = answer.trim().toLowerCase();
+
+  if (answer.trim() === "\u001b"
+    || normalizedAnswer === "esc"
+    || normalizedAnswer === "escape"
+    || normalizedAnswer === "cancel"
+    || normalizedAnswer === "skip"
+    || normalizedAnswer === "n"
+    || normalizedAnswer === "no") {
+    return null;
+  }
+
+  return answer;
+}
+
 function supportsImmediateEscape(input) {
   return Boolean(
     input
@@ -292,12 +349,84 @@ function supportsImmediateEscape(input) {
   );
 }
 
-async function promptGithubOwnerOrAccessible(readline, prompt) {
-  const answer = (await readline.question(prompt)).trim();
+async function promptLineOrEscape({
+  input,
+  output,
+  prompt
+}) {
+  output.write(prompt);
+  emitKeypressEvents(input);
+  const previousRawMode = input.isRaw === true;
+  input.setRawMode?.(true);
+  input.resume?.();
+  let buffer = "";
+  let handleKeypress = null;
+  let cleanedUp = false;
 
-  if (answer === "") {
-    return "@accessible";
+  const cleanup = () => {
+    if (cleanedUp) {
+      return;
+    }
+    cleanedUp = true;
+    if (handleKeypress) {
+      input.off("keypress", handleKeypress);
+      handleKeypress = null;
+    }
+    input.setRawMode?.(previousRawMode);
+    input.pause?.();
+  };
+
+  try {
+    return await new Promise(resolve => {
+      handleKeypress = (text, key) => {
+        if (key?.name === "c" && key?.ctrl) {
+          cleanup();
+          output.write("\n");
+          resolve(null);
+          return;
+        }
+
+        if (key?.name === "return" || key?.name === "enter") {
+          cleanup();
+          output.write("\n");
+          resolve(buffer);
+          return;
+        }
+
+        if (key?.name === "escape") {
+          cleanup();
+          output.write("\n");
+          resolve(null);
+          return;
+        }
+
+        if (key?.name === "backspace") {
+          if (buffer.length === 0) {
+            return;
+          }
+          buffer = buffer.slice(0, -1);
+          output.write("\b \b");
+          return;
+        }
+
+        if (isPrintableText(text, key)) {
+          buffer += text;
+          output.write(text);
+        }
+      };
+
+      input.on("keypress", handleKeypress);
+    });
+  } catch (error) {
+    cleanup();
+    throw error;
   }
+}
 
-  return answer;
+function isPrintableText(text, key) {
+  return typeof text === "string"
+    && text !== ""
+    && /^[\x20-\x7E]+$/.test(text)
+    && !key?.ctrl
+    && !key?.meta;
 }

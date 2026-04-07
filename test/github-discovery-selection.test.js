@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { EventEmitter } from "node:events";
+
+import { describe, expect, it, vi } from "vitest";
 
 import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "../src/cli/setup/discovery-selection.js";
 
@@ -170,10 +172,49 @@ describe("github-discovery-selection", () => {
       reposToOverride: [plan.entries[2].repo]
     });
     expect(outputWrites.join("")).toContain("Select repos to add or override");
-    expect(outputWrites.join("")).toContain("Press Enter to add all new repos");
+    expect(outputWrites.join("")).toContain("Press Enter to add all new repos, press Esc to cancel");
     expect(outputWrites.join("")).toContain("New (2): archa, java-conventions");
     expect(outputWrites.join("")).toContain("Configured already (1): foundation");
     expect(outputWrites.join("")).toContain("Name conflicts (1): shared -> foundation");
+  });
+
+  it("cancels repo selection immediately on Esc", async () => {
+    const input = createRawKeypressInput();
+    const output = {
+      isTTY: true,
+      write: vi.fn()
+    };
+
+    const resultPromise = promptGithubDiscoverySelection(plan, {
+      input,
+      output
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    input.emit("keypress", "\u001b", {
+      name: "escape"
+    });
+
+    const result = await resultPromise;
+
+    expect(result).toEqual({
+      reposToAdd: [],
+      reposToOverride: []
+    });
+    expect(output.write).toHaveBeenNthCalledWith(
+      1,
+      'Select repos to add or override (comma-separated, "*" for all)\n'
+        + "Press Enter to add all new repos, press Esc to cancel, or type repo names to customize.\n"
+        + "New (2): archa, java-conventions\n"
+        + "Configured already (1): foundation\n"
+        + "Name conflicts (1): shared -> foundation\n"
+        + "> "
+    );
+    expect(output.write).toHaveBeenNthCalledWith(2, "\n");
+    expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
+    expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
+    expect(input.resume).toHaveBeenCalledTimes(1);
+    expect(input.pause).toHaveBeenCalledTimes(1);
   });
 
   it("defaults Enter to all new repos after confirmation", async () => {
@@ -200,13 +241,64 @@ describe("github-discovery-selection", () => {
     });
     expect(prompts).toEqual([
       'Select repos to add or override (comma-separated, "*" for all)\n'
-        + "Press Enter to add all new repos, or type repo names to customize.\n"
+        + "Press Enter to add all new repos, press Esc to cancel, or type repo names to customize.\n"
         + "New (2): archa, java-conventions\n"
         + "Configured already (1): foundation\n"
         + "Name conflicts (1): shared -> foundation\n"
         + "> ",
       "Add all 2 new repo(s)? Press Enter to confirm, or type repo names to customize.\n> "
     ]);
+  });
+
+  it("cancels add-all confirmation immediately on Esc", async () => {
+    const input = createRawKeypressInput();
+    const output = {
+      isTTY: true,
+      write: vi.fn()
+    };
+
+    const resultPromise = promptGithubDiscoverySelection(plan, {
+      input,
+      output
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    input.emit("keypress", "\r", {
+      name: "return"
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    input.emit("keypress", "\u001b", {
+      name: "escape"
+    });
+
+    const result = await resultPromise;
+
+    expect(result).toEqual({
+      reposToAdd: [],
+      reposToOverride: []
+    });
+    expect(output.write).toHaveBeenNthCalledWith(
+      1,
+      'Select repos to add or override (comma-separated, "*" for all)\n'
+        + "Press Enter to add all new repos, press Esc to cancel, or type repo names to customize.\n"
+        + "New (2): archa, java-conventions\n"
+        + "Configured already (1): foundation\n"
+        + "Name conflicts (1): shared -> foundation\n"
+        + "> "
+    );
+    expect(output.write).toHaveBeenNthCalledWith(2, "\n");
+    expect(output.write).toHaveBeenNthCalledWith(
+      3,
+      "Add all 2 new repo(s)? Press Enter to confirm, or type repo names to customize.\n> "
+    );
+    expect(output.write).toHaveBeenNthCalledWith(4, "\n");
+    expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
+    expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
+    expect(input.setRawMode).toHaveBeenNthCalledWith(3, true);
+    expect(input.setRawMode).toHaveBeenNthCalledWith(4, false);
+    expect(input.resume).toHaveBeenCalledTimes(2);
+    expect(input.pause).toHaveBeenCalledTimes(2);
   });
 
   it("shows owner-qualified configured and new entries for colliding repo names", async () => {
@@ -264,7 +356,9 @@ describe("github-discovery-selection", () => {
     });
     expect(prompts[0]).toContain("New (1): Nosto/nullability");
     expect(prompts[0]).toContain("Configured already (1): leanish/nullability");
-    expect(prompts[1]).toBe("Add all 1 new repo(s)? Press Enter to confirm, or type repo names to customize.\n> ");
+    expect(prompts[1]).toBe(
+      "Add all 1 new repo(s)? Press Enter to confirm, or type repo names to customize.\n> "
+    );
   });
 
   it("derives owner-qualified configured labels from the GitHub URL when source metadata is missing", async () => {
@@ -437,3 +531,17 @@ describe("github-discovery-selection", () => {
     })).rejects.toThrow("Interactive GitHub discovery requires a TTY.");
   });
 });
+
+function createRawKeypressInput() {
+  const input = new EventEmitter();
+
+  input.isTTY = true;
+  input.isRaw = false;
+  input.setRawMode = vi.fn(enabled => {
+    input.isRaw = enabled;
+  });
+  input.resume = vi.fn();
+  input.pause = vi.fn();
+
+  return input;
+}

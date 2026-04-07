@@ -175,7 +175,7 @@ describe("server-main", () => {
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
     expect(mocks.ensureInteractiveConfigSetup).toHaveBeenCalled();
     expect(stdout.join("")).toBe("Archa server listening on http://127.0.0.1:8787\n");
-    expect(stderr.join("")).toContain('Suggestion: run "archa config discover-github --apply".');
+    expect(stderr.join("")).toContain('Suggestion: run "archa config discover-github".');
   });
 
   it("does not print the discovery suggestion when repos are already configured", async () => {
@@ -272,7 +272,7 @@ describe("server-main", () => {
           skippedArchived: 0
         };
       });
-    mocks.refineDiscoveredGithubRepos.mockImplementationOnce(async ({ onProgress, onHydratedRepo, selectedRepoNames }) => {
+    mocks.refineDiscoveredGithubRepos.mockImplementationOnce(async ({ onProgress, selectedRepoNames }) => {
         expect(selectedRepoNames).toEqual(["archa"]);
         onProgress?.({
           type: "discovery-listed",
@@ -289,11 +289,6 @@ describe("server-main", () => {
           inspectRepos: true,
           owner: "leanish",
           repoName: "archa",
-          processedCount: 1,
-          totalCount: 1
-        });
-        await onHydratedRepo?.(selectedRepo, {
-          owner: "leanish",
           processedCount: 1,
           totalCount: 1
         });
@@ -347,7 +342,6 @@ describe("server-main", () => {
     expect(stderr.join("")).toContain("Found 2 repo(s); ready to choose from 2 eligible repo(s).");
     expect(stderr.join("")).toContain("Found 2 repo(s); loading and curating metadata for 1 eligible repo(s)...");
     expect(stderr.join("")).toContain("Curating repos: 1/1 (archa)");
-    expect(stderr.join("")).toContain("Saving repos: 1/1 (archa)");
     expect(mocks.discoverGithubOwnerRepos).toHaveBeenNthCalledWith(1, expect.objectContaining({
       inspectRepos: false,
       hydrateMetadata: false,
@@ -369,7 +363,7 @@ describe("server-main", () => {
     });
   });
 
-  it("reloads config before planning the applied discovery summary during server bootstrap", async () => {
+  it("does not reload config before planning the applied discovery summary during server bootstrap", async () => {
     const selectedRepo = {
       name: "archa",
       url: "https://github.com/leanish/archa.git",
@@ -382,20 +376,10 @@ describe("server-main", () => {
       configPath: "/tmp/archa-config.json",
       repos: []
     };
-    const refreshedConfig = {
-      configPath: "/tmp/archa-config.json",
-      repos: [{
-        ...selectedRepo,
-        aliases: [],
-        alwaysSelect: false,
-        directory: "/workspace/repos/archa"
-      }]
-    };
 
     mocks.loadConfig
       .mockReset()
-      .mockResolvedValueOnce(initialConfig)
-      .mockResolvedValueOnce(refreshedConfig);
+      .mockResolvedValueOnce(initialConfig);
     mocks.discoverGithubOwnerRepos.mockResolvedValueOnce({
       owner: "leanish",
       ownerType: "Organization",
@@ -417,8 +401,8 @@ describe("server-main", () => {
       reposToAdd: config.repos.length === 0 ? discovery.repos : [],
       counts: {
         discovered: discovery.repos.length,
-        configured: config.repos.length === 0 ? 0 : discovery.repos.length,
-        new: config.repos.length === 0 ? discovery.repos.length : 0,
+        configured: 0,
+        new: discovery.repos.length,
         conflicts: 0,
         withSuggestions: 0
       }
@@ -427,13 +411,7 @@ describe("server-main", () => {
       reposToAdd: [selectedRepo],
       reposToOverride: []
     });
-    mocks.refineDiscoveredGithubRepos.mockImplementationOnce(async ({ onHydratedRepo }) => {
-      await onHydratedRepo?.(selectedRepo, {
-        owner: "leanish",
-        processedCount: 1,
-        totalCount: 1
-      });
-
+    mocks.refineDiscoveredGithubRepos.mockImplementationOnce(async () => {
       return {
         owner: "leanish",
         ownerType: "Organization",
@@ -454,7 +432,8 @@ describe("server-main", () => {
     const result = await main([]);
 
     expect(result).toBeNull();
-    expect(mocks.planGithubRepoDiscovery).toHaveBeenNthCalledWith(2, refreshedConfig, expect.objectContaining({
+    expect(mocks.loadConfig).toHaveBeenCalledTimes(1);
+    expect(mocks.planGithubRepoDiscovery).toHaveBeenNthCalledWith(2, initialConfig, expect.objectContaining({
       owner: "leanish"
     }));
   });

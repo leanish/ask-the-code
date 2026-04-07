@@ -13,7 +13,7 @@ export async function renderRepoList(repos) {
 
   if (repos.length === 0) {
     lines.push("- none configured");
-    lines.push("Run: archa config discover-github --apply");
+    lines.push("Run: archa config discover-github");
     return lines.join("\n");
   }
 
@@ -71,9 +71,7 @@ export function renderGithubDiscovery(result) {
   const lines = [
     `GitHub repo discovery for ${result.ownerDisplay || result.owner} (${result.ownerType}):`
   ];
-  const entries = result.applied
-    ? (result.appliedEntries || [])
-    : result.entries;
+  const entries = result.appliedEntries || [];
   const sourceOwners = new Set(
     entries
       .map(entry => getDiscoveryOwnerLabel(entry.repo))
@@ -101,55 +99,16 @@ export function renderGithubDiscovery(result) {
     }
   }
 
-  if (result.applied) {
-    lines.push("");
-    if (typeof result.selectedCount === "number") {
-      lines.push(`Repos selected: ${result.selectedCount}`);
-    }
-    const hasChanges = result.addedCount > 0 || (result.overriddenCount || 0) > 0;
-    lines.push(`${hasChanges ? "Config updated" : "Config unchanged"}: ${result.configPath}`);
-    lines.push(`Repos added: ${result.addedCount}`);
-    lines.push(`Repos overridden: ${result.overriddenCount || 0}`);
-    return lines.join("\n");
-  }
-
   lines.push("");
-  lines.push(`Repos discovered: ${result.counts.discovered}`);
-  lines.push(`Already configured: ${result.counts.configured}`);
-  lines.push(`Ready to add: ${result.counts.new}`);
-  lines.push(`Identifier conflicts: ${result.counts.conflicts}`);
-  lines.push(`Configured with review suggestions: ${result.counts.withSuggestions}`);
-
-  if (result.skippedForks > 0) {
-    lines.push(`Skipped forks: ${result.skippedForks}`);
+  if (typeof result.selectedCount === "number") {
+    lines.push(`Repos selected: ${result.selectedCount}`);
   }
-
-  if (result.skippedArchived > 0) {
-    lines.push(`Skipped archived repos: ${result.skippedArchived}`);
-  }
-
-  if (result.skippedDisabled > 0) {
-    lines.push(`Skipped disabled repos: ${result.skippedDisabled}`);
-  }
-
-  if (result.counts.new > 0 || result.counts.configured > 0) {
-    lines.push(`Run: archa config discover-github --owner ${formatShellArgument(result.owner)} --apply`);
-    lines.push("Apply mode lets you choose from the combined list of new and already configured repos. Press Enter to add all new repos, or customize the selection before only that subset is refined and saved incrementally.");
-  } else {
-    lines.push("No new repos to add.");
-  }
+  const hasChanges = result.addedCount > 0 || (result.overriddenCount || 0) > 0;
+  lines.push(`${hasChanges ? "Config updated" : "Config unchanged"}: ${result.configPath}`);
+  lines.push(`Repos added: ${result.addedCount}`);
+  lines.push(`Repos overridden: ${result.overriddenCount || 0}`);
 
   return lines.join("\n");
-}
-
-function formatShellArgument(value) {
-  if (typeof value !== "string" || value === "") {
-    return "\"\"";
-  }
-
-  return /^[A-Za-z0-9._/-]+$/.test(value)
-    ? value
-    : JSON.stringify(value);
 }
 
 function formatDiscoveryStatus(entry) {

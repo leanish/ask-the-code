@@ -39,7 +39,7 @@ export async function main(argv) {
   process.stdout.write(`Archa server listening on ${serverHandle.url}\n`);
   if (serverHandle.configuredRepoCount === 0) {
     process.stderr.write(
-      'archa-server: no managed repos are configured yet. Suggestion: run "archa config discover-github --apply".\n'
+      'archa-server: no managed repos are configured yet. Suggestion: run "archa config discover-github".\n'
     );
   }
 
@@ -58,8 +58,6 @@ async function runServerGithubDiscovery(options) {
       config,
       owner: options.owner,
       env: process.env,
-      apply: true,
-      hydrateMetadata: false,
       includeForks: options.includeForks,
       includeArchived: options.includeArchived,
       resolveSelectionFn: async plan => await promptGithubDiscoverySelection(plan, {
@@ -71,7 +69,6 @@ async function runServerGithubDiscovery(options) {
 
     process.stdout.write(`${renderGithubDiscovery({
       ...result.plan,
-      applied: true,
       appliedEntries: result.appliedEntries,
       selectedCount: result.selectedCount,
       configPath: result.configPath,

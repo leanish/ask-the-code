@@ -1,9 +1,8 @@
-import { applyGithubDiscoveryToConfig, loadConfig } from "../config/config.js";
+import { applyGithubDiscoveryToConfig } from "../config/config.js";
 import {
   buildAppliedGithubDiscoveryEntries,
   discoverGithubOwnerRepos,
   getGithubDiscoveryRepoKey,
-  mergeGithubDiscoveryPlan,
   planGithubRepoDiscovery,
   refineDiscoveredGithubRepos
 } from "./github-catalog.js";
@@ -12,109 +11,82 @@ export async function runGithubDiscoveryPipeline({
   config,
   owner,
   env,
-  apply = false,
-  hydrateMetadata = true,
   includeForks = true,
   includeArchived = false,
   resolveSelectionFn = null,
   onProgress = null,
-  loadConfigFn = loadConfig,
   applyGithubDiscoveryToConfigFn = applyGithubDiscoveryToConfig,
   discoverGithubOwnerReposFn = discoverGithubOwnerRepos,
   planGithubRepoDiscoveryFn = planGithubRepoDiscovery,
   refineDiscoveredGithubReposFn = refineDiscoveredGithubRepos,
-  mergeGithubDiscoveryPlanFn = mergeGithubDiscoveryPlan,
   buildAppliedGithubDiscoveryEntriesFn = buildAppliedGithubDiscoveryEntries,
   getGithubDiscoveryRepoKeyFn = getGithubDiscoveryRepoKey
 }) {
+  if (typeof resolveSelectionFn !== "function") {
+    throw new Error("GitHub discovery requires a selection resolver.");
+  }
+
   const discovery = await discoverGithubOwnerReposFn({
     owner,
     env,
     curateWithCodex: false,
     inspectRepos: false,
-    hydrateMetadata,
+    hydrateMetadata: false,
     onProgress,
     includeForks,
     includeArchived
   });
-  let plan = planGithubRepoDiscoveryFn(config, discovery);
+  const plan = planGithubRepoDiscoveryFn(config, discovery);
 
-  if (!apply) {
-    return {
-      applied: false,
-      plan
-    };
-  }
-
-  if (typeof resolveSelectionFn !== "function") {
-    throw new Error("GitHub discovery apply requires a selection resolver.");
-  }
-
-  let selection = await resolveSelectionFn(plan);
+  const selection = await resolveSelectionFn(plan);
   const selectedRepoNames = collectSelectedRepoNames(selection);
   let configPath = config.configPath;
   let addedCount = 0;
   let overriddenCount = 0;
+  let appliedEntries = buildAppliedGithubDiscoveryEntriesFn(plan, selection);
+  let reposToAdd = selection.reposToAdd;
+  let reposToOverride = selection.reposToOverride;
 
   if (selectedRepoNames.length > 0) {
-    const selectedRepoActions = buildSelectedRepoActions(selection, getGithubDiscoveryRepoKeyFn);
     const refinedDiscovery = await refineDiscoveredGithubReposFn({
       discovery,
       env,
       curateWithCodex: true,
       inspectRepos: true,
       selectedRepoNames,
-      onHydratedRepo: async repo => {
-        const action = selectedRepoActions.get(getGithubDiscoveryRepoKeyFn(repo));
-        if (!action) {
-          return;
-        }
-
-        const applyResult = await applyGithubDiscoveryToConfigFn({
-          env,
-          reposToAdd: action === "add" ? [repo] : [],
-          reposToOverride: action === "override" ? [repo] : []
-        });
-        configPath = applyResult.configPath;
-        if (action === "add") {
-          addedCount += 1;
-        } else {
-          overriddenCount += 1;
-        }
-
-        onProgress?.({
-          type: "repo-applied",
-          repoName: repo.name,
-          processedCount: addedCount + overriddenCount,
-          totalCount: selectedRepoNames.length
-        });
-      },
       onProgress,
       includeForks,
       includeArchived
     });
-    const refreshedConfig = await loadConfigFn(env);
-    const refinedPlan = planGithubRepoDiscoveryFn(refreshedConfig, refinedDiscovery);
+    const refinedPlan = planGithubRepoDiscoveryFn(config, refinedDiscovery);
     const refinedReposByKey = new Map(
       refinedPlan.entries.map(entry => [getGithubDiscoveryRepoKeyFn(entry.repo), entry.repo])
     );
 
-    plan = mergeGithubDiscoveryPlanFn(plan, refinedPlan);
-    selection = {
-      reposToAdd: selection.reposToAdd.map(
-        repo => refinedReposByKey.get(getGithubDiscoveryRepoKeyFn(repo)) || repo
-      ),
-      reposToOverride: selection.reposToOverride.map(
-        repo => refinedReposByKey.get(getGithubDiscoveryRepoKeyFn(repo)) || repo
-      )
-    };
+    reposToAdd = selection.reposToAdd.map(
+      repo => refinedReposByKey.get(getGithubDiscoveryRepoKeyFn(repo)) || repo
+    );
+    reposToOverride = selection.reposToOverride.map(
+      repo => refinedReposByKey.get(getGithubDiscoveryRepoKeyFn(repo)) || repo
+    );
+    appliedEntries = buildAppliedGithubDiscoveryEntriesFn(refinedPlan, {
+      reposToAdd,
+      reposToOverride
+    });
+
+    const applyResult = await applyGithubDiscoveryToConfigFn({
+      env,
+      reposToAdd,
+      reposToOverride
+    });
+    configPath = applyResult.configPath;
+    addedCount = applyResult.addedCount;
+    overriddenCount = applyResult.overriddenCount;
   }
 
   return {
-    applied: true,
     plan,
-    selection,
-    appliedEntries: buildAppliedGithubDiscoveryEntriesFn(plan, selection),
+    appliedEntries,
     selectedCount: selectedRepoNames.length,
     configPath,
     addedCount,
@@ -127,11 +99,4 @@ export function collectSelectedRepoNames(selection) {
     ...selection.reposToAdd.map(repo => repo.sourceFullName || repo.name),
     ...selection.reposToOverride.map(repo => repo.sourceFullName || repo.name)
   ])];
-}
-
-export function buildSelectedRepoActions(selection, getGithubDiscoveryRepoKeyFn = getGithubDiscoveryRepoKey) {
-  return new Map([
-    ...selection.reposToAdd.map(repo => [getGithubDiscoveryRepoKeyFn(repo), "add"]),
-    ...selection.reposToOverride.map(repo => [getGithubDiscoveryRepoKeyFn(repo), "override"])
-  ]);
 }

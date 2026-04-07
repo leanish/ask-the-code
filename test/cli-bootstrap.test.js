@@ -67,7 +67,7 @@ describe("cli-bootstrap", () => {
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
     expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
     expect(input.resume).toHaveBeenCalledTimes(1);
-    expect(input.pause).not.toHaveBeenCalled();
+    expect(input.pause).toHaveBeenCalledTimes(1);
   });
 
   it("cancels immediately on Ctrl+C when raw keypress input is available", async () => {
@@ -98,7 +98,32 @@ describe("cli-bootstrap", () => {
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
     expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
     expect(input.resume).toHaveBeenCalledTimes(1);
-    expect(input.pause).not.toHaveBeenCalled();
+    expect(input.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not pause raw keypress input that was already flowing", async () => {
+    const input = createRawKeypressInput({
+      paused: false
+    });
+    const output = {
+      isTTY: true,
+      write: vi.fn()
+    };
+    const resultPromise = promptToInitializeConfig({
+      configPath: "/tmp/archa-config.json",
+      input,
+      output
+    });
+
+    input.emit("keypress", "\u001b", {
+      name: "escape"
+    });
+
+    const result = await resultPromise;
+
+    expect(result).toBe(false);
+    expect(input.resume).toHaveBeenCalledTimes(1);
+    expect(input.pause).toHaveBeenCalledTimes(1);
   });
 
   it("re-prompts for discovery confirmation until a valid answer is given", async () => {
@@ -127,6 +152,35 @@ describe("cli-bootstrap", () => {
     expect(readline.question).toHaveBeenCalledWith(
       "GitHub owner to discover from (user or org).\nPress Enter to use all accessible repos from your authenticated GitHub access.\n> "
     );
+  });
+
+  it("cancels the GitHub owner prompt immediately on Esc when raw keypress input is available", async () => {
+    const input = createRawKeypressInput();
+    const output = {
+      isTTY: true,
+      write: vi.fn()
+    };
+    const resultPromise = promptForGithubOwner({
+      input,
+      output
+    });
+
+    input.emit("keypress", "\u001b", {
+      name: "escape"
+    });
+
+    const result = await resultPromise;
+
+    expect(result).toBeNull();
+    expect(output.write).toHaveBeenNthCalledWith(
+      1,
+      "GitHub owner to discover from (user or org).\nPress Enter to use all accessible repos from your authenticated GitHub access.\n> "
+    );
+    expect(output.write).toHaveBeenNthCalledWith(2, "\n");
+    expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
+    expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
+    expect(input.resume).toHaveBeenCalledTimes(1);
+    expect(input.pause).toHaveBeenCalledTimes(1);
   });
 
   it("keeps explicit GitHub owners when provided", async () => {
@@ -173,7 +227,6 @@ describe("cli-bootstrap", () => {
     expect(initializeConfigFn).toHaveBeenCalledWith({ env: process.env });
     expect(runDiscoveryFn).toHaveBeenCalledWith({
       owner: "leanish",
-      apply: true,
       includeForks: true,
       includeArchived: false,
       addRepoNames: [],
@@ -201,7 +254,31 @@ describe("cli-bootstrap", () => {
 
     expect(result).toBe(false);
     expect(output.write).toHaveBeenCalledWith(
-      'GitHub discovery skipped. Add repos manually or run "archa config discover-github --apply" when you are ready.\n'
+      'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
+    );
+  });
+
+  it("skips discovery when the GitHub owner prompt is cancelled", async () => {
+    const output = { isTTY: true, write: vi.fn() };
+    const runDiscoveryFn = vi.fn();
+
+    const result = await ensureInteractiveConfigSetup({
+      env: process.env,
+      input: { isTTY: true },
+      output,
+      loadConfigFn: vi.fn(async () => ({ repos: [] })),
+      initializeConfigFn: vi.fn(),
+      getConfigPathFn: () => "/tmp/archa-config.json",
+      runDiscoveryFn,
+      canPromptInteractivelyFn: () => true,
+      promptToContinueGithubDiscoveryFn: vi.fn(async () => true),
+      promptForGithubOwnerFn: vi.fn(async () => null)
+    });
+
+    expect(result).toBe(false);
+    expect(runDiscoveryFn).not.toHaveBeenCalled();
+    expect(output.write).toHaveBeenCalledWith(
+      'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
     );
   });
 });
@@ -216,16 +293,24 @@ function createReadline(answers) {
   };
 }
 
-function createRawKeypressInput() {
+function createRawKeypressInput({
+  paused = true
+} = {}) {
   const input = new EventEmitter();
 
   input.isTTY = true;
   input.isRaw = false;
+  input._paused = paused;
   input.setRawMode = vi.fn(enabled => {
     input.isRaw = enabled;
   });
-  input.resume = vi.fn();
-  input.pause = vi.fn();
+  input.isPaused = vi.fn(() => input._paused);
+  input.resume = vi.fn(() => {
+    input._paused = false;
+  });
+  input.pause = vi.fn(() => {
+    input._paused = true;
+  });
 
   return input;
 }

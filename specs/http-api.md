@@ -56,7 +56,7 @@ Response:
 Notes:
 
 - `setupHint` is `null` during normal operation
-- when the configured repo list is empty, `setupHint` contains a suggested `discover-github --apply` command for bootstrapping config
+- when the configured repo list is empty, `setupHint` contains a suggested `discover-github` command for bootstrapping config
 
 ### `POST /ask`
 

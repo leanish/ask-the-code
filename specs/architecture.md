@@ -91,10 +91,9 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/core/discovery/github-catalog.js`
   Discovers repos from a GitHub user or org, or from the special `@accessible` scope that spans the authenticated user's personal and organization-visible repos.
   Uses authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used.
-  Normalizes repos into repo definitions, preserves source-owner metadata for multi-owner discovery displays, auto-qualifies owner-colliding repo names as `<owner>/<repo>`, supports a names-first selection pass for `--apply` without per-repo topic fetches, and then refines only the selected subset with one-repo-at-a-time repo-content inspection plus a Codex cleanup pass before comparing the result with the current config to classify additions, conflicts, and metadata review suggestions.
+  Normalizes repos into repo definitions, preserves source-owner metadata for multi-owner discovery displays, auto-qualifies owner-colliding repo names as `<owner>/<repo>`, supports a names-first selection pass without per-repo topic fetches, and then refines only the selected subset with repo-content inspection plus a Codex cleanup pass before comparing the result with the current config to classify additions, conflicts, and metadata review suggestions.
 - `src/core/discovery/discovery-pipeline.js`
-  Orchestrates the shared discovery apply flow used by both CLI and server bootstrap: fetch discovery results, plan additions and overrides, resolve the selected subset, refine only that subset, apply repos incrementally into config, reload config, and build the final applied summary.
-- During selected-repo `--apply` curation, the CLI/server adapters persist each curated repo into config as soon as its refined metadata is ready, instead of batching the entire subset until the end.
+  Orchestrates the shared discovery flow used by both CLI and server bootstrap: fetch discovery results, plan additions and overrides, resolve the selected subset, refine only that subset, apply the selected repos into config in one write, and build the final applied summary.
 - `src/core/discovery/github-discovery-auth.js`
   Checks whether GitHub discovery can authenticate via `GH_TOKEN` / `GITHUB_TOKEN` or, as a fallback, via a usable `gh` CLI session, and formats user-facing setup guidance when neither path is available.
 - `src/core/discovery/repo-display-utils.js`

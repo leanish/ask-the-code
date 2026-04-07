@@ -216,17 +216,10 @@ describe("github-discovery-progress", () => {
       totalCount: 1,
       repoName: "archa"
     });
-    reporter.onProgress({
-      type: "repo-applied",
-      processedCount: 1,
-      totalCount: 1,
-      repoName: "archa"
-    });
 
     expect(output.write).toHaveBeenNthCalledWith(1, "Discovering GitHub repos for leanish...\n");
     expect(output.write).toHaveBeenNthCalledWith(2, "Found 1 repo(s); loading and curating metadata for 1 eligible repo(s)...\n");
     expect(output.write).toHaveBeenNthCalledWith(3, "Curating repos: 1/1 (archa)\n");
-    expect(output.write).toHaveBeenNthCalledWith(4, "Saving repos: 1/1 (archa)\n");
   });
 
   it("shows immediate selection readiness when metadata hydration is skipped", () => {

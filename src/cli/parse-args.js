@@ -202,7 +202,6 @@ function parseConfigInitCommand(argv) {
 
 function parseConfigDiscoverGithubCommand(argv) {
   let owner = null;
-  let apply = false;
   let includeForks = true;
   let includeArchived = false;
   let addRepoNames = [];
@@ -215,9 +214,6 @@ function parseConfigDiscoverGithubCommand(argv) {
       case "--owner":
         owner = requireValue(arg, argv[index + 1]);
         index += 1;
-        break;
-      case "--apply":
-        apply = true;
         break;
       case "--add":
         addRepoNames = splitRepoNames(requireValue(arg, argv[index + 1]));
@@ -241,14 +237,9 @@ function parseConfigDiscoverGithubCommand(argv) {
     }
   }
 
-  if (!apply && (addRepoNames.length > 0 || overrideRepoNames.length > 0)) {
-    throw new Error("Use --apply when passing --add or --override.");
-  }
-
   return {
     command: "config-discover-github",
     owner,
-    apply,
     includeForks,
     includeArchived,
     addRepoNames,
@@ -288,7 +279,7 @@ function helpText() {
     "  archa repos sync [repo1,repo2,...]",
     "  archa config path",
     "  archa config init [--catalog <path>] [--managed-repos-root <path>] [--force]",
-    "  archa config discover-github [--owner <name|@accessible>] [--apply] [--add <names>] [--override <names>] [--exclude-forks] [--include-archived]",
+    "  archa config discover-github [--owner <name|@accessible>] [--add <names>] [--override <names>] [--exclude-forks] [--include-archived]",
     "",
     "Ask Options:",
     "  --repo <names>                Limit to managed repo names",
@@ -302,7 +293,6 @@ function helpText() {
     "",
     "Config Discovery:",
     "  --owner <name>                GitHub user, org, or @accessible; prompts on TTY and otherwise defaults to @accessible",
-    "  --apply                       Interactively select repos to add or override",
     "  --add <names>                 Non-interactive add selection (comma-separated or *)",
     "  --override <names>            Non-interactive override selection (comma-separated or *)",
     "  --exclude-forks               Skip forks during discovery",
