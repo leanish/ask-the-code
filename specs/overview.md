@@ -34,7 +34,7 @@ The source tree is organized by adapter and shared logic:
 - the built-in web UI can load the configured repo catalog and present it as a picker instead of raw comma-separated input
 - repos can be pinned into automatic selection with `alwaysSelect`, and automatic selection still falls back to all configured repos when nothing scores positively
 - high-signal classifications such as `infra`, `library`, `internal`, `external`, and `microservice` are handled separately from generic topics, are additive when multiple roles apply, are weighted more strongly during automatic selection, and keep `external` reserved for clearly outward-facing repos rather than generic API integrations
-- answers default to a general engineering audience and can optionally target codebase-aware readers
+- answers default to a general engineering audience with plain-language, low-reference explanations and can optionally target codebase-aware readers
 
 ## Non-goals
 

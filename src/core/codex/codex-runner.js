@@ -11,10 +11,11 @@ import {
 } from "../answer/answer-audience.js";
 import { normalizeCodexExecutionError } from "./codex-installation.js";
 import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "./codex-defaults.js";
+import { formatDuration } from "../time/duration-format.js";
 
 const DEFAULT_CODEX_TIMEOUT_MS = 300_000;
 const FORCE_KILL_GRACE_PERIOD_MS = 5_000;
-const HEARTBEAT_INTERVAL_MS = 10_000;
+const HEARTBEAT_INTERVAL_MS = 5_000;
 
 export async function runCodexQuestion({
   question,
@@ -30,9 +31,7 @@ export async function runCodexQuestion({
   const resolvedModel = model || DEFAULT_CODEX_MODEL;
   const resolvedReasoningEffort = reasoningEffort || DEFAULT_CODEX_REASONING_EFFORT;
 
-  onStatus?.(
-    `Running Codex in ${executionContext.workingDirectory} with ${resolvedModel} (${resolvedReasoningEffort})...`
-  );
+  onStatus?.(formatCodexRunningStatus());
 
   return runCodexPrompt({
     prompt: executionContext.prompt,
@@ -144,8 +143,11 @@ function getAudiencePromptLines(audience) {
 
   return [
     "Write for a general engineering reader. Keep the answer self-contained and do not assume the reader can inspect this workspace.",
+    "Explain the behavior in plain language, not as a code walkthrough.",
+    "Do not mention file paths, line numbers, tests, functions, classes, or other code symbols unless the user explicitly asks for them or they are required for accuracy.",
+    "Translate implementation details into user-facing behavior and outcomes instead of citing source identifiers.",
     "Use code snippets only when they help explain integration or behavior.",
-    "Mention file paths or line numbers only when they are necessary."
+    "Before finalizing, remove unnecessary code references."
   ];
 }
 
@@ -187,7 +189,7 @@ async function runCodexExec({ prompt, model, reasoningEffort, outputFile, workin
         }
 
         settled = true;
-        onStatus?.(`Codex timed out after ${formatTimeoutDuration(timeoutMs)}; stopping...`);
+        onStatus?.(`Codex timed out after ${formatDuration(timeoutMs)}; stopping...`);
         child.kill("SIGTERM");
         forceKillTimer = setTimeout(() => {
           child.kill("SIGKILL");
@@ -272,18 +274,10 @@ function formatCodexExecError(code, stderr) {
 function formatCodexTimeoutError(timeoutMs, stderr) {
   const summary = summarizeCodexTimeoutStderr(stderr);
   if (!summary) {
-    return `codex exec timed out after ${formatTimeoutDuration(timeoutMs)}`;
+    return `codex exec timed out after ${formatDuration(timeoutMs)}`;
   }
 
-  return `codex exec timed out after ${formatTimeoutDuration(timeoutMs)}: ${summary}`;
-}
-
-function formatTimeoutDuration(timeoutMs) {
-  if (timeoutMs % 1000 === 0) {
-    return `${timeoutMs / 1000}s`;
-  }
-
-  return `${timeoutMs}ms`;
+  return `codex exec timed out after ${formatDuration(timeoutMs)}: ${summary}`;
 }
 
 function cleanupTimedOutChild(child) {
@@ -310,8 +304,7 @@ function startCodexHeartbeat(onStatus) {
 
   const startedAt = Date.now();
   const timer = setInterval(() => {
-    const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
-    onStatus(`Still running Codex... (${elapsedSeconds}s elapsed)`);
+    onStatus(formatCodexRunningStatus(Date.now() - startedAt));
   }, HEARTBEAT_INTERVAL_MS);
 
   timer.unref?.();
@@ -319,4 +312,12 @@ function startCodexHeartbeat(onStatus) {
   return () => {
     clearInterval(timer);
   };
+}
+
+function formatCodexRunningStatus(elapsedMs = null) {
+  if (elapsedMs === null) {
+    return "Running Codex";
+  }
+
+  return `Running Codex... (${formatDuration(elapsedMs)} elapsed)`;
 }

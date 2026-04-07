@@ -208,11 +208,11 @@ Ask a question. By default `archa` will:
 1. choose likely repos from the configured repo list, while keeping any repos marked with `"alwaysSelect": true` in scope
    If nothing scores positively, all configured repos are used.
 2. sync them to the latest tracked trunk tip
-3. run `codex exec` with `gpt-5.4` and `low` reasoning effort
+3. run `codex exec` with `gpt-5.4-mini` and `low` reasoning effort
 
 By default, answers target a general engineering reader. When the reader can inspect the repositories directly, use `--audience codebase` to get a more implementation-oriented answer.
 
-While it runs, `archa` keeps progress reporting high-level, including a heartbeat every 10 seconds during long Codex runs. Raw nested Codex logs stay hidden unless the command fails.
+While it runs, `archa` keeps progress reporting high-level, including a heartbeat every 5 seconds during long Codex runs. Raw nested Codex logs stay hidden unless the command fails.
 
 Managed repos are synced against their configured `defaultBranch`. Discovery’s temporary inspection clones are shallow. Managed repo sync uses normal long-lived checkouts; if a managed repo happens to be shallow, Archa first runs `git fetch --unshallow` before the normal fast-forward update flow.
 
@@ -302,8 +302,8 @@ The response includes a job id plus links:
 }
 ```
 
-When `model` or `reasoningEffort` are omitted from the HTTP request, the server uses the same defaults as the CLI: `gpt-5.4` and `low`.
-When `audience` is omitted, the server defaults to `general`. Use `codebase` when the reader can inspect the managed repos directly and wants file- and symbol-level detail.
+When `model` or `reasoningEffort` are omitted from the HTTP request, the server uses the same defaults as the CLI: `gpt-5.4-mini` and `low`.
+When `audience` is omitted, the server defaults to `general`, which aims for plain-language answers without file or symbol references unless they are explicitly needed. Use `codebase` when the reader can inspect the managed repos directly and wants file- and symbol-level detail.
 
 Poll job state:
 
@@ -340,7 +340,7 @@ Programmatic clients that do not send `Accept: text/html` continue to receive th
 
 ## Configuration overrides
 
-- `ARCHA_DEFAULT_MODEL`: overrides the default Codex model (`gpt-5.4`)
+- `ARCHA_DEFAULT_MODEL`: overrides the default Codex model (`gpt-5.4-mini`)
 - `ARCHA_DEFAULT_REASONING_EFFORT`: overrides the default reasoning effort (`low`)
 - `ARCHA_CODEX_TIMEOUT_MS`: overrides the Codex execution timeout (default `300000`)
 - `GH_TOKEN` / `GITHUB_TOKEN`: authenticates GitHub repo discovery; if they are unset, discovery can fall back to the current `gh` login instead

@@ -311,8 +311,8 @@ button[type="submit"]:disabled {
         <div class="field">
           <label for="model">Model</label>
           <select id="model" name="model">
-            <option value="gpt-5.4" selected>gpt-5.4</option>
-            <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+            <option value="gpt-5.4-mini" selected>gpt-5.4-mini</option>
+            <option value="gpt-5.4">gpt-5.4</option>
           </select>
         </div>
         <div class="field">
@@ -372,6 +372,10 @@ button[type="submit"]:disabled {
 
   let eventSource = null;
   let copyFeedbackTimer = null;
+
+  function isCodexStatus(message) {
+    return typeof message === "string" && message.startsWith("Running Codex");
+  }
 
   revealAdvancedOptionsWhenAllowed();
   renderRepoPicker();
@@ -774,7 +778,16 @@ button[type="submit"]:disabled {
   }
 
   function appendStatus(msg) {
-    statusLog.textContent += (statusLog.textContent ? "\\n" : "") + msg;
+    const lines = statusLog.textContent ? statusLog.textContent.split("\\n") : [];
+    const previousMessage = lines.at(-1);
+
+    if (isCodexStatus(msg) && isCodexStatus(previousMessage)) {
+      lines[lines.length - 1] = msg;
+    } else {
+      lines.push(msg);
+    }
+
+    statusLog.textContent = lines.join("\\n");
     statusLog.scrollTop = statusLog.scrollHeight;
   }
 

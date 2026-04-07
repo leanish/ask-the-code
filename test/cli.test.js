@@ -93,6 +93,7 @@ describe("cli", () => {
   let stderr;
   let originalStdoutWrite;
   let originalStderrWrite;
+  let originalStderrIsTTYDescriptor;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -100,6 +101,7 @@ describe("cli", () => {
     stderr = [];
     originalStdoutWrite = process.stdout.write;
     originalStderrWrite = process.stderr.write;
+    originalStderrIsTTYDescriptor = Object.getOwnPropertyDescriptor(process.stderr, "isTTY");
     process.stdout.write = vi.fn(chunk => {
       stdout.push(chunk);
       return true;
@@ -241,6 +243,12 @@ describe("cli", () => {
   afterEach(() => {
     process.stdout.write = originalStdoutWrite;
     process.stderr.write = originalStderrWrite;
+
+    if (originalStderrIsTTYDescriptor) {
+      Object.defineProperty(process.stderr, "isTTY", originalStderrIsTTYDescriptor);
+    } else {
+      delete process.stderr.isTTY;
+    }
   });
 
   it("prints the sync report for repos sync", async () => {
@@ -281,6 +289,31 @@ describe("cli", () => {
     );
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
     expect(mocks.ensureGitInstalled).toHaveBeenCalled();
+  });
+
+  it("flushes interactive codex progress before printing the final answer", async () => {
+    Object.defineProperty(process.stderr, "isTTY", {
+      configurable: true,
+      value: true
+    });
+    mocks.answerQuestion.mockImplementation(async (_options, { statusReporter }) => {
+      statusReporter.info("Running Codex");
+      statusReporter.info("Running Codex... (5s elapsed)");
+
+      return {
+        mode: "answer",
+        selectedRepos: [{ name: "sqs-codec" }],
+        syncReport: [],
+        synthesis: {
+          text: "Final answer"
+        }
+      };
+    });
+
+    await main(["What", "is", "x-codec-meta?"]);
+
+    expect(stderr.join("")).toBe("[archa] Running Codex\r\x1b[2K[archa] Running Codex... (5s elapsed)\n");
+    expect(stdout.join("")).toContain("Final answer");
   });
 
   it("does not require Codex for retrieval-only ask mode", async () => {

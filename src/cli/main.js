@@ -74,10 +74,18 @@ export async function main(argv) {
     }
     case "ask": {
       const resolvedOptions = await resolveAskOptions(options);
-      const result = await answerQuestion(resolvedOptions, {
-        env: process.env,
-        statusReporter: createStreamStatusReporter(process.stderr)
-      });
+      const statusReporter = createStreamStatusReporter(process.stderr);
+      let result;
+
+      try {
+        result = await answerQuestion(resolvedOptions, {
+          env: process.env,
+          statusReporter
+        });
+      } finally {
+        statusReporter.flush?.();
+      }
+
       if (result.mode === "retrieval-only") {
         process.stdout.write(`${renderRetrievalOnly(result)}\n`);
         return;

@@ -4,6 +4,7 @@ import { resolveAnswerAudience } from "../answer/answer-audience.js";
 import { answerQuestion } from "../answer/question-answering.js";
 import { createRepoSyncCoordinator } from "../repos/repo-sync-coordinator.js";
 import { createCallbackStatusReporter } from "../status/status-reporter.js";
+import { formatDuration } from "../time/duration-format.js";
 
 const DEFAULT_JOB_RETENTION_MS = 3_600_000;
 const DEFAULT_MAX_CONCURRENT_JOBS = 3;
@@ -182,7 +183,7 @@ export function createAskJobManager({
       job.status = "completed";
       job.finishedAt = toTimestamp(now());
       job.result = result;
-      appendEvent(job, "completed", "Job completed.");
+      appendEvent(job, "completed", `Job completed. (${formatElapsedSinceCreation(job)} total)`);
     }).catch(error => {
       job.status = "failed";
       job.finishedAt = toTimestamp(now());
@@ -303,6 +304,17 @@ function snapshotJob(job) {
 
 function toTimestamp(value) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function formatElapsedSinceCreation(job) {
+  const createdAt = Date.parse(job.createdAt);
+  const finishedAt = Date.parse(job.finishedAt);
+
+  if (!Number.isFinite(createdAt) || !Number.isFinite(finishedAt) || finishedAt < createdAt) {
+    return "0s";
+  }
+
+  return formatDuration(finishedAt - createdAt);
 }
 
 function validatePositiveInteger(value, label) {

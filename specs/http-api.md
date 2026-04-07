@@ -73,7 +73,7 @@ Request body:
   "question": "How does archa choose the Codex working directory when one repo matches versus several?",
   "repoNames": ["archa"],
   "audience": "general",
-  "model": "gpt-5.4",
+  "model": "gpt-5.4-mini",
   "reasoningEffort": "low",
   "noSync": false,
   "noSynthesis": false
@@ -89,7 +89,7 @@ Rules:
 - `audience` is optional and must be one of `general` or `codebase`
 - omitted `audience` defaults to `general`
 - `model` and `reasoningEffort` are optional strings
-- omitted `model` and `reasoningEffort` use the same execution defaults as the CLI: `gpt-5.4` and `low`
+- omitted `model` and `reasoningEffort` use the same execution defaults as the CLI: `gpt-5.4-mini` and `low`
 - `noSync` and `noSynthesis` are optional booleans
 
 Response:

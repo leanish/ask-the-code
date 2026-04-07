@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { HelpError, parseArgs } from "../src/cli/parse-args.js";
 
 describe("parseArgs", () => {
-  it("defaults ask command to gpt-5.4 low", () => {
+  it("defaults ask command to gpt-5.4-mini low", () => {
     const parsed = parseArgs(["How", "is", "x-codec-meta", "implemented?"], {});
 
     expect(parsed.command).toBe("ask");
     expect(parsed.audience).toBe("general");
-    expect(parsed.model).toBe("gpt-5.4");
+    expect(parsed.model).toBe("gpt-5.4-mini");
     expect(parsed.reasoningEffort).toBe("low");
     expect(parsed.question).toBe("How is x-codec-meta implemented?");
   });

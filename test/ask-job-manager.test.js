@@ -34,6 +34,7 @@ describe("ask-job-manager", () => {
     const manager = createAskJobManager({
       answerQuestionFn,
       generateJobId: createSequenceIdGenerator(),
+      now: createSequenceClock(new Array(12).fill("2026-04-07T18:00:00.000Z")),
       maxConcurrentJobs: 1,
       jobRetentionMs: 60_000
     });
@@ -68,9 +69,57 @@ describe("ask-job-manager", () => {
 
     expect(answerQuestionFn).toHaveBeenCalledTimes(2);
     expect(firstEvents.map(event => event.type)).toContain("completed");
+    expect(firstEvents.find(event => event.type === "completed")?.message).toBe("Job completed. (0s total)");
     expect(secondEvents.map(event => event.type)).toContain("started");
     expect(secondEvents.find(event => event.type === "status")?.message).toBe("processing second");
+    expect(secondEvents.find(event => event.type === "completed")?.message).toBe("Job completed. (0s total)");
     expect(manager.getJob(secondJob.id)?.result?.synthesis.text).toBe("answer:second");
+
+    manager.close();
+  });
+
+  it("includes total elapsed time from queue insertion in the completed event", async () => {
+    let releaseJob;
+    const jobReleased = new Promise(resolve => {
+      releaseJob = resolve;
+    });
+    const manager = createAskJobManager({
+      answerQuestionFn: vi.fn(async () => {
+        await jobReleased;
+
+        return {
+          mode: "answer",
+          question: "timed",
+          selectedRepos: [],
+          syncReport: [],
+          synthesis: {
+            text: "answer:timed"
+          }
+        };
+      }),
+      generateJobId: createSequenceIdGenerator(),
+      now: createSequenceClock([
+        "2026-04-07T18:00:00.000Z",
+        "2026-04-07T18:00:00.000Z",
+        "2026-04-07T18:00:00.000Z",
+        "2026-04-07T18:00:00.000Z",
+        "2026-04-07T18:01:07.000Z",
+        "2026-04-07T18:01:07.000Z"
+      ]),
+      jobRetentionMs: 60_000
+    });
+    const events = [];
+    const job = manager.createJob({ question: "timed" });
+
+    manager.subscribe(job.id, event => {
+      events.push(event);
+    });
+
+    releaseJob();
+
+    await waitFor(() => manager.getJob(job.id)?.status === "completed");
+
+    expect(events.find(event => event.type === "completed")?.message).toBe("Job completed. (1m 7s total)");
 
     manager.close();
   });
@@ -395,6 +444,16 @@ function createSequenceIdGenerator() {
   return () => {
     counter += 1;
     return `job-${counter}`;
+  };
+}
+
+function createSequenceClock(values) {
+  let index = 0;
+
+  return () => {
+    const resolvedValue = values[Math.min(index, values.length - 1)];
+    index += 1;
+    return new Date(resolvedValue);
   };
 }
 
