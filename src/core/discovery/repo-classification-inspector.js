@@ -46,6 +46,8 @@ const FRONTEND_DEPENDENCIES = new Set(["react", "next", "vue", "nuxt", "svelte",
 const BACKEND_DEPENDENCIES = new Set(["express", "fastify", "koa", "@nestjs/core", "hono", "graphql-yoga", "apollo-server"]);
 const CLI_DEPENDENCIES = new Set(["commander", "yargs", "oclif", "clipanion", "cac"]);
 const DESCRIPTION_MAX_LENGTH = 180;
+// Deep inspection derives topics from README text, manifests, and dependency names,
+// so this stop-word set is intentionally broader than the lightweight catalog one.
 const TOPIC_STOP_WORDS = new Set([
   "about",
   "after",
@@ -140,6 +142,8 @@ const TOPIC_STOP_WORDS = new Set([
   "you",
   "your"
 ]);
+// These richer term lists intentionally go beyond the lightweight catalog keywords,
+// because inspection has access to repository content and framework-specific signals.
 const INTERNAL_TERMS = ["internal", "employee", "backoffice", "admin-only", "private"];
 const LIBRARY_TERMS = ["library", "sdk", "module", "plugin", "package"];
 const SERVICE_TERMS = ["microservice", "worker", "daemon"];

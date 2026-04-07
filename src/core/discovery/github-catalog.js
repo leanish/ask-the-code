@@ -7,7 +7,10 @@ import { getGithubRepoDisplayIdentity } from "./repo-display-utils.js";
 const GITHUB_API_URL = "https://api.github.com";
 const PAGE_SIZE = 100;
 const ACCESSIBLE_GITHUB_OWNER = "@accessible";
-const CLASSIFICATION_KEYWORDS = new Map([
+// This lightweight keyword map is intentionally narrower than the inspector-side
+// heuristics. It only classifies from GitHub metadata and generic inferred topics,
+// while deeper repo inspection can use richer file-system-specific signals.
+const LIGHTWEIGHT_CLASSIFICATION_KEYWORDS = new Map([
   ["infra", ["infra", "infrastructure", "terraform", "helm", "kubernetes", "k8s", "ansible", "devops", "ops"]],
   ["library", ["library", "lib", "sdk", "module", "plugin", "package"]],
   ["internal", ["internal", "private", "proprietary"]],
@@ -16,7 +19,9 @@ const CLASSIFICATION_KEYWORDS = new Map([
   ["backend", ["backend", "server", "api", "graphql", "rest"]],
   ["cli", ["cli", "terminal", "command"]]
 ]);
-const STOP_WORDS = new Set([
+// Lightweight topic inference works from GitHub metadata only, so this stop-word
+// list intentionally differs from the inspector's README/file-system-oriented list.
+const LIGHTWEIGHT_TOPIC_STOP_WORDS = new Set([
   "about",
   "after",
   "against",
@@ -1149,7 +1154,7 @@ function addTopicToken(token, topics, seen, maxTopics, excludedTokens = new Set(
 
   if (
     normalizedToken.length < 3
-    || STOP_WORDS.has(normalizedToken)
+    || LIGHTWEIGHT_TOPIC_STOP_WORDS.has(normalizedToken)
     || excludedTokens.has(normalizedToken)
     || /^\d+$/.test(normalizedToken)
     || seen.has(normalizedToken)
@@ -1180,7 +1185,7 @@ function inferRepoClassifications({ repo, sourceRepo, topics }) {
   ].filter(Boolean));
 
   const classifications = [];
-  for (const [classification, keywords] of CLASSIFICATION_KEYWORDS.entries()) {
+  for (const [classification, keywords] of LIGHTWEIGHT_CLASSIFICATION_KEYWORDS.entries()) {
     if (keywords.some(keyword => signals.has(keyword))) {
       classifications.push(classification);
     }
