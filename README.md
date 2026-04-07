@@ -381,7 +381,7 @@ npm test
 npm run test:coverage
 ```
 
-GitHub Actions CI runs `npm ci` and `npm test -- --coverage` on pull requests and pushes to `main` and `improvement/**`.
+GitHub Actions CI runs `npm ci` and `npm test -- --coverage` on pull requests and pushes to `main`.
 
 ## Current limits
 
