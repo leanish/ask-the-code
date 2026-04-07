@@ -227,9 +227,6 @@ function parseConfigDiscoverGithubCommand(argv) {
         overrideRepoNames = splitRepoNames(requireValue(arg, argv[index + 1]));
         index += 1;
         break;
-      case "--include-forks":
-        includeForks = true;
-        break;
       case "--exclude-forks":
         includeForks = false;
         break;

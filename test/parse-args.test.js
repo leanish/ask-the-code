@@ -75,6 +75,14 @@ describe("parseArgs", () => {
     });
   });
 
+  it("rejects the removed include-forks flag", () => {
+    expect(() => parseArgs([
+      "config",
+      "discover-github",
+      "--include-forks"
+    ], {})).toThrow("Unknown config discover-github option: --include-forks");
+  });
+
   it("parses ask options and env overrides", () => {
     const parsed = parseArgs(
       ["--repo", "sqs-codec,java-conventions", "--audience", "codebase", "--model", "gpt-5.4", "--reasoning-effort", "high", "--no-sync", "--no-synthesis", "How", "does", "it", "work?"],

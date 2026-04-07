@@ -11,7 +11,7 @@ import {
 export async function runGithubDiscoveryPipeline({
   config,
   owner,
-  env = process.env,
+  env,
   apply = false,
   hydrateMetadata = true,
   includeForks = true,

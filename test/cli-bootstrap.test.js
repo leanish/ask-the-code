@@ -67,7 +67,7 @@ describe("cli-bootstrap", () => {
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
     expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
     expect(input.resume).toHaveBeenCalledTimes(1);
-    expect(input.pause).toHaveBeenCalledTimes(1);
+    expect(input.pause).not.toHaveBeenCalled();
   });
 
   it("cancels immediately on Ctrl+C when raw keypress input is available", async () => {
@@ -98,7 +98,7 @@ describe("cli-bootstrap", () => {
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
     expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
     expect(input.resume).toHaveBeenCalledTimes(1);
-    expect(input.pause).toHaveBeenCalledTimes(1);
+    expect(input.pause).not.toHaveBeenCalled();
   });
 
   it("re-prompts for discovery confirmation until a valid answer is given", async () => {

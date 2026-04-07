@@ -73,7 +73,7 @@ describe("github-catalog", () => {
       inspectRepoFn
     });
 
-    expect(result).toEqual({
+    expect(result).toEqual(expect.objectContaining({
       owner: "leanish",
       ownerType: "User",
       repos: [
@@ -96,7 +96,11 @@ describe("github-catalog", () => {
       ],
       skippedForks: 0,
       skippedArchived: 1
-    });
+    }));
+    expect(result.discoveryContext).toEqual(expect.objectContaining({
+      includeSourceMetadata: false,
+      sourceOwnerFallback: "leanish"
+    }));
   });
 
   it("filters disabled repos by default", async () => {
@@ -151,7 +155,7 @@ describe("github-catalog", () => {
       inspectRepoFn
     });
 
-    expect(result).toEqual({
+    expect(result).toEqual(expect.objectContaining({
       owner: "leanish",
       ownerType: "User",
       repos: [
@@ -167,7 +171,67 @@ describe("github-catalog", () => {
       skippedForks: 0,
       skippedArchived: 0,
       skippedDisabled: 1
+    }));
+    expect(result.discoveryContext).toEqual(expect.objectContaining({
+      includeSourceMetadata: false,
+      sourceOwnerFallback: "leanish"
+    }));
+  });
+
+  it("can refine a discovery result after a shallow object copy", async () => {
+    const inspectRepoFn = vi.fn(async () => []);
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/leanish") {
+        return createJsonResponse(200, {
+          login: "leanish",
+          type: "User"
+        });
+      }
+
+      if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
+        return createJsonResponse(200, [
+          {
+            name: "archa",
+            clone_url: "https://github.com/leanish/archa.git",
+            default_branch: "main",
+            description: "Repo-aware CLI",
+            topics: [],
+            size: 6400,
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/leanish/archa/topics") {
+        return createJsonResponse(200, {
+          names: ["cli"]
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
     });
+
+    const discovery = await discoverGithubOwnerRepos({
+      owner: "leanish",
+      fetchFn,
+      inspectRepoFn
+    });
+
+    const refined = await refineDiscoveredGithubRepos({
+      discovery: { ...discovery },
+      fetchFn,
+      inspectRepoFn,
+      curateWithCodex: false,
+      inspectRepos: false,
+      selectedRepoNames: ["archa"]
+    });
+
+    expect(refined.repos).toHaveLength(1);
+    expect(refined.repos[0]).toEqual(expect.objectContaining({
+      name: "archa",
+      topics: ["cli"]
+    }));
   });
 
   it("includes private user repos when discovery is authenticated for the same owner", async () => {
@@ -297,7 +361,7 @@ describe("github-catalog", () => {
       inspectRepos: false
     });
 
-    expect(result).toEqual({
+    expect(result).toEqual(expect.objectContaining({
       owner: "@accessible",
       ownerDisplay: "leanish + orgs",
       ownerType: "Accessible",
@@ -325,7 +389,11 @@ describe("github-catalog", () => {
       ],
       skippedForks: 0,
       skippedArchived: 0
-    });
+    }));
+    expect(result.discoveryContext).toEqual(expect.objectContaining({
+      includeSourceMetadata: true,
+      sourceOwnerFallback: "leanish"
+    }));
   });
 
   it("falls back to gh auth when env tokens are absent", async () => {

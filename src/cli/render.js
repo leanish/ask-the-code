@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs from "node:fs/promises";
 
 import {
   getDiscoveryOwnerLabel,
@@ -8,7 +8,7 @@ import {
   groupDiscoveryItemsByOwner
 } from "../core/discovery/repo-display-utils.js";
 
-export function renderRepoList(repos) {
+export async function renderRepoList(repos) {
   const lines = ["Managed repos:"];
 
   if (repos.length === 0) {
@@ -18,12 +18,21 @@ export function renderRepoList(repos) {
   }
 
   for (const repo of repos) {
-    const status = fs.existsSync(repo.directory) ? "local" : "missing";
+    const status = await exists(repo.directory) ? "local" : "missing";
     const aliases = repo.aliases && repo.aliases.length > 0 ? ` aliases=${repo.aliases.join(",")}` : "";
     lines.push(`- ${repo.name} [${status}] ${repo.defaultBranch || repo.branch}:${aliases} ${repo.description}`);
   }
 
   return lines.join("\n");
+}
+
+async function exists(targetPath) {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function renderSyncReport(report) {

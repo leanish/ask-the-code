@@ -6,7 +6,6 @@ import { getGithubRepoDisplayIdentity } from "./repo-display-utils.js";
 const GITHUB_API_URL = "https://api.github.com";
 const PAGE_SIZE = 100;
 const ACCESSIBLE_GITHUB_OWNER = "@accessible";
-const discoveryContextByResult = new WeakMap();
 const SMALL_REPO_MAX_INFERRED_TOPICS = 3;
 const MEDIUM_REPO_MAX_INFERRED_TOPICS = 5;
 const LARGE_REPO_MAX_INFERRED_TOPICS = 8;
@@ -226,14 +225,14 @@ export async function discoverGithubOwnerRepos({
     includeSourceMetadata: isAccessibleDiscovery,
     sourceOwnerFallback
   });
-
-  discoveryContextByResult.set(result, {
-    discoveredRepos,
-    includeSourceMetadata: isAccessibleDiscovery,
-    sourceOwnerFallback
-  });
-
-  return result;
+  return {
+    ...result,
+    discoveryContext: {
+      discoveredRepos,
+      includeSourceMetadata: isAccessibleDiscovery,
+      sourceOwnerFallback
+    }
+  };
 }
 
 export async function refineDiscoveredGithubRepos({
@@ -251,9 +250,9 @@ export async function refineDiscoveredGithubRepos({
   hydrateMetadata = true,
   selectedRepoNames = []
 }) {
-  const context = discoveryContextByResult.get(discovery);
+  const context = discovery?.discoveryContext;
 
-  if (!context) {
+  if (!context || !Array.isArray(context.discoveredRepos)) {
     throw new Error("Cannot refine GitHub discovery results after the original repo list is unavailable.");
   }
 
@@ -1259,8 +1258,9 @@ function buildRepoSuggestions(configuredRepo, githubRepo) {
     suggestions.push(`review url (${configuredRepo.url} -> ${githubRepo.url})`);
   }
 
-  if ((configuredRepo.defaultBranch || "main") !== githubRepo.defaultBranch) {
-    suggestions.push(`review defaultBranch (${configuredRepo.defaultBranch} -> ${githubRepo.defaultBranch})`);
+  const configuredBranch = configuredRepo.defaultBranch || configuredRepo.branch || "main";
+  if (configuredBranch !== githubRepo.defaultBranch) {
+    suggestions.push(`review defaultBranch (${configuredBranch} -> ${githubRepo.defaultBranch})`);
   }
 
   if (!configuredRepo.description && githubRepo.description) {

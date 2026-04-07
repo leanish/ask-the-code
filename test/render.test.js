@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  existsSync: vi.fn()
+  access: vi.fn()
 }));
 
-vi.mock("node:fs", () => ({
+vi.mock("node:fs/promises", () => ({
   default: {
-    existsSync: mocks.existsSync
+    access: mocks.access
   }
 }));
 
@@ -17,10 +17,10 @@ describe("render", () => {
     vi.clearAllMocks();
   });
 
-  it("renders repo list entries with local state and aliases", () => {
-    mocks.existsSync.mockReturnValue(true);
+  it("renders repo list entries with local state and aliases", async () => {
+    mocks.access.mockResolvedValue(undefined);
 
-    const output = renderRepoList([
+    const output = await renderRepoList([
       {
         name: "sqs-codec",
         directory: "/workspace/repos/sqs-codec",
@@ -34,8 +34,8 @@ describe("render", () => {
     expect(output).toContain("- sqs-codec [local] main: aliases=codec SQS execution interceptor with compression and checksum metadata");
   });
 
-  it("renders an explicit discovery hint when no repos are configured", () => {
-    expect(renderRepoList([])).toBe([
+  it("renders an explicit discovery hint when no repos are configured", async () => {
+    expect(await renderRepoList([])).toBe([
       "Managed repos:",
       "- none configured",
       "Run: archa config discover-github --apply"

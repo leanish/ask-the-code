@@ -241,10 +241,19 @@ async function promptEnterOrEscape({
   const previousRawMode = input.isRaw === true;
   input.setRawMode?.(true);
   input.resume?.();
+  let handleKeypress = null;
+
+  const cleanup = () => {
+    if (handleKeypress) {
+      input.off("keypress", handleKeypress);
+      handleKeypress = null;
+    }
+    input.setRawMode?.(previousRawMode);
+  };
 
   try {
     return await new Promise(resolve => {
-      const handleKeypress = (_, key) => {
+      handleKeypress = (_, key) => {
         if (key?.name === "c" && key?.ctrl) {
           cleanup();
           output.write("\n");
@@ -266,16 +275,10 @@ async function promptEnterOrEscape({
         }
       };
 
-      const cleanup = () => {
-        input.off("keypress", handleKeypress);
-        input.setRawMode?.(previousRawMode);
-        input.pause?.();
-      };
-
       input.on("keypress", handleKeypress);
     });
   } catch (error) {
-    input.setRawMode?.(previousRawMode);
+    cleanup();
     throw error;
   }
 }

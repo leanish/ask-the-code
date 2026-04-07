@@ -61,7 +61,7 @@ export async function main(argv) {
     }
     case "repos-list": {
       const config = await loadConfig(process.env);
-      process.stdout.write(`${renderRepoList(config.repos)}\n`);
+      process.stdout.write(`${await renderRepoList(config.repos)}\n`);
       return;
     }
     case "repos-sync": {
