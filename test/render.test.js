@@ -34,6 +34,21 @@ describe("render", () => {
     expect(output).toContain("- sqs-codec [local] main: aliases=codec SQS execution interceptor with compression and checksum metadata");
   });
 
+  it("renders an unknown branch marker when a repo has no tracked branch", async () => {
+    mocks.access.mockResolvedValue(undefined);
+
+    const output = await renderRepoList([
+      {
+        name: "broken-config-repo",
+        directory: "/workspace/repos/broken-config-repo",
+        aliases: [],
+        description: "Missing branch metadata"
+      }
+    ]);
+
+    expect(output).toContain("- broken-config-repo [local] ?: Missing branch metadata");
+  });
+
   it("renders an explicit discovery hint when no repos are configured", async () => {
     expect(await renderRepoList([])).toBe([
       "Managed repos:",

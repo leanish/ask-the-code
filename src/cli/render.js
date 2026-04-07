@@ -20,7 +20,8 @@ export async function renderRepoList(repos) {
   for (const repo of repos) {
     const status = await exists(repo.directory) ? "local" : "missing";
     const aliases = repo.aliases && repo.aliases.length > 0 ? ` aliases=${repo.aliases.join(",")}` : "";
-    lines.push(`- ${repo.name} [${status}] ${repo.defaultBranch || repo.branch}:${aliases} ${repo.description}`);
+    const trackedBranch = repo.defaultBranch || repo.branch || "?";
+    lines.push(`- ${repo.name} [${status}] ${trackedBranch}:${aliases} ${repo.description}`);
   }
 
   return lines.join("\n");
