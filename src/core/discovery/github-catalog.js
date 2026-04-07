@@ -626,8 +626,8 @@ function maybeQualifyDiscoveryRepo({
     return null;
   }
 
-  // Owner-qualified names intentionally flow into config and managed checkout paths
-  // as `<owner>/<repo>`, so colliding GitHub repos stay separated on disk.
+  // Owner-qualified names intentionally flow into config names so colliding
+  // GitHub repos stay distinguishable in prompts and config.
   return {
     ...repo,
     name: discoveryIdentity

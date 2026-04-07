@@ -24,7 +24,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("detects external repos from local frontend signals", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "shop-app");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "shop-app");
     await fs.mkdir(path.join(repoDirectory, "app"), { recursive: true });
     await fs.writeFile(path.join(repoDirectory, "package.json"), JSON.stringify({
       dependencies: {
@@ -53,7 +53,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("detects infra and internal repos from local source signals", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "platform-infra");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "platform-infra");
     await fs.mkdir(path.join(repoDirectory, "terraform"), { recursive: true });
     await fs.writeFile(path.join(repoDirectory, "README.md"), "Internal platform infrastructure modules.");
 
@@ -74,7 +74,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("allows infra and library classifications to coexist when both have evidence", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "terraform-modules");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "terraform-modules");
     await fs.mkdir(path.join(repoDirectory, "terraform"), { recursive: true });
     await fs.writeFile(path.join(repoDirectory, "README.md"), "Reusable Terraform module package for shared platform infrastructure.");
     await fs.writeFile(path.join(repoDirectory, "build.gradle"), "plugins { id 'java-library' }\n");
@@ -96,7 +96,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("does not infer microservice from generic service wording in conventions docs", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "java-conventions");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "java-conventions");
     await fs.mkdir(repoDirectory, { recursive: true });
     await fs.writeFile(path.join(repoDirectory, "README.md"), [
       "# java-conventions",
@@ -124,7 +124,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("does not infer external from api integration wording in shared libraries", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "sqs-codec");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "sqs-codec");
     await fs.mkdir(repoDirectory, { recursive: true });
     await fs.writeFile(path.join(repoDirectory, "README.md"), [
       "# sqs-codec",
@@ -152,7 +152,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("infers description and topics from the repo readme when metadata is missing", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "terminator");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "terminator");
     await fs.mkdir(repoDirectory, { recursive: true });
     await fs.writeFile(path.join(repoDirectory, "README.md"), [
       "# Terminator",
@@ -186,7 +186,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("lets Codex curation refine the inferred metadata", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "java-conventions");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "java-conventions");
     await fs.mkdir(repoDirectory, { recursive: true });
     await fs.writeFile(path.join(repoDirectory, "README.md"), "Shared Gradle conventions for JDK-based projects.");
     await fs.writeFile(path.join(repoDirectory, "build.gradle"), "plugins { id 'java-library' }\n");
@@ -225,7 +225,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("classifies a Play-style application as backend and external without frontend or infra false positives", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "playcart");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "Nosto", "playcart");
     await fs.mkdir(path.join(repoDirectory, "app", "controllers"), { recursive: true });
     await fs.mkdir(path.join(repoDirectory, "conf"), { recursive: true });
     await fs.mkdir(path.join(repoDirectory, "public"), { recursive: true });
@@ -260,7 +260,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("uses a larger topic budget for massive repos and filters weak filler tokens", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "playcart");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "Nosto", "playcart");
     await fs.mkdir(path.join(repoDirectory, "app", "controllers"), { recursive: true });
     await fs.mkdir(path.join(repoDirectory, "conf"), { recursive: true });
     await fs.writeFile(path.join(repoDirectory, "conf", "routes"), "GET /api/ping controllers.HealthController.ping()");
@@ -296,7 +296,7 @@ describe("repo-classification-inspector", () => {
   });
 
   it("falls back to heuristic metadata when Codex curation fails", async () => {
-    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "terminator");
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "terminator");
     await fs.mkdir(repoDirectory, { recursive: true });
     await fs.writeFile(path.join(repoDirectory, "README.md"), "Terminator is a small Java library.");
     await fs.writeFile(path.join(repoDirectory, "build.gradle"), "plugins { id 'java-library' }\n");

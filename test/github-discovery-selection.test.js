@@ -184,10 +184,12 @@ describe("github-discovery-selection", () => {
       isTTY: true,
       write: vi.fn()
     };
+    const readlineFactory = createPendingReadlineFactory();
 
     const resultPromise = promptGithubDiscoverySelection(plan, {
       input,
-      output
+      output,
+      createInterfaceFn: readlineFactory.createInterfaceFn
     });
 
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -201,8 +203,8 @@ describe("github-discovery-selection", () => {
       reposToAdd: [],
       reposToOverride: []
     });
-    expect(output.write).toHaveBeenNthCalledWith(
-      1,
+    expect(readlineFactory.instances).toHaveLength(1);
+    expect(readlineFactory.instances[0].readline.question).toHaveBeenCalledWith(
       'Select repos to add or override (comma-separated, "*" for all)\n'
         + "Press Enter to add all new repos, press Esc to cancel, or type repo names to customize.\n"
         + "New (2): archa, java-conventions\n"
@@ -210,11 +212,48 @@ describe("github-discovery-selection", () => {
         + "Name conflicts (1): shared -> foundation\n"
         + "> "
     );
-    expect(output.write).toHaveBeenNthCalledWith(2, "\n");
+    expect(output.write).toHaveBeenCalledTimes(1);
+    expect(output.write).toHaveBeenCalledWith("\n");
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
     expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
     expect(input.resume).toHaveBeenCalledTimes(1);
     expect(input.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not cancel repo selection on arrow-left keypresses", async () => {
+    const input = createRawKeypressInput();
+    const output = {
+      isTTY: true,
+      write: vi.fn()
+    };
+    const readlineFactory = createPendingReadlineFactory();
+    let settled = false;
+
+    const resultPromise = promptGithubDiscoverySelection(plan, {
+      input,
+      output,
+      createInterfaceFn: readlineFactory.createInterfaceFn
+    }).then(result => {
+      settled = true;
+      return result;
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    input.emit("keypress", "\u001b[D", {
+      name: "left"
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(settled).toBe(false);
+
+    input.emit("keypress", "\u001b", {
+      name: "escape"
+    });
+
+    await expect(resultPromise).resolves.toEqual({
+      reposToAdd: [],
+      reposToOverride: []
+    });
   });
 
   it("defaults Enter to all new repos after confirmation", async () => {
@@ -256,16 +295,16 @@ describe("github-discovery-selection", () => {
       isTTY: true,
       write: vi.fn()
     };
+    const readlineFactory = createPendingReadlineFactory();
 
     const resultPromise = promptGithubDiscoverySelection(plan, {
       input,
-      output
+      output,
+      createInterfaceFn: readlineFactory.createInterfaceFn
     });
 
     await new Promise(resolve => setTimeout(resolve, 0));
-    input.emit("keypress", "\r", {
-      name: "return"
-    });
+    readlineFactory.instances[0].resolveQuestion("");
 
     await new Promise(resolve => setTimeout(resolve, 0));
     input.emit("keypress", "\u001b", {
@@ -278,8 +317,8 @@ describe("github-discovery-selection", () => {
       reposToAdd: [],
       reposToOverride: []
     });
-    expect(output.write).toHaveBeenNthCalledWith(
-      1,
+    expect(readlineFactory.instances).toHaveLength(2);
+    expect(readlineFactory.instances[0].readline.question).toHaveBeenCalledWith(
       'Select repos to add or override (comma-separated, "*" for all)\n'
         + "Press Enter to add all new repos, press Esc to cancel, or type repo names to customize.\n"
         + "New (2): archa, java-conventions\n"
@@ -287,12 +326,11 @@ describe("github-discovery-selection", () => {
         + "Name conflicts (1): shared -> foundation\n"
         + "> "
     );
-    expect(output.write).toHaveBeenNthCalledWith(2, "\n");
-    expect(output.write).toHaveBeenNthCalledWith(
-      3,
+    expect(readlineFactory.instances[1].readline.question).toHaveBeenCalledWith(
       "Add all 2 new repo(s)? Press Enter to confirm, or type repo names to customize.\n> "
     );
-    expect(output.write).toHaveBeenNthCalledWith(4, "\n");
+    expect(output.write).toHaveBeenCalledTimes(1);
+    expect(output.write).toHaveBeenCalledWith("\n");
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
     expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
     expect(input.setRawMode).toHaveBeenNthCalledWith(3, true);
@@ -544,4 +582,26 @@ function createRawKeypressInput() {
   input.pause = vi.fn();
 
   return input;
+}
+
+function createPendingReadlineFactory() {
+  const instances = [];
+
+  return {
+    instances,
+    createInterfaceFn() {
+      const instance = {
+        resolveQuestion: null,
+        readline: {
+          question: vi.fn(() => new Promise(resolve => {
+            instance.resolveQuestion = resolve;
+          })),
+          close: vi.fn()
+        }
+      };
+
+      instances.push(instance);
+      return instance.readline;
+    }
+  };
 }

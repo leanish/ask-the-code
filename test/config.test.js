@@ -89,7 +89,7 @@ describe("config", () => {
         classifications: [],
         aliases: ["codec"],
         alwaysSelect: false,
-        directory: "/workspace/managed-repos/sqs-codec"
+        directory: "/workspace/managed-repos/leanish/sqs-codec"
       }
     ]);
   });
@@ -120,6 +120,36 @@ describe("config", () => {
         aliases: [],
         alwaysSelect: false,
         directory: path.join(tempRoot, "data", "archa", "repos", "leanish", "nullability")
+      }
+    ]);
+  });
+
+  it("derives GitHub checkout directories from the GitHub owner without lowercasing it", async () => {
+    const configPath = getConfigPath(env);
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
+    await fs.writeFile(configPath, JSON.stringify({
+      repos: [
+        {
+          name: "playcart",
+          url: "https://github.com/Nosto/playcart.git",
+          defaultBranch: "main"
+        }
+      ]
+    }, null, 2));
+
+    const loaded = await loadConfig(env);
+
+    expect(loaded.repos).toEqual([
+      {
+        name: "playcart",
+        url: "https://github.com/Nosto/playcart.git",
+        defaultBranch: "main",
+        description: "",
+        topics: [],
+        classifications: [],
+        aliases: [],
+        alwaysSelect: false,
+        directory: path.join(tempRoot, "data", "archa", "repos", "Nosto", "playcart")
       }
     ]);
   });
@@ -247,7 +277,7 @@ describe("config", () => {
           classifications: [],
           aliases: [],
           alwaysSelect: false,
-          directory: path.join(tempRoot, "data", "archa", "repos", "sqs-codec")
+          directory: path.join(tempRoot, "data", "archa", "repos", "leanish", "sqs-codec")
         }
       ]
     });

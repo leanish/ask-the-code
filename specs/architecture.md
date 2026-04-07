@@ -87,7 +87,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
   Resolves the active config path and default managed repos root.
 - `src/core/config/config.js`
   Loads and validates config, bootstraps a config file from scratch or from an imported catalog, and applies selected GitHub discovery additions or overrides into the active config.
-  Derives each managed checkout directory directly from `repo.name`, so owner-qualified names like `leanish/nullability` intentionally map to owner-scoped paths under the managed repo root.
+  Derives each GitHub managed checkout directory from the repo's GitHub identity, so checkouts live under owner-scoped paths like `leanish/nullability` or `Nosto/playcart` even when the configured repo name stays plain.
 - `src/core/discovery/github-catalog.js`
   Discovers repos from a GitHub user or org, or from the special `@accessible` scope that spans the authenticated user's personal and organization-visible repos.
   Uses authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used.

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { getConfigPath, getDefaultManagedReposRoot } from "./config-paths.js";
+import { getManagedRepoDirectory } from "../repos/repo-paths.js";
 
 export async function loadConfig(env = process.env) {
   const configPath = getConfigPath(env);
@@ -166,7 +167,7 @@ function normalizeRepo(repo, index, managedReposRoot, configPath) {
 
   return {
     ...normalizedRepo,
-    directory: path.join(managedReposRoot, normalizedRepo.name)
+    directory: getManagedRepoDirectory(managedReposRoot, normalizedRepo)
   };
 }
 

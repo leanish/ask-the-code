@@ -1,4 +1,3 @@
-import { emitKeypressEvents } from "node:readline";
 import { createInterface } from "node:readline/promises";
 import process from "node:process";
 
@@ -10,6 +9,7 @@ import {
   getPrimarySourceOwner,
   groupDiscoveryItemsByOwner
 } from "../../core/discovery/repo-display-utils.js";
+import { canPromptInteractively, promptLineOrCancel } from "./interactive-prompts.js";
 
 export function selectGithubDiscoveryRepos(plan, {
   addRepoNames = [],
@@ -34,7 +34,7 @@ export async function promptGithubDiscoverySelection(plan, {
   output = process.stdout,
   createInterfaceFn = createInterface
 } = {}) {
-  if (!input.isTTY || !output.isTTY) {
+  if (!canPromptInteractively({ input, output })) {
     throw new Error(
       'Interactive GitHub discovery requires a TTY. Re-run in a terminal, or pass explicit --add/--override selections.'
     );
@@ -213,18 +213,19 @@ async function promptForSelection({
       input,
       output,
       createInterfaceFn,
-      prompt: `${selectionPrompt}\n${promptSections.join("\n")}\n> `
+      prompt: `${selectionPrompt}\n${promptSections.join("\n")}\n> `,
+      nonInteractiveError: 'Interactive GitHub discovery requires a TTY. Re-run in a terminal, or pass explicit --add/--override selections.'
     });
 
-    if (answer.type === "cancel") {
+    if (answer === null) {
       return {
         reposToAdd: [],
         reposToOverride: []
       };
     }
 
-    let rawSelection = answer.value;
-    if (answer.value.trim() === "") {
+    let rawSelection = answer;
+    if (answer.trim() === "") {
       if (newRepos.length === 0) {
         return {
           reposToAdd: [],
@@ -279,24 +280,6 @@ async function promptForSelection({
   }
 }
 
-async function askQuestion({
-  input,
-  output,
-  createInterfaceFn,
-  prompt
-}) {
-  const readline = createInterfaceFn({
-    input,
-    output
-  });
-
-  try {
-    return await readline.question(prompt);
-  } finally {
-    readline.close();
-  }
-}
-
 async function promptAddAllOrCustomize({
   input,
   output,
@@ -309,16 +292,17 @@ async function promptAddAllOrCustomize({
     input,
     output,
     createInterfaceFn,
-    prompt
+    prompt,
+    nonInteractiveError: 'Interactive GitHub discovery requires a TTY. Re-run in a terminal, or pass explicit --add/--override selections.'
   });
 
-  if (answer.type === "cancel") {
+  if (answer === null) {
     return {
       type: "cancel"
     };
   }
 
-  if (answer.value.trim() === "") {
+  if (answer.trim() === "") {
     return {
       type: "confirm"
     };
@@ -326,131 +310,8 @@ async function promptAddAllOrCustomize({
 
   return {
     type: "customize",
-    value: answer.value
+    value: answer
   };
-}
-
-async function promptLineOrCancel({
-  input,
-  output,
-  createInterfaceFn,
-  prompt
-}) {
-  if (supportsImmediateEscape(input)) {
-    return await promptLineOrEscape({
-      input,
-      output,
-      prompt
-    });
-  }
-
-  return {
-    type: "answer",
-    value: await askQuestion({
-      input,
-      output,
-      createInterfaceFn,
-      prompt
-    })
-  };
-}
-
-async function promptLineOrEscape({
-  input,
-  output,
-  prompt
-}) {
-  output.write?.(prompt);
-  emitKeypressEvents(input);
-  const previousRawMode = input.isRaw === true;
-  input.setRawMode?.(true);
-  input.resume?.();
-  let buffer = "";
-  let handleKeypress = null;
-  let cleanedUp = false;
-
-  const cleanup = () => {
-    if (cleanedUp) {
-      return;
-    }
-    cleanedUp = true;
-    if (handleKeypress) {
-      input.off("keypress", handleKeypress);
-      handleKeypress = null;
-    }
-    input.setRawMode?.(previousRawMode);
-    input.pause?.();
-  };
-
-  try {
-    return await new Promise(resolve => {
-      handleKeypress = (text, key) => {
-        if (key?.name === "c" && key?.ctrl) {
-          cleanup();
-          output.write?.("\n");
-          resolve({
-            type: "cancel"
-          });
-          return;
-        }
-
-        if (key?.name === "return" || key?.name === "enter") {
-          cleanup();
-          output.write?.("\n");
-          resolve({
-            type: "answer",
-            value: buffer
-          });
-          return;
-        }
-
-        if (key?.name === "escape") {
-          cleanup();
-          output.write?.("\n");
-          resolve({
-            type: "cancel"
-          });
-          return;
-        }
-
-        if (key?.name === "backspace") {
-          if (buffer.length === 0) {
-            return;
-          }
-          buffer = buffer.slice(0, -1);
-          output.write?.("\b \b");
-          return;
-        }
-
-        if (isPrintableText(text, key)) {
-          buffer += text;
-          output.write?.(text);
-        }
-      };
-
-      input.on("keypress", handleKeypress);
-    });
-  } catch (error) {
-    cleanup();
-    throw error;
-  }
-}
-
-function supportsImmediateEscape(input) {
-  return Boolean(
-    input
-    && typeof input.on === "function"
-    && typeof input.off === "function"
-    && typeof input.setRawMode === "function"
-  );
-}
-
-function isPrintableText(text, key) {
-  return typeof text === "string"
-    && text !== ""
-    && /^[\x20-\x7E]+$/.test(text)
-    && !key?.ctrl
-    && !key?.meta;
 }
 
 function buildRepoSelectionOptions(entries, {

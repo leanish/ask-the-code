@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 
 import { getDefaultManagedReposRoot } from "../config/config-paths.js";
 import { normalizeGitExecutionError } from "../git/git-installation.js";
+import { getManagedRepoDirectory, getManagedRepoRelativePath } from "../repos/repo-paths.js";
 import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.js";
 import { curateRepoMetadataWithCodex } from "./repo-metadata-codex-curator.js";
 
@@ -225,7 +226,7 @@ export async function inspectRepoMetadata({
 }
 
 async function prepareInspectionDirectory({ repo, env, fsModule, runCommandFn, tempDirRoot }) {
-  const managedRepoDirectory = path.join(getDefaultManagedReposRoot(env), repo.name);
+  const managedRepoDirectory = getManagedRepoDirectory(getDefaultManagedReposRoot(env), repo);
   if (await exists(fsModule, managedRepoDirectory)) {
     return {
       directory: managedRepoDirectory,
@@ -234,9 +235,10 @@ async function prepareInspectionDirectory({ repo, env, fsModule, runCommandFn, t
   }
 
   const tempRoot = await fsModule.mkdtemp(path.join(tempDirRoot, "archa-discovery-"));
-  const cloneDirectory = path.join(tempRoot, repo.name);
+  const cloneDirectory = path.join(tempRoot, getManagedRepoRelativePath(repo));
 
   try {
+    await fsModule.mkdir(path.dirname(cloneDirectory), { recursive: true });
     await runCommandFn("git", [
       "clone",
       "--depth",

@@ -160,11 +160,14 @@ describe("cli-bootstrap", () => {
       isTTY: true,
       write: vi.fn()
     };
+    const readlineFactory = createPendingReadlineFactory();
     const resultPromise = promptForGithubOwner({
       input,
-      output
+      output,
+      createInterfaceFn: readlineFactory.createInterfaceFn
     });
 
+    await new Promise(resolve => setTimeout(resolve, 0));
     input.emit("keypress", "\u001b", {
       name: "escape"
     });
@@ -172,11 +175,12 @@ describe("cli-bootstrap", () => {
     const result = await resultPromise;
 
     expect(result).toBeNull();
-    expect(output.write).toHaveBeenNthCalledWith(
-      1,
+    expect(readlineFactory.instances).toHaveLength(1);
+    expect(readlineFactory.instances[0].readline.question).toHaveBeenCalledWith(
       "GitHub owner to discover from (user or org).\nPress Enter to use all accessible repos from your authenticated GitHub access.\n> "
     );
-    expect(output.write).toHaveBeenNthCalledWith(2, "\n");
+    expect(output.write).toHaveBeenCalledTimes(1);
+    expect(output.write).toHaveBeenCalledWith("\n");
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
     expect(input.setRawMode).toHaveBeenNthCalledWith(2, false);
     expect(input.resume).toHaveBeenCalledTimes(1);
@@ -313,4 +317,27 @@ function createRawKeypressInput({
   });
 
   return input;
+}
+
+function createPendingReadlineFactory() {
+  const instances = [];
+
+  return {
+    instances,
+    createInterfaceFn() {
+      const instance = {
+        resolveQuestion: null,
+        readline: {
+          question: vi.fn(() => new Promise(resolve => {
+            instance.resolveQuestion = resolve;
+          })),
+          write: vi.fn(),
+          close: vi.fn()
+        }
+      };
+
+      instances.push(instance);
+      return instance.readline;
+    }
+  };
 }
