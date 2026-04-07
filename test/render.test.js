@@ -207,6 +207,41 @@ describe("render", () => {
     expect(preview).toContain("Skipped disabled repos: 2");
   });
 
+  it("renders applied discovery entries even when fallback repos omit topics", () => {
+    const applied = renderGithubDiscovery({
+      owner: "leanish",
+      ownerType: "User",
+      entries: [],
+      appliedEntries: [
+        {
+          status: "new",
+          repo: {
+            name: "archa",
+            description: "Repo-aware CLI"
+          },
+          suggestions: []
+        }
+      ],
+      counts: {
+        discovered: 1,
+        configured: 0,
+        new: 1,
+        conflicts: 0,
+        withSuggestions: 0
+      },
+      skippedForks: 0,
+      skippedArchived: 0,
+      applied: true,
+      selectedCount: 1,
+      configPath: "/tmp/archa-config.json",
+      addedCount: 1,
+      overriddenCount: 0
+    });
+
+    expect(applied).toContain("archa [new]");
+    expect(applied).toContain("Repo-aware CLI");
+  });
+
   it("renders owner-grouped sections for accessible discovery previews", () => {
     const preview = renderGithubDiscovery({
       owner: "@accessible",

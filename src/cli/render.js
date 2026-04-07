@@ -167,9 +167,9 @@ function formatDiscoveryEntry(entry, {
   const classifications = entry.repo.classifications?.length > 0
     ? ` classifications=${entry.repo.classifications.join(",")}`
     : "";
-  const topics = entry.repo.topics.length > 0 ? ` topics=${entry.repo.topics.join(",")}` : "";
+  const topics = entry.repo.topics?.length > 0 ? ` topics=${entry.repo.topics.join(",")}` : "";
   const description = entry.repo.description ? ` ${entry.repo.description}` : "";
-  const suggestions = entry.suggestions.length > 0 ? ` review=${entry.suggestions.join("; ")}` : "";
+  const suggestions = entry.suggestions?.length > 0 ? ` review=${entry.suggestions.join("; ")}` : "";
   return `- ${formatDiscoveryRepoLabel(entry.repo, useSourceLabels)} [${status}]${classifications}${topics}${suggestions}${description}`;
 }
 
