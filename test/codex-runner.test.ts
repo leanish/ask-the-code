@@ -266,13 +266,13 @@ describe("codex-runner", () => {
     expect(onStatus).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(onStatus).toHaveBeenCalledWith("Running Codex... (5s elapsed)");
+    expect(onStatus).toHaveBeenCalledWith("Running Codex... 5s elapsed");
 
     await vi.advanceTimersByTimeAsync(5_000);
-    expect(onStatus).toHaveBeenCalledWith("Running Codex... (10s elapsed)");
+    expect(onStatus).toHaveBeenCalledWith("Running Codex... 10s elapsed");
 
     await vi.advanceTimersByTimeAsync(55_000);
-    expect(onStatus).toHaveBeenCalledWith("Running Codex... (1m 5s elapsed)");
+    expect(onStatus).toHaveBeenCalledWith("Running Codex... 1m 5s elapsed");
 
     child.close(0);
 

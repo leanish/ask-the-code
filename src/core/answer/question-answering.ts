@@ -5,6 +5,7 @@ import { loadConfig } from "../config/config.js";
 import { getCodexTimeoutMs, runCodexQuestion } from "../codex/codex-runner.js";
 import { selectRepos } from "../repos/repo-selection.js";
 import { syncRepos } from "../repos/repo-sync.js";
+import { formatDuration } from "../time/duration-format.js";
 import type {
   AnswerQuestionFn,
   AskRequest,
@@ -12,6 +13,7 @@ import type {
   ManagedRepo,
   QuestionExecutionOptions,
   QuestionExecutionOverrides,
+  RepoSelectionMode,
   StatusReporter,
   SyncReportItem
 } from "../types.js";
@@ -23,14 +25,21 @@ export const answerQuestion: AnswerQuestionFn = async (
 ) => {
   const execution = normalizeExecutionOptions(envOrExecution, legacyStatusReporter);
   const config = await execution.loadConfigFn(execution.env);
-  const selectedRepos = execution.selectReposFn(config, options.question, options.repoNames);
   const audience = resolveAnswerAudience(options.audience);
+  execution.statusReporter?.info("Selecting repos...");
+
+  const selectionStartedAt = execution.nowFn();
+  const selection = await execution.selectReposFn(config, options.question, options.repoNames);
+  const selectionElapsedMs = execution.nowFn() - selectionStartedAt;
+  const selectedRepos = selection.repos;
 
   if (selectedRepos.length === 0) {
     throw new Error("No managed repositories matched the question. Use --repo <name> or update the Archa config.");
   }
 
-  execution.statusReporter?.info(`Selected repos: ${selectedRepos.map(repo => repo.name).join(", ")}`);
+  execution.statusReporter?.info(
+    formatRepoSelectionStatus(selection.mode, selectedRepos, selectionElapsedMs)
+  );
 
   const syncReport: SyncReportItem[] = options.noSync
     ? selectedRepos.map(repo => ({
@@ -102,6 +111,21 @@ function formatSyncFailures(failedSyncs: SyncReportItem[]): string {
     .join(", ");
 }
 
+function formatRepoSelectionStatus(
+  selectionMode: RepoSelectionMode,
+  selectedRepos: ManagedRepo[],
+  elapsedMs: number
+): string {
+  const repoNames = selectedRepos.map(repo => repo.name).join(", ");
+  const label = selectionMode === "requested"
+    ? "Requested repos"
+    : selectionMode === "all"
+      ? "All repos"
+      : "Resolved repos";
+
+  return `${label} in ${formatDuration(elapsedMs)}: ${repoNames}`;
+}
+
 function normalizeExecutionOptions(
   envOrExecution: Environment | QuestionExecutionOverrides,
   legacyStatusReporter: StatusReporter | null
@@ -114,7 +138,8 @@ function normalizeExecutionOptions(
     syncReposFn: syncRepos,
     existsSyncFn: fs.existsSync,
     getCodexTimeoutMsFn: getCodexTimeoutMs,
-    runCodexQuestionFn: runCodexQuestion
+    runCodexQuestionFn: runCodexQuestion,
+    nowFn: Date.now
   };
 
   if (legacyStatusReporter || !looksLikeExecutionOptions(envOrExecution)) {
@@ -144,6 +169,7 @@ function looksLikeExecutionOptions(value: unknown): value is QuestionExecutionOv
     "syncReposFn",
     "existsSyncFn",
     "getCodexTimeoutMsFn",
-    "runCodexQuestionFn"
+    "runCodexQuestionFn",
+    "nowFn"
   ].some(key => key in value);
 }

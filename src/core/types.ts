@@ -129,6 +129,13 @@ export interface SyncReportItem {
   detail?: string;
 }
 
+export type RepoSelectionMode = "requested" | "resolved" | "all";
+
+export interface RepoSelectionResult {
+  repos: ManagedRepo[];
+  mode: RepoSelectionMode;
+}
+
 export interface RepoSyncCallbacks {
   onRepoStart?: (repo: ManagedRepo, action: RepoSyncStartAction, trunkBranch: string) => void;
   onRepoWait?: (repo: ManagedRepo, trunkBranch: string) => void;
@@ -176,11 +183,16 @@ export interface QuestionExecutionOptions {
   env: Environment;
   statusReporter: StatusReporter | null;
   loadConfigFn: (env: Environment) => Promise<LoadedConfig>;
-  selectReposFn: (config: LoadedConfig, question: string, requestedRepoNames: string[] | null) => ManagedRepo[];
+  selectReposFn: (
+    config: LoadedConfig,
+    question: string,
+    requestedRepoNames: string[] | null
+  ) => Promise<RepoSelectionResult>;
   syncReposFn: (repos: ManagedRepo[], callbacks?: RepoSyncCallbacks) => Promise<SyncReportItem[]>;
   existsSyncFn: (targetPath: string) => boolean;
   getCodexTimeoutMsFn: (env: Environment) => number;
   runCodexQuestionFn: (input: RunCodexQuestionInput) => Promise<CodexSynthesis>;
+  nowFn: () => number;
 }
 
 export type QuestionExecutionOverrides = Partial<QuestionExecutionOptions>;

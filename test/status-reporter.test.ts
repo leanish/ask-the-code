@@ -22,13 +22,13 @@ describe("status-reporter", () => {
     const reporter = createStreamStatusReporter(stream, "[test] ");
 
     reporter.info("Running Codex...");
-    reporter.info("Running Codex... (5s elapsed)");
+    reporter.info("Running Codex... 5s elapsed");
     reporter.info("Running Codex... done in 5s");
     reporter.info("Job completed.");
 
     expect(stream.write.mock.calls).toEqual([
       ["[test] Running Codex..."],
-      ["\r\x1b[2K[test] Running Codex... (5s elapsed)"],
+      ["\r\x1b[2K[test] Running Codex... 5s elapsed"],
       ["\r\x1b[2K[test] Running Codex... done in 5s"],
       ["\n"],
       ["[test] Job completed.\n"]

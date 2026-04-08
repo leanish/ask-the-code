@@ -1,8 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { selectRepos } from "../src/core/repos/repo-selection.js";
+const mocks = vi.hoisted(() => ({
+  runCodexPrompt: vi.fn()
+}));
+
+vi.mock("../src/core/codex/codex-runner.js", () => ({
+  runCodexPrompt: mocks.runCodexPrompt
+}));
+
+import { selectRepos, selectReposHeuristically } from "../src/core/repos/repo-selection.js";
 
 const config = {
+  configPath: "/workspace/.config/archa/config.json",
+  managedReposRoot: "/workspace/repos",
   repos: [
     {
       name: "sqs-codec",
@@ -27,30 +37,141 @@ const config = {
 };
 
 describe("selectRepos", () => {
-  it("prefers matching topics during automatic selection", () => {
-    const repos = selectRepos(config, "How does SQS compression metadata work?", null);
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-    expect(repos[0].name).toBe("sqs-codec");
+  it("honors explicit repo names without invoking codex", async () => {
+    const result = await selectRepos(config, "anything", ["archa"]);
+
+    expect(result).toEqual({
+      repos: [config.repos[1]],
+      mode: "requested"
+    });
+    expect(mocks.runCodexPrompt).not.toHaveBeenCalled();
+  });
+
+  it("uses codex-selected repos during automatic selection", async () => {
+    mocks.runCodexPrompt.mockResolvedValue({
+      text: JSON.stringify({
+        selectedRepoNames: ["java-conventions"]
+      })
+    });
+
+    const result = await selectRepos(config, "How do the conventions work?", null);
+
+    expect(result).toEqual({
+      repos: [config.repos[2]],
+      mode: "resolved"
+    });
+  });
+
+  it("merges alwaysSelect repos into the codex selection", async () => {
+    mocks.runCodexPrompt.mockResolvedValue({
+      text: JSON.stringify({
+        selectedRepoNames: ["java-conventions"]
+      })
+    });
+
+    const result = await selectRepos({
+      ...config,
+      repos: [
+        {
+          name: "foundation",
+          description: "Cross-cutting shared base functionality",
+          topics: [],
+          alwaysSelect: true
+        },
+        ...config.repos
+      ]
+    }, "How do the conventions work?", null);
+
+    expect(result).toEqual({
+      repos: [
+        {
+          name: "foundation",
+          description: "Cross-cutting shared base functionality",
+          topics: [],
+          alwaysSelect: true
+        },
+        config.repos[2]
+      ],
+      mode: "resolved"
+    });
+  });
+
+  it("keeps alwaysSelect repos even when codex returns no extra repos", async () => {
+    mocks.runCodexPrompt.mockResolvedValue({
+      text: JSON.stringify({
+        selectedRepoNames: []
+      })
+    });
+
+    const result = await selectRepos({
+      ...config,
+      repos: [
+        {
+          name: "playcart",
+          description: "Core Nosto platform service",
+          topics: ["recommendations"],
+          alwaysSelect: true
+        },
+        ...config.repos
+      ]
+    }, "How do recommendations work?", null);
+
+    expect(result).toEqual({
+      repos: [
+        {
+          name: "playcart",
+          description: "Core Nosto platform service",
+          topics: ["recommendations"],
+          alwaysSelect: true
+        }
+      ],
+      mode: "resolved"
+    });
+  });
+
+  it("falls back to heuristic selection when codex returns invalid JSON", async () => {
+    mocks.runCodexPrompt.mockResolvedValue({
+      text: "not json"
+    });
+
+    const result = await selectRepos(config, "How does SQS compression metadata work?", null);
+
+    expect(result.repos.map(repo => repo.name)).toEqual(["sqs-codec"]);
+    expect(result.mode).toBe("resolved");
+  });
+});
+
+describe("selectReposHeuristically", () => {
+  it("prefers matching topics during automatic selection", () => {
+    const result = selectReposHeuristically(config, "How does SQS compression metadata work?", null);
+
+    expect(result.repos[0]?.name).toBe("sqs-codec");
   });
 
   it("honors explicit repo names", () => {
-    const repos = selectRepos(config, "anything", ["archa"]);
+    const result = selectReposHeuristically(config, "anything", ["archa"]);
 
-    expect(repos.map(repo => repo.name)).toEqual(["archa"]);
+    expect(result.repos.map(repo => repo.name)).toEqual(["archa"]);
+    expect(result.mode).toBe("requested");
   });
 
   it("honors explicit repo aliases", () => {
-    const repos = selectRepos(config, "anything", ["conventions"]);
+    const result = selectReposHeuristically(config, "anything", ["conventions"]);
 
-    expect(repos.map(repo => repo.name)).toEqual(["java-conventions"]);
+    expect(result.repos.map(repo => repo.name)).toEqual(["java-conventions"]);
   });
 
   it("throws for unknown explicit repos", () => {
-    expect(() => selectRepos(config, "anything", ["missing-repo"])).toThrow(/Unknown managed repo/);
+    expect(() => selectReposHeuristically(config, "anything", ["missing-repo"])).toThrow(/Unknown managed repo/);
   });
 
   it("weights separate classifications more strongly than generic topics", () => {
-    const repos = selectRepos({
+    const result = selectReposHeuristically({
+      ...config,
       repos: [
         {
           name: "shared-lib",
@@ -67,11 +188,12 @@ describe("selectRepos", () => {
       ]
     }, "Which infra repo owns retry tooling?", null);
 
-    expect(repos[0].name).toBe("infra-live");
+    expect(result.repos[0]?.name).toBe("infra-live");
   });
 
   it("matches classification aliases like lib to library", () => {
-    const repos = selectRepos({
+    const result = selectReposHeuristically({
+      ...config,
       repos: [
         {
           name: "shared-lib",
@@ -88,11 +210,12 @@ describe("selectRepos", () => {
       ]
     }, "Which lib exposes helpers?", null);
 
-    expect(repos[0].name).toBe("shared-lib");
+    expect(result.repos[0]?.name).toBe("shared-lib");
   });
 
   it("matches external-facing cues more strongly than generic topics", () => {
-    const repos = selectRepos({
+    const result = selectReposHeuristically({
+      ...config,
       repos: [
         {
           name: "platform-api",
@@ -109,11 +232,12 @@ describe("selectRepos", () => {
       ]
     }, "Which external graphql service owns the commerce API?", null);
 
-    expect(repos[0].name).toBe("platform-api");
+    expect(result.repos[0]?.name).toBe("platform-api");
   });
 
   it("scores repo names directly without needing duplicated topics", () => {
-    const repos = selectRepos({
+    const result = selectReposHeuristically({
+      ...config,
       repos: [
         {
           name: "java-conventions",
@@ -130,17 +254,19 @@ describe("selectRepos", () => {
       ]
     }, "Which repo owns the conventions defaults?", null);
 
-    expect(repos[0].name).toBe("java-conventions");
+    expect(result.repos[0]?.name).toBe("java-conventions");
   });
 
   it("falls back to all configured repos when nothing scores positively", () => {
-    const repos = selectRepos(config, "totally unrelated question", null);
+    const result = selectReposHeuristically(config, "totally unrelated question", null);
 
-    expect(repos.map(repo => repo.name)).toEqual(["sqs-codec", "archa", "java-conventions"]);
+    expect(result.repos.map(repo => repo.name)).toEqual(["sqs-codec", "archa", "java-conventions"]);
+    expect(result.mode).toBe("all");
   });
 
   it("still falls back to all configured repos when only alwaysSelect repos are in scope", () => {
-    const repos = selectRepos({
+    const result = selectReposHeuristically({
+      ...config,
       repos: [
         {
           name: "foundation",
@@ -161,11 +287,13 @@ describe("selectRepos", () => {
       ]
     }, "totally unrelated question", null);
 
-    expect(repos.map(repo => repo.name)).toEqual(["foundation", "archa", "java-conventions"]);
+    expect(result.repos.map(repo => repo.name)).toEqual(["foundation", "archa", "java-conventions"]);
+    expect(result.mode).toBe("all");
   });
 
   it("preserves configured repo order in the all-repos fallback", () => {
-    const repos = selectRepos({
+    const result = selectReposHeuristically({
+      ...config,
       repos: [
         {
           name: "java-conventions",
@@ -180,11 +308,12 @@ describe("selectRepos", () => {
       ]
     }, "totally unrelated question", null);
 
-    expect(repos.map(repo => repo.name)).toEqual(["java-conventions", "archa"]);
+    expect(result.repos.map(repo => repo.name)).toEqual(["java-conventions", "archa"]);
   });
 
   it("includes alwaysSelect repos during automatic selection even when they do not match the question", () => {
-    const repos = selectRepos({
+    const result = selectReposHeuristically({
+      ...config,
       repos: [
         {
           name: "foundation",
@@ -205,11 +334,12 @@ describe("selectRepos", () => {
       ]
     }, "Need build defaults details", null);
 
-    expect(repos.map(repo => repo.name)).toEqual(["foundation", "java-conventions"]);
+    expect(result.repos.map(repo => repo.name)).toEqual(["foundation", "java-conventions"]);
   });
 
   it("does not let a matching alwaysSelect repo consume a scored selection slot", () => {
-    const repos = selectRepos({
+    const result = selectReposHeuristically({
+      ...config,
       repos: [
         {
           name: "foundation",
@@ -240,7 +370,7 @@ describe("selectRepos", () => {
       ]
     }, "Need build defaults details", null);
 
-    expect(repos.map(repo => repo.name)).toEqual([
+    expect(result.repos.map(repo => repo.name)).toEqual([
       "foundation",
       "java-conventions",
       "gradle-rules",
@@ -250,7 +380,8 @@ describe("selectRepos", () => {
   });
 
   it("still respects explicit repo narrowing even when some repos are marked alwaysSelect", () => {
-    const repos = selectRepos({
+    const result = selectReposHeuristically({
+      ...config,
       repos: [
         {
           name: "foundation",
@@ -266,6 +397,7 @@ describe("selectRepos", () => {
       ]
     }, "anything", ["archa"]);
 
-    expect(repos.map(repo => repo.name)).toEqual(["archa"]);
+    expect(result.repos.map(repo => repo.name)).toEqual(["archa"]);
+    expect(result.mode).toBe("requested");
   });
 });

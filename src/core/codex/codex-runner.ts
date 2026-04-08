@@ -364,7 +364,7 @@ function formatCodexRunningStatus(): string {
 }
 
 function formatCodexElapsedStatus(elapsedMs: number): string {
-  return `Running Codex... (${formatDuration(elapsedMs)} elapsed)`;
+  return `Running Codex... ${formatDuration(elapsedMs)} elapsed`;
 }
 
 function formatCodexCompletedStatus(elapsedMs: number): string {

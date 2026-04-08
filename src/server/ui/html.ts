@@ -693,6 +693,8 @@ button[type="submit"]:disabled {
 
     eventSource.addEventListener("snapshot", (e) => {
       const job = JSON.parse(e.data);
+      renderStatusSnapshot(job);
+
       if (job.status === "completed") {
         renderCompleted(job);
         closeSSE();
@@ -737,6 +739,26 @@ button[type="submit"]:disabled {
       setAnswerText("Retrieval only. Selected repos: " + (repos || "none"));
     }
     finish();
+  }
+
+  function renderStatusSnapshot(job) {
+    const events = Array.isArray(job && job.events) ? job.events : [];
+    if (events.length === 0) {
+      return;
+    }
+
+    statusLog.textContent = "";
+    for (const event of events) {
+      if (!event || typeof event.message !== "string" || !event.message.trim()) {
+        continue;
+      }
+
+      if (event.type === "failed") {
+        continue;
+      }
+
+      appendStatus(event.message);
+    }
   }
 
   function setAnswerText(text) {
