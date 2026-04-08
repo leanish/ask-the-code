@@ -40,6 +40,7 @@ export const answerQuestion: AnswerQuestionFn = async (
   execution.statusReporter?.info(
     formatRepoSelectionStatus(selection.mode, selectedRepos, selectionElapsedMs)
   );
+  execution.statusReporter?.info(formatRepoSyncModeStatus(options.noSync));
 
   const syncReport: SyncReportItem[] = options.noSync
     ? selectedRepos.map(repo => ({
@@ -124,6 +125,10 @@ function formatRepoSelectionStatus(
       : "Resolved repos";
 
   return `${label} in ${formatDuration(elapsedMs)}: ${repoNames}`;
+}
+
+function formatRepoSyncModeStatus(noSync: boolean): string {
+  return `Skip repo sync: ${noSync ? "yes" : "no"}`;
 }
 
 function normalizeExecutionOptions(

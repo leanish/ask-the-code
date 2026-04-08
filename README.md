@@ -139,8 +139,8 @@ Example using a few public `leanish` repos:
 }
 ```
 
-Repos may also set `"alwaysSelect": true` to stay in scope during automatic repo selection. This is useful for foundational repos that should always be available when Archa narrows to likely matches. If nothing scores positively, Archa still falls back to all configured repos.
-`classifications` are handled separately from free-form `topics` and weighted more strongly during automatic repo selection for cues like `infra`, `library`, `internal`, `external`, and `microservice`. `external` is reserved for outward-facing applications or service surfaces; repos are not marked `external` just because they mention or integrate with GraphQL, REST, or APIs. Classifications are additive rather than exclusive, so a repo can carry multiple accurate roles when the evidence supports that.
+Repos may also set `"alwaysSelect": true` to stay in scope during automatic repo selection. This is useful for foundational repos that should always be available when Archa narrows to likely matches. Automatic selection first asks Codex, with `reasoning_effort="none"`, to choose from the configured repo metadata, then falls back to the local heuristic selector if that step fails or returns unusable output. If nothing scores positively in the fallback path, Archa still uses all configured repos.
+`classifications` are handled separately from free-form `topics` and remain useful evidence for automatic selection, but Codex is prompted to ignore generic cues such as `api`, `backend`, `internal`, `service`, `data`, or `platform` when those words are the only match. `external` is reserved for outward-facing applications or service surfaces; repos are not marked `external` just because they mention or integrate with GraphQL, REST, or APIs. Classifications are additive rather than exclusive, so a repo can carry multiple accurate roles when the evidence supports that.
 
 Bootstrap an empty config:
 
@@ -225,13 +225,13 @@ archa repos sync sqs-codec,java-conventions
 Ask a question. By default `archa` will:
 
 1. choose likely repos from the configured repo list, while keeping any repos marked with `"alwaysSelect": true` in scope
-   If nothing scores positively, all configured repos are used.
+   Archa first asks Codex to choose from the configured repo metadata and falls back to the local heuristic selector if that step fails. If nothing scores positively in the fallback path, all configured repos are used.
 2. sync them to the latest tracked trunk tip
 3. run `codex exec` with `gpt-5.4-mini` and `low` reasoning effort
 
 By default, answers target non-engineering readers who need the system behavior explained clearly. When the reader can inspect the repositories directly, use `--audience codebase` to get a more implementation-oriented answer.
 
-While it runs, `archa` keeps progress reporting high-level, including a heartbeat every 5 seconds during long Codex runs. Raw nested Codex logs stay hidden unless the command fails.
+While it runs, `archa` keeps progress reporting high-level, including repo-selection timing, whether repo sync is being skipped, and a heartbeat every 5 seconds during long Codex runs. Raw nested Codex logs stay hidden unless the command fails.
 
 Managed repos are synced against their configured `defaultBranch`. Discovery’s temporary inspection clones are shallow. Managed repo sync uses normal long-lived checkouts; if a managed repo happens to be shallow, Archa first runs `git fetch --unshallow` before the normal fast-forward update flow.
 
@@ -404,7 +404,7 @@ GitHub Actions CI runs `npm ci` and `npm test -- --coverage` on pull requests an
 
 ## Current limits
 
-- automatic repo selection is heuristic, based on repo names, descriptions, topics, separately weighted classifications, and any repos pinned with `alwaysSelect`
+- automatic repo selection depends on a local Codex selection pass over configured repo metadata, with heuristic fallback when that pass fails or returns unusable output
 - syncing assumes the managed clones can fast-forward cleanly
 - the configured repo set is explicit and must be maintained in local config
 - HTTP job state is in-memory only and is lost when the server process restarts

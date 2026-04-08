@@ -179,7 +179,8 @@ describe("answerQuestion", () => {
 
     expect(statusReporter.info.mock.calls.map(([message]) => message)).toEqual([
       "Selecting repos...",
-      "Requested repos in 0s: sqs-codec"
+      "Requested repos in 0s: sqs-codec",
+      "Skip repo sync: yes"
     ]);
   });
 
@@ -339,6 +340,7 @@ describe("answerQuestion", () => {
     expect(statusReporter.info.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
       "Selecting repos...",
       "Resolved repos in 5s: sqs-codec",
+      "Skip repo sync: no",
       "Updating sqs-codec (main)...",
       "Waiting for sqs-codec (main) sync already in progress...",
       "sqs-codec: updated (main)",
@@ -391,5 +393,6 @@ describe("answerQuestion", () => {
     });
 
     expect(statusReporter.info).toHaveBeenCalledWith("All repos in 2s: sqs-codec, archa");
+    expect(statusReporter.info).toHaveBeenCalledWith("Skip repo sync: yes");
   });
 });

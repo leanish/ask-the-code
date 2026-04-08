@@ -32,11 +32,11 @@ The source tree is organized by adapter and shared logic:
 - repo names and aliases are validated eagerly and must be unique case-insensitively
 - `repos list` shows configured repos and whether they are cloned locally
 - `repos sync` clones missing managed repos, syncs existing ones against their configured tracked branch, and first unshallows any previously shallow managed checkout
-- asking a question uses automatic repo selection by default, or an explicit repo subset when provided, then syncs them and runs Codex
+- asking a question uses Codex-driven automatic repo selection by default, or an explicit repo subset when provided, then syncs them and runs Codex
 - the HTTP adapter exposes the same ask flow as async jobs plus status streams
 - the built-in web UI can load the configured repo catalog and present it as a picker instead of raw comma-separated input
-- repos can be pinned into automatic selection with `alwaysSelect`, and automatic selection still falls back to all configured repos when nothing scores positively
-- high-signal classifications such as `infra`, `library`, `internal`, `external`, and `microservice` are handled separately from generic topics, are additive when multiple roles apply, are weighted more strongly during automatic selection, and keep `external` reserved for clearly outward-facing repos rather than generic API integrations
+- repos can be pinned into automatic selection with `alwaysSelect`; automatic selection first asks Codex, with minimal reasoning, to choose from configured repo metadata and falls back to the local heuristic selector when that pass fails or returns unusable output, still falling back to all configured repos when nothing scores positively
+- high-signal classifications such as `infra`, `library`, `internal`, `external`, and `microservice` remain separate from generic topics during automatic selection, are additive when multiple roles apply, and keep `external` reserved for clearly outward-facing repos rather than generic API integrations
 - answers default to non-engineering readers with plain-language, low-reference explanations and can optionally target codebase-aware readers
 
 ## Non-goals

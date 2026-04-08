@@ -38,7 +38,7 @@ flowchart LR
 3. Discovery commands check that GitHub access is available via `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, via a usable `gh` login before continuing.
 4. Commands that require Codex check that the local `codex` CLI is installed and `codex login status` reports a logged-in session before continuing.
 5. Config is loaded from the user config path.
-6. Repo selection chooses explicit repos or heuristic candidates, keeps any pinned repos in scope, and falls back to all configured repos when nothing scores positively.
+6. Repo selection chooses explicit repos when provided; otherwise it asks Codex, with minimal reasoning, to select from the configured repo metadata, keeps any pinned repos in scope, and falls back to the local heuristic selector when the Codex pass fails or returns unusable output.
 7. Repo sync clones missing selected repos, unshallows any shallow managed checkout, and then fast-forwards it to the configured tracked branch tip.
 8. Codex runs against either the single selected repo or the managed repos root.
 9. The adapter renders the result:
@@ -111,7 +111,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/core/answer/question-answering.ts`
   Implements the transport-agnostic ask flow and accepts injectable adapters such as status reporters and sync functions.
 - `src/core/repos/repo-selection.ts`
-  Resolves explicit repo names and aliases, or scores likely repos from repo-name tokens, descriptions, topics, and separately weighted classifications while keeping repos marked `alwaysSelect` in scope and falling back to all configured repos when nothing scores positively.
+  Resolves explicit repo names and aliases, otherwise runs a Codex selection pass over repo metadata, merges in repos marked `alwaysSelect`, and falls back to the local heuristic scorer when the selection pass fails or returns unusable output.
 - `src/core/repos/repo-sync.ts`
   Clones missing repos and fast-forwards existing repos to the latest remote configured tracked branch tip, first unshallowing any shallow managed checkout.
 - `src/core/git/git-installation.ts`
