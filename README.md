@@ -69,6 +69,14 @@ npm test
 npm run build
 ```
 
+To run the server directly from TypeScript source during development, use:
+
+```bash
+npm run server
+```
+
+That path does not require rebuilding `dist/`, so rerunning it after source edits will pick up the latest `src/` changes.
+
 ## Configuration
 
 By default, `archa` reads config from:
