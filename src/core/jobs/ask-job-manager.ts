@@ -17,6 +17,7 @@ import type {
 
 const DEFAULT_JOB_RETENTION_MS = 3_600_000;
 const DEFAULT_MAX_CONCURRENT_JOBS = 3;
+const CODEX_COMPLETED_STATUS_PREFIX = "Running Codex... done in ";
 
 type AskJobCreateRequest = Partial<AskRequest> & Pick<AskRequest, "question">;
 type MutableAskJob = AskJobSnapshot & {
@@ -207,7 +208,7 @@ export function createAskJobManager({
       job.status = "completed";
       job.finishedAt = toTimestamp(now());
       job.result = result;
-      appendEvent(job, "completed", `Job completed. (${formatElapsedSinceCreation(job)} total)`);
+      appendEvent(job, "completed", getCompletedMessage(job));
     }).catch(error => {
       job.status = "failed";
       job.finishedAt = toTimestamp(now());
@@ -242,6 +243,26 @@ export function createAskJobManager({
     job.nextEventSequence += 1;
     job.events.push(event);
     publishEvent(job.id, event);
+  }
+
+  function getCompletedMessage(job: MutableAskJob): string {
+    const latestStatusMessage = findLatestStatusMessage(job);
+    if (latestStatusMessage?.startsWith(CODEX_COMPLETED_STATUS_PREFIX)) {
+      return latestStatusMessage;
+    }
+
+    return `Job completed. (${formatElapsedSinceCreation(job)} total)`;
+  }
+
+  function findLatestStatusMessage(job: MutableAskJob): string | null {
+    for (let index = job.events.length - 1; index >= 0; index -= 1) {
+      const event = job.events[index];
+      if (event?.type === "status") {
+        return event.message;
+      }
+    }
+
+    return null;
   }
 
   function publishEvent(jobId: string, event: AskJobEvent): void {

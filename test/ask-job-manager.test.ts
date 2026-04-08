@@ -124,6 +124,40 @@ describe("ask-job-manager", () => {
     manager.close();
   });
 
+  it("reuses the codex completion status instead of appending a generic completion line", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: vi.fn(async (_request, { statusReporter }) => {
+        statusReporter.info("Running Codex...");
+        statusReporter.info("Running Codex... done in 34s");
+
+        return {
+          mode: "answer",
+          question: "timed",
+          selectedRepos: [],
+          syncReport: [],
+          synthesis: {
+            text: "answer:timed"
+          }
+        };
+      }),
+      generateJobId: createSequenceIdGenerator(),
+      now: createSequenceClock(new Array(8).fill("2026-04-07T18:00:00.000Z")),
+      jobRetentionMs: 60_000
+    });
+    const events = [];
+    const job = manager.createJob({ question: "timed" });
+
+    manager.subscribe(job.id, event => {
+      events.push(event);
+    });
+
+    await waitFor(() => manager.getJob(job.id)?.status === "completed");
+
+    expect(events.find(event => event.type === "completed")?.message).toBe("Running Codex... done in 34s");
+
+    manager.close();
+  });
+
   it("runs up to three jobs concurrently by default", async () => {
     let releaseJobs;
     const jobsReleased = new Promise(resolve => {
