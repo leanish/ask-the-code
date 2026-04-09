@@ -12,6 +12,7 @@ import type {
   ManagedRepoDefinition,
   RepoClassification
 } from "../types.js";
+import { REPO_CLASSIFICATIONS } from "../types.js";
 
 type RawConfig = {
   managedReposRoot?: unknown;
@@ -20,16 +21,7 @@ type RawConfig = {
 
 type RawRepo = Record<string, unknown>;
 
-const VALID_REPO_CLASSIFICATIONS = new Set<string>([
-  "infra",
-  "library",
-  "internal",
-  "external",
-  "frontend",
-  "backend",
-  "cli",
-  "microservice"
-]);
+const VALID_REPO_CLASSIFICATIONS = new Set<string>(REPO_CLASSIFICATIONS);
 
 function isRepoClassification(value: string): value is RepoClassification {
   return VALID_REPO_CLASSIFICATIONS.has(value);

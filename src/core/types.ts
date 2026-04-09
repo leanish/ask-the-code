@@ -2,15 +2,18 @@ import type { AnswerAudience } from "./answer/answer-audience.js";
 
 export type Environment = NodeJS.ProcessEnv;
 
-export type RepoClassification =
-  | "infra"
-  | "library"
-  | "internal"
-  | "external"
-  | "frontend"
-  | "backend"
-  | "cli"
-  | "microservice";
+export const REPO_CLASSIFICATIONS = [
+  "infra",
+  "library",
+  "internal",
+  "external",
+  "frontend",
+  "backend",
+  "cli",
+  "microservice"
+] as const;
+
+export type RepoClassification = typeof REPO_CLASSIFICATIONS[number];
 
 export interface RepoIdentityFields {
   name: string;

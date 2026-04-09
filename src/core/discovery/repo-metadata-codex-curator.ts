@@ -1,4 +1,5 @@
 import { runCodexPrompt } from "../codex/codex-runner.js";
+import { REPO_CLASSIFICATIONS } from "../types.js";
 import type { RepoClassification, RepoRecord } from "../types.js";
 
 const DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS = 60_000;
@@ -9,16 +10,7 @@ const MEDIUM_REPO_MAX_TOPICS = 5;
 const LARGE_REPO_MAX_TOPICS = 8;
 const HUGE_REPO_MAX_TOPICS = 20;
 const MASSIVE_REPO_MAX_TOPICS = 30;
-const ALLOWED_CLASSIFICATIONS = new Set([
-  "infra",
-  "library",
-  "internal",
-  "external",
-  "frontend",
-  "backend",
-  "cli",
-  "microservice"
-]);
+const ALLOWED_CLASSIFICATIONS = new Set<string>(REPO_CLASSIFICATIONS);
 const EXTERNAL_FACING_PHRASES = [
   "external",
   "customer-facing",
