@@ -158,7 +158,7 @@ function parseCuratedMetadata(
   text: string,
   { repo, sourceRepo, repoName, inferredMetadata, sizeKb }: ParseCuratedMetadataContext
 ): RepoMetadata | null {
-  if (typeof text !== "string" || text.trim() === "") {
+  if (text.trim() === "") {
     return null;
   }
 
@@ -432,7 +432,7 @@ function tokenizeRepoName(name: string): string[] {
 }
 
 function parseRepoOwnerTokens(url: string): string[] {
-  if (typeof url !== "string" || url.trim() === "") {
+  if (url.trim() === "") {
     return [];
   }
 

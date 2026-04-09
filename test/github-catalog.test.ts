@@ -7,6 +7,51 @@ import {
 } from "../src/core/discovery/github-catalog.js";
 import { createLoadedConfig } from "./test-helpers.js";
 
+// Keep auth state explicit in this file so IDE and CLI test runs exercise the same code paths.
+async function discoverGithubOwnerReposWithoutAuth(
+  options: Parameters<typeof discoverGithubOwnerRepos>[0]
+) {
+  return await discoverGithubOwnerRepos({
+    env: {},
+    resolveGithubAuthTokenFn: async () => null,
+    ...options
+  });
+}
+
+async function discoverGithubOwnerReposWithToken(
+  options: Parameters<typeof discoverGithubOwnerRepos>[0],
+  token = "test-token"
+) {
+  return await discoverGithubOwnerRepos({
+    env: {
+      GH_TOKEN: token
+    },
+    ...options
+  });
+}
+
+async function refineDiscoveredGithubReposWithoutAuth(
+  options: Parameters<typeof refineDiscoveredGithubRepos>[0]
+) {
+  return await refineDiscoveredGithubRepos({
+    env: {},
+    resolveGithubAuthTokenFn: async () => null,
+    ...options
+  });
+}
+
+async function refineDiscoveredGithubReposWithToken(
+  options: Parameters<typeof refineDiscoveredGithubRepos>[0],
+  token = "test-token"
+) {
+  return await refineDiscoveredGithubRepos({
+    env: {
+      GH_TOKEN: token
+    },
+    ...options
+  });
+}
+
 describe("github-catalog", () => {
   it("discovers user repos, keeping forks and filtering archived repos by default", async () => {
     const inspectRepoFn = vi.fn(async () => []);
@@ -68,7 +113,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -150,7 +195,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -213,13 +258,13 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const discovery = await discoverGithubOwnerRepos({
+    const discovery = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
     });
 
-    const refined = await refineDiscoveredGithubRepos({
+    const refined = await refineDiscoveredGithubReposWithoutAuth({
       discovery: { ...discovery },
       fetchFn,
       inspectRepoFn,
@@ -278,7 +323,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -345,11 +390,8 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithToken({
       owner: "leanish",
-      env: {
-        GH_TOKEN: "test-token"
-      },
       fetchFn,
       inspectRepoFn
     });
@@ -420,11 +462,8 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithToken({
       owner: "@accessible",
-      env: {
-        GH_TOKEN: "test-token"
-      },
       fetchFn,
       inspectRepoFn,
       hydrateMetadata: false,
@@ -535,7 +574,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    await discoverGithubOwnerRepos({
+    await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn,
@@ -609,7 +648,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    await discoverGithubOwnerRepos({
+    await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn,
@@ -707,7 +746,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const discoveryPromise = discoverGithubOwnerRepos({
+    const discoveryPromise = discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -771,7 +810,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn,
@@ -822,7 +861,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn,
@@ -895,7 +934,7 @@ describe("github-catalog", () => {
       classifications: repo.name === "terminator" ? ["library"] : []
     }));
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn,
@@ -970,7 +1009,7 @@ describe("github-catalog", () => {
       classifications: repo.name === "terminator" ? ["library"] : []
     }));
 
-    const discovery = await discoverGithubOwnerRepos({
+    const discovery = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn,
@@ -980,7 +1019,7 @@ describe("github-catalog", () => {
 
     fetchFn.mockClear();
 
-    const result = await refineDiscoveredGithubRepos({
+    const result = await refineDiscoveredGithubReposWithoutAuth({
       discovery,
       fetchFn,
       inspectRepoFn,
@@ -1045,11 +1084,8 @@ describe("github-catalog", () => {
       classifications: []
     }));
 
-    const discovery = await discoverGithubOwnerRepos({
+    const discovery = await discoverGithubOwnerReposWithToken({
       owner: "@accessible",
-      env: {
-        GH_TOKEN: "test-token"
-      },
       fetchFn,
       inspectRepoFn,
       hydrateMetadata: false,
@@ -1058,11 +1094,8 @@ describe("github-catalog", () => {
 
     fetchFn.mockClear();
 
-    const result = await refineDiscoveredGithubRepos({
+    const result = await refineDiscoveredGithubReposWithToken({
       discovery,
-      env: {
-        GH_TOKEN: "test-token"
-      },
       fetchFn,
       inspectRepoFn,
       selectedRepoNames: ["leanish/nullability"]
@@ -1109,7 +1142,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -1162,7 +1195,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -1214,7 +1247,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "otherco",
       fetchFn,
       inspectRepoFn,
@@ -1276,7 +1309,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -1328,7 +1361,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -1374,7 +1407,7 @@ describe("github-catalog", () => {
     });
     const inspectRepoFn = vi.fn(async () => ["frontend", "external"]);
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -1435,7 +1468,7 @@ describe("github-catalog", () => {
       classifications: ["library"]
     }));
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -1481,7 +1514,7 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -1533,7 +1566,7 @@ describe("github-catalog", () => {
     });
     const inspectRepoFn = vi.fn(async () => ["internal", "backend"]);
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithoutAuth({
       owner: "leanish",
       fetchFn,
       inspectRepoFn
@@ -1567,12 +1600,11 @@ describe("github-catalog", () => {
       throw new Error(`Unexpected URL: ${url}`);
     });
 
-    const result = await discoverGithubOwnerRepos({
+    const result = await discoverGithubOwnerReposWithToken({
       owner: "openai",
-      env: { GH_TOKEN: "secret-token" },
       fetchFn,
       inspectRepoFn
-    });
+    }, "secret-token");
 
     expect(result.ownerType).toBe("Organization");
     expect(result.repos).toEqual([]);
@@ -1584,7 +1616,7 @@ describe("github-catalog", () => {
       message: "Not Found"
     }));
 
-    await expect(discoverGithubOwnerRepos({
+    await expect(discoverGithubOwnerReposWithoutAuth({
       owner: "missing-owner",
       fetchFn,
       inspectRepoFn
@@ -1597,7 +1629,7 @@ describe("github-catalog", () => {
       message: "API rate limit exceeded for 84.251.57.8."
     }));
 
-    await expect(discoverGithubOwnerRepos({
+    await expect(discoverGithubOwnerReposWithoutAuth({
       owner: "otherco",
       fetchFn,
       inspectRepoFn

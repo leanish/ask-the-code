@@ -2,7 +2,7 @@ import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAskJobManager } from "../src/core/jobs/ask-job-manager.js";
-import type { AnswerQuestionFn, AskJobEvent, AskJobSnapshot, AskJobStatus } from "../src/core/types.js";
+import type { AnswerQuestionFn, AskJobEvent, AskJobSnapshot } from "../src/core/types.js";
 import { createHttpHandler } from "../src/server/api/http-server.js";
 import { createLoadedConfig, createManagedRepo } from "./test-helpers.js";
 

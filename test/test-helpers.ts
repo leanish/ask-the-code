@@ -2,10 +2,8 @@ import type { SpawnSyncReturns } from "node:child_process";
 
 import type {
   AnswerResult,
-  AskJobEvent,
   GithubDiscoveryPlan,
   GithubDiscoveryPlanEntry,
-  GithubDiscoveryPipelineResult,
   InitializeConfigResult,
   LoadedConfig,
   ManagedRepo,
@@ -101,15 +99,6 @@ export function createRetrievalOnlyResult(overrides: Partial<RetrievalOnlyResult
   };
 }
 
-export function createAskJobEvent(overrides: Partial<AskJobEvent> = {}): AskJobEvent {
-  return {
-    sequence: overrides.sequence ?? 1,
-    type: overrides.type ?? "status",
-    message: overrides.message ?? "message",
-    timestamp: overrides.timestamp ?? "2026-04-08T00:00:00.000Z"
-  };
-}
-
 export function createGithubDiscoveryPlanEntry(overrides: Partial<GithubDiscoveryPlanEntry> = {}): GithubDiscoveryPlanEntry {
   return {
     repo: overrides.repo ?? createRepoRecord(),
@@ -137,19 +126,6 @@ export function createGithubDiscoveryPlan(overrides: Partial<GithubDiscoveryPlan
       conflicts: 0,
       withSuggestions: 0
     }
-  };
-}
-
-export function createGithubDiscoveryPipelineResult(
-  overrides: Partial<GithubDiscoveryPipelineResult> = {}
-): GithubDiscoveryPipelineResult {
-  return {
-    plan: overrides.plan ?? createGithubDiscoveryPlan(),
-    appliedEntries: overrides.appliedEntries ?? [],
-    selectedCount: overrides.selectedCount ?? 0,
-    configPath: overrides.configPath ?? "/tmp/archa-config.json",
-    addedCount: overrides.addedCount ?? 0,
-    overriddenCount: overrides.overriddenCount ?? 0
   };
 }
 
