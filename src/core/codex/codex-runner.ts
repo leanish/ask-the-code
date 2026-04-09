@@ -16,6 +16,7 @@ import type { CodexScopeRepo, CodexSynthesis, Environment, RunCodexQuestionInput
 const DEFAULT_CODEX_TIMEOUT_MS = 300_000;
 const FORCE_KILL_GRACE_PERIOD_MS = 5_000;
 const HEARTBEAT_INTERVAL_MS = 5_000;
+export const CODEX_COMPLETED_STATUS_PREFIX = "Running Codex... done in ";
 
 type StatusCallback = ((message: string) => void) | null | undefined;
 
@@ -370,5 +371,5 @@ function formatCodexElapsedStatus(elapsedMs: number): string {
 }
 
 function formatCodexCompletedStatus(elapsedMs: number): string {
-  return `Running Codex... done in ${formatDuration(elapsedMs)}`;
+  return `${CODEX_COMPLETED_STATUS_PREFIX}${formatDuration(elapsedMs)}`;
 }

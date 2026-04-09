@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { DEFAULT_ANSWER_AUDIENCE } from "../answer/answer-audience.js";
 import { answerQuestion } from "../answer/question-answering.js";
+import { CODEX_COMPLETED_STATUS_PREFIX } from "../codex/codex-runner.js";
 import { createRepoSyncCoordinator } from "../repos/repo-sync-coordinator.js";
 import { createCallbackStatusReporter } from "../status/status-reporter.js";
 import { formatDuration } from "../time/duration-format.js";
@@ -17,7 +18,6 @@ import type {
 
 const DEFAULT_JOB_RETENTION_MS = 3_600_000;
 const DEFAULT_MAX_CONCURRENT_JOBS = 3;
-const CODEX_COMPLETED_STATUS_PREFIX = "Running Codex... done in ";
 
 type AskJobCreateRequest = Partial<AskRequest> & Pick<AskRequest, "question">;
 type MutableAskJob = AskJobSnapshot & {

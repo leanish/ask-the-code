@@ -134,54 +134,56 @@ describe("codex-runner", () => {
     const child = createChildProcess({ code: 0 });
     const onStatus = vi.fn();
     const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(1_234_567_890);
-    mocks.spawn.mockReturnValue(child);
-    mocks.readFile.mockResolvedValue("  Final answer from Codex  ");
+    try {
+      mocks.spawn.mockReturnValue(child);
+      mocks.readFile.mockResolvedValue("  Final answer from Codex  ");
 
-    const result = await runCodexQuestion({
-      question: "How does x-codec-meta work?",
-      audience: "codebase",
-      model: "gpt-5.4",
-      reasoningEffort: "low",
-      selectedRepos: [
-        {
-          name: "sqs-codec",
-          directory: "/workspace/archa/repos/sqs-codec",
-          defaultBranch: "master"
-        }
-      ],
-      workspaceRoot: "/workspace/archa/repos",
-      onStatus
-    });
+      const result = await runCodexQuestion({
+        question: "How does x-codec-meta work?",
+        audience: "codebase",
+        model: "gpt-5.4",
+        reasoningEffort: "low",
+        selectedRepos: [
+          {
+            name: "sqs-codec",
+            directory: "/workspace/archa/repos/sqs-codec",
+            defaultBranch: "master"
+          }
+        ],
+        workspaceRoot: "/workspace/archa/repos",
+        onStatus
+      });
 
-    expect(result).toEqual({ text: "Final answer from Codex" });
-    expect(onStatus).toHaveBeenCalledWith("Running Codex...");
-    expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 0s");
-    expect(child.stdin.write).toHaveBeenCalledWith(expect.stringContaining(
-      "Write for an engineer who can inspect this workspace."
-    ));
-    expect(child.stdin.write).toHaveBeenCalledWith(expect.stringContaining('I got the question:\n"""\nHow does x-codec-meta work?\n"""'));
-    expect(child.stdin.end).toHaveBeenCalled();
-    expect(mocks.spawn).toHaveBeenCalledWith(
-      "codex",
-      expect.arrayContaining([
-        "-c",
-        'model_reasoning_effort="low"',
-        "exec",
-        "-C",
-        "/workspace/archa/repos/sqs-codec",
-        "--sandbox",
-        "read-only",
-        "--skip-git-repo-check",
-        "--color",
-        "never",
-        "--output-last-message"
-      ]),
-      { stdio: ["pipe", "ignore", "pipe"] }
-    );
-    expect(mocks.readFile).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), "utf8");
-    expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), { force: true });
-
-    dateNowSpy.mockRestore();
+      expect(result).toEqual({ text: "Final answer from Codex" });
+      expect(onStatus).toHaveBeenCalledWith("Running Codex...");
+      expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 0s");
+      expect(child.stdin.write).toHaveBeenCalledWith(expect.stringContaining(
+        "Write for an engineer who can inspect this workspace."
+      ));
+      expect(child.stdin.write).toHaveBeenCalledWith(expect.stringContaining('I got the question:\n"""\nHow does x-codec-meta work?\n"""'));
+      expect(child.stdin.end).toHaveBeenCalled();
+      expect(mocks.spawn).toHaveBeenCalledWith(
+        "codex",
+        expect.arrayContaining([
+          "-c",
+          'model_reasoning_effort="low"',
+          "exec",
+          "-C",
+          "/workspace/archa/repos/sqs-codec",
+          "--sandbox",
+          "read-only",
+          "--skip-git-repo-check",
+          "--color",
+          "never",
+          "--output-last-message"
+        ]),
+        { stdio: ["pipe", "ignore", "pipe"] }
+      );
+      expect(mocks.readFile).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), "utf8");
+      expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), { force: true });
+    } finally {
+      dateNowSpy.mockRestore();
+    }
   });
 
   it("runs a generic Codex prompt in the provided working directory", async () => {
@@ -211,20 +213,22 @@ describe("codex-runner", () => {
   it("adds a unique uuid suffix to the codex output file path", async () => {
     const child = createChildProcess({ code: 0 });
     const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(1_234_567_890);
-    mocks.spawn.mockReturnValue(child);
-    mocks.readFile.mockResolvedValue("result");
-    mocks.randomUUID.mockReturnValue("uuid-123");
+    try {
+      mocks.spawn.mockReturnValue(child);
+      mocks.readFile.mockResolvedValue("result");
+      mocks.randomUUID.mockReturnValue("uuid-123");
 
-    await runCodexPrompt({
-      prompt: "Return JSON only.",
-      workingDirectory: "/workspace/archa/repos/java-conventions"
-    });
+      await runCodexPrompt({
+        prompt: "Return JSON only.",
+        workingDirectory: "/workspace/archa/repos/java-conventions"
+      });
 
-    const expectedPath = `/tmp/archa-codex-${process.pid}-1234567890-uuid-123.txt`;
-    expect(mocks.readFile).toHaveBeenCalledWith(expectedPath, "utf8");
-    expect(mocks.rm).toHaveBeenCalledWith(expectedPath, { force: true });
-
-    dateNowSpy.mockRestore();
+      const expectedPath = `/tmp/archa-codex-${process.pid}-1234567890-uuid-123.txt`;
+      expect(mocks.readFile).toHaveBeenCalledWith(expectedPath, "utf8");
+      expect(mocks.rm).toHaveBeenCalledWith(expectedPath, { force: true });
+    } finally {
+      dateNowSpy.mockRestore();
+    }
   });
 
   it("uses default codex settings when model and reasoning effort are omitted", async () => {
