@@ -9,6 +9,9 @@ Archa has two adapters over the same repo-aware question-answering core:
 
 Both adapters manage a configured set of repositories, keep them in sync, and use the local `codex exec` CLI to answer codebase questions across them.
 
+The source is written as TypeScript ESM under `src/`. Published CLI entrypoints are built into `dist/bin/`.
+The published package is CLI-only and intentionally exposes no importable library entrypoint.
+
 The project is intentionally split in two:
 
 - source code in this repo
@@ -52,11 +55,34 @@ When no config exists yet, Archa will prompt to initialize it and can continue d
 
 This project follows a simple layout:
 
-- `src/cli/` for the CLI entrypoint, argument parsing, terminal rendering, and interactive setup UX
-- `src/server/` for the server entrypoint, HTTP API, and built-in web UI
+- `src/cli/` for the TypeScript CLI entrypoint, argument parsing, terminal rendering, and interactive setup UX
+- `src/server/` for the TypeScript server entrypoint, HTTP API, and built-in web UI
 - `src/core/` for shared application logic such as config, discovery, repo sync, job execution, and Codex integration
+- `dist/` for compiled publishable runtime output
 - tests in `test/`
 - coverage target: 80% statements and branches
+
+For local development:
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+To run the server directly from TypeScript source during development, use:
+
+```bash
+npm run server
+```
+
+That path does not require rebuilding `dist/`, so rerunning it after source edits will pick up the latest `src/` changes.
+
+To run the CLI directly from TypeScript source during development, use:
+
+```bash
+npm run cli -- "How does this codebase behave?"
+```
 
 ## Configuration
 
