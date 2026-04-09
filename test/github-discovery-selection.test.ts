@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "../src/cli/setup/discovery-selection.js";
 import type { CreateInterfaceFn, PromptInput, ReadlineLike } from "../src/cli/setup/interactive-prompts.js";
-import type { GithubDiscoveryPlan, GithubDiscoveryPlanEntry, ManagedRepoDefinition, RepoRecord } from "../src/core/types.js";
+import type { GithubDiscoveryPlan, GithubDiscoveryPlanEntry, RepoRecord } from "../src/core/types.js";
 import {
   createGithubDiscoveryPlan,
   createGithubDiscoveryPlanEntry,

@@ -637,20 +637,6 @@ async function hydrateReposInParallel({
   }));
 }
 
-export function mergeGithubDiscoveryPlan(basePlan: GithubDiscoveryPlan, refinedPlan: GithubDiscoveryPlan): GithubDiscoveryPlan {
-  const refinedEntriesByName = new Map(
-    refinedPlan.entries.map(entry => [getGithubDiscoveryRepoKey(entry.repo), entry])
-  );
-
-  return {
-    ...basePlan,
-    entries: basePlan.entries.map(entry => refinedEntriesByName.get(getGithubDiscoveryRepoKey(entry.repo)) || entry),
-    reposToAdd: (basePlan.reposToAdd || []).map(
-      repo => refinedEntriesByName.get(getGithubDiscoveryRepoKey(repo))?.repo || repo
-    )
-  };
-}
-
 export function buildAppliedGithubDiscoveryEntries(
   plan: GithubDiscoveryPlan,
   selection: GithubDiscoverySelection
@@ -847,7 +833,7 @@ function getDiscoveryRepoIdentity(repo: Partial<RepoRecord>, {
 }
 
 function normalizeOwner(owner: string): string {
-  if (typeof owner !== "string" || owner.trim() === "") {
+  if (owner.trim() === "") {
     throw new Error('GitHub discovery requires a non-empty "--owner" value.');
   }
 
@@ -990,7 +976,7 @@ function readGithubCliAuthToken({ spawnSyncFn = spawnSync }: { spawnSyncFn?: typ
     return null;
   }
 
-  return typeof result.stdout === "string" ? result.stdout.trim() : null;
+  return result.stdout.trim();
 }
 
 function normalizeGithubRepo(repo: RepoRecord, {
@@ -1131,9 +1117,10 @@ function resolveGithubTopicsOwner(repo: Partial<RepoRecord>, {
   }
 
   if (typeof repo?.sourceFullName === "string" && repo.sourceFullName.includes("/")) {
-    const [sourceOwner] = repo.sourceFullName.split("/");
-    if (typeof sourceOwner === "string" && sourceOwner.trim() !== "") {
-      return sourceOwner.trim();
+    const separatorIndex = repo.sourceFullName.indexOf("/");
+    const sourceOwner = repo.sourceFullName.slice(0, separatorIndex).trim();
+    if (sourceOwner !== "") {
+      return sourceOwner;
     }
   }
 
@@ -1146,7 +1133,6 @@ function normalizeSelectedRepoNames(selectedRepoNames: string[]): Set<string> | 
   }
 
   const names = selectedRepoNames
-    .filter(name => typeof name === "string")
     .map(name => name.trim().toLowerCase())
     .filter(Boolean);
 
@@ -1538,7 +1524,6 @@ function buildRepoSuggestions(configuredRepo: LoadedConfig["repos"][number], git
 
   const configuredTopics = new Set(
     (configuredRepo.topics || [])
-      .filter(topic => typeof topic === "string")
       .map(topic => topic.toLowerCase())
   );
   const missingTopics = (githubRepo.topics || []).filter(topic => !configuredTopics.has(topic.toLowerCase()));

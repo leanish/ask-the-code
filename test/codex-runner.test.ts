@@ -232,38 +232,43 @@ describe("codex-runner", () => {
   });
 
   it("uses default codex settings when model and reasoning effort are omitted", async () => {
-    mocks.spawn.mockReturnValue(createChildProcess({ code: 0 }));
-    mocks.readFile.mockResolvedValue("   ");
-    const onStatus = vi.fn();
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(1_234_567_890);
+    try {
+      mocks.spawn.mockReturnValue(createChildProcess({ code: 0 }));
+      mocks.readFile.mockResolvedValue("   ");
+      const onStatus = vi.fn();
 
-    const result = await runCodexQuestion({
-      question: "How does x-codec-meta work?",
-      model: null,
-      reasoningEffort: null,
-      selectedRepos: [
-        {
-          name: "sqs-codec",
-          directory: "/workspace/archa/repos/sqs-codec",
-          defaultBranch: "master"
-        }
-      ],
-      workspaceRoot: "/workspace/archa/repos",
-      onStatus
-    });
+      const result = await runCodexQuestion({
+        question: "How does x-codec-meta work?",
+        model: null,
+        reasoningEffort: null,
+        selectedRepos: [
+          {
+            name: "sqs-codec",
+            directory: "/workspace/archa/repos/sqs-codec",
+            defaultBranch: "master"
+          }
+        ],
+        workspaceRoot: "/workspace/archa/repos",
+        onStatus
+      });
 
-    expect(result).toEqual({ text: "Codex did not produce a final answer." });
-    expect(onStatus).toHaveBeenCalledWith("Running Codex...");
-    expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 0s");
-    expect(mocks.spawn).toHaveBeenCalledWith(
-      "codex",
-      expect.arrayContaining([
-        "-c",
-        'model_reasoning_effort="low"',
-        "--model",
-        "gpt-5.4-mini"
-      ]),
-      { stdio: ["pipe", "ignore", "pipe"] }
-    );
+      expect(result).toEqual({ text: "Codex did not produce a final answer." });
+      expect(onStatus).toHaveBeenCalledWith("Running Codex...");
+      expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 0s");
+      expect(mocks.spawn).toHaveBeenCalledWith(
+        "codex",
+        expect.arrayContaining([
+          "-c",
+          'model_reasoning_effort="low"',
+          "--model",
+          "gpt-5.4-mini"
+        ]),
+        { stdio: ["pipe", "ignore", "pipe"] }
+      );
+    } finally {
+      dateNowSpy.mockRestore();
+    }
   });
 
   it("emits elapsed codex progress updates before the final completion status", async () => {

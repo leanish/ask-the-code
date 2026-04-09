@@ -25,7 +25,7 @@ export function ensureGithubDiscoveryAuthAvailable({
     throw result.error;
   }
 
-  const token = typeof result.stdout === "string" ? result.stdout.trim() : "";
+  const token = result.stdout.trim();
   if (result.status === 0 && token !== "") {
     return;
   }

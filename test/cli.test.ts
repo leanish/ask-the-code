@@ -18,7 +18,6 @@ const mocks = vi.hoisted(() => ({
   buildAppliedGithubDiscoveryEntries: vi.fn(),
   discoverGithubOwnerRepos: vi.fn(),
   getGithubDiscoveryRepoKey: vi.fn(),
-  mergeGithubDiscoveryPlan: vi.fn(),
   planGithubRepoDiscovery: vi.fn(),
   refineDiscoveredGithubRepos: vi.fn(),
   promptGithubDiscoverySelection: vi.fn(),
@@ -69,7 +68,6 @@ vi.mock("../src/core/discovery/github-catalog.js", () => ({
   buildAppliedGithubDiscoveryEntries: mocks.buildAppliedGithubDiscoveryEntries,
   discoverGithubOwnerRepos: mocks.discoverGithubOwnerRepos,
   getGithubDiscoveryRepoKey: mocks.getGithubDiscoveryRepoKey,
-  mergeGithubDiscoveryPlan: mocks.mergeGithubDiscoveryPlan,
   planGithubRepoDiscovery: mocks.planGithubRepoDiscovery,
   refineDiscoveredGithubRepos: mocks.refineDiscoveredGithubRepos
 }));
@@ -196,17 +194,6 @@ describe("cli", () => {
         conflicts: 0,
         withSuggestions: 0
       }
-    });
-    mocks.mergeGithubDiscoveryPlan.mockImplementation((basePlan: GithubDiscoveryPlan, refinedPlan: GithubDiscoveryPlan) => {
-      const refinedEntriesByName = new Map(
-        refinedPlan.entries.map(entry => [entry.repo.name, entry])
-      );
-
-      return {
-        ...basePlan,
-        entries: basePlan.entries.map(entry => refinedEntriesByName.get(entry.repo.name) || entry),
-        reposToAdd: (basePlan.reposToAdd || []).map(repo => refinedEntriesByName.get(repo.name)?.repo || repo)
-      };
     });
     mocks.promptGithubDiscoverySelection.mockResolvedValue({
       reposToAdd: [],

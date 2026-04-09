@@ -1,5 +1,5 @@
 import http from "node:http";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage } from "node:http";
 
 import {
   DEFAULT_ANSWER_AUDIENCE,
