@@ -1117,9 +1117,10 @@ function resolveGithubTopicsOwner(repo: Partial<RepoRecord>, {
   }
 
   if (typeof repo?.sourceFullName === "string" && repo.sourceFullName.includes("/")) {
-    const [sourceOwner] = repo.sourceFullName.split("/");
-    if (typeof sourceOwner === "string" && sourceOwner.trim() !== "") {
-      return sourceOwner.trim();
+    const separatorIndex = repo.sourceFullName.indexOf("/");
+    const sourceOwner = repo.sourceFullName.slice(0, separatorIndex).trim();
+    if (sourceOwner !== "") {
+      return sourceOwner;
     }
   }
 
