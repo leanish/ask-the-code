@@ -116,12 +116,22 @@ function normalizeExecutionOptions(
     getCodexTimeoutMsFn: getCodexTimeoutMs,
     runCodexQuestionFn: runCodexQuestion
   };
+  const hasExecutionOverrides = looksLikeExecutionOptions(envOrExecution);
 
-  if (legacyStatusReporter || !looksLikeExecutionOptions(envOrExecution)) {
+  if (legacyStatusReporter) {
+    // Preserve the legacy 3-argument signature: the second argument is an env bag,
+    // so accidental execution-option objects still fall back to process.env here.
     return {
       ...defaultExecution,
-      env: looksLikeExecutionOptions(envOrExecution) ? process.env : envOrExecution || process.env,
-      statusReporter: legacyStatusReporter,
+      env: hasExecutionOverrides ? process.env : envOrExecution || process.env,
+      statusReporter: legacyStatusReporter
+    };
+  }
+
+  if (!hasExecutionOverrides) {
+    return {
+      ...defaultExecution,
+      env: envOrExecution || process.env
     };
   }
 
