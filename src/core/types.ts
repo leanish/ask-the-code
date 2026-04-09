@@ -42,6 +42,7 @@ export interface GithubRepoApiFields {
   archived?: boolean;
   clone_url?: string;
   default_branch?: string;
+  disabled?: boolean;
   full_name?: string;
   fork?: boolean;
   html_url?: string;
