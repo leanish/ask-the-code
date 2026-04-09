@@ -2,7 +2,7 @@
 
 Archa answers questions about how your code behaves by resolving the in-scope repos, syncing them locally, and running Codex against the right workspace. The same core flow is shared by the CLI and the optional HTTP server.
 
-The repository is TypeScript-first: source lives in `src/` as ESM TypeScript, and package/runtime artifacts are emitted to `dist/`.
+The repository is TypeScript-first: source lives in `src/` as ESM TypeScript, and package/runtime artifacts are emitted to `dist/`. The published package surface is intentionally limited to the `archa` and `archa-server` binaries rather than a consumable module export.
 
 ## Component map
 

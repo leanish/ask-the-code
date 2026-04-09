@@ -10,6 +10,7 @@ Archa has two adapters over the same repo-aware question-answering core:
 Both adapters manage a configured set of repositories, keep them in sync, and use the local `codex exec` CLI to answer codebase questions across them.
 
 The source is written as TypeScript ESM under `src/`. Published CLI entrypoints are built into `dist/bin/`.
+The published package is CLI-only and intentionally exposes no importable library entrypoint.
 
 The project is intentionally split in two:
 

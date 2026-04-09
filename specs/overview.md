@@ -4,7 +4,7 @@ Archa is your personal code archaeologist. Ask your codebase how it behaves.
 
 Archa exposes the same repo-aware question-answering core through a CLI and an optional HTTP server. Both adapters manage a configured set of repositories, keep local clones up to date, and run the local `codex exec` CLI against either a user-selected repo workspace or the managed repos root chosen by automatic selection.
 
-Archa is implemented as a TypeScript ESM codebase under `src/` and builds publishable runtime artifacts into `dist/`.
+Archa is implemented as a TypeScript ESM codebase under `src/` and builds publishable runtime artifacts into `dist/`. The published package is CLI-only and does not expose a library import entrypoint.
 
 The source tree is organized by adapter and shared logic:
 

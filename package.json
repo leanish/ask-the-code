@@ -7,6 +7,7 @@
     "archa": "./dist/bin/archa.js",
     "archa-server": "./dist/bin/archa-server.js"
   },
+  "exports": {},
   "files": [
     "dist/",
     "README.md"
