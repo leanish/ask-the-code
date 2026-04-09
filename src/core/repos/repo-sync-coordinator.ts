@@ -1,13 +1,13 @@
 import { syncRepo } from "./repo-sync.js";
-import type { ManagedRepo, RepoSyncCallbacks, SyncReportItem } from "../types.js";
+import type { RepoSyncCallbacks, RepoSyncTarget, SyncReportItem } from "../types.js";
 
-type SyncRepoFn = (repo: ManagedRepo, callbacks?: RepoSyncCallbacks) => Promise<SyncReportItem>;
+type SyncRepoFn = (repo: RepoSyncTarget, callbacks?: RepoSyncCallbacks) => Promise<SyncReportItem>;
 
 export function createRepoSyncCoordinator({ syncRepoFn = syncRepo }: { syncRepoFn?: SyncRepoFn } = {}) {
   const inFlightSyncs = new Map<string, Promise<SyncReportItem>>();
 
   return {
-    async syncRepos(repos: ManagedRepo[], callbacks: RepoSyncCallbacks = {}): Promise<SyncReportItem[]> {
+    async syncRepos(repos: RepoSyncTarget[], callbacks: RepoSyncCallbacks = {}): Promise<SyncReportItem[]> {
       const report: SyncReportItem[] = [];
 
       for (const repo of repos) {
@@ -18,7 +18,7 @@ export function createRepoSyncCoordinator({ syncRepoFn = syncRepo }: { syncRepoF
     }
   };
 
-  async function syncRepoWithCoordination(repo: ManagedRepo, callbacks: RepoSyncCallbacks): Promise<SyncReportItem> {
+  async function syncRepoWithCoordination(repo: RepoSyncTarget, callbacks: RepoSyncCallbacks): Promise<SyncReportItem> {
     const existingSync = inFlightSyncs.get(repo.directory);
     if (existingSync) {
       callbacks.onRepoWait?.(repo, repo.defaultBranch || repo.branch || "main");

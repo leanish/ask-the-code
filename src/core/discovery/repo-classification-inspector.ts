@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -151,6 +150,43 @@ const INTERNAL_TERMS = ["internal", "employee", "backoffice", "admin-only", "pri
 const LIBRARY_TERMS = ["library", "sdk", "module", "plugin", "package"];
 const SERVICE_TERMS = ["microservice", "worker", "daemon"];
 const PLAY_FRAMEWORK_TERMS = ["playframework", "com.typesafe.play", "play.mvc", "play.api"];
+type RepoMetadata = {
+  description: string;
+  topics: string[];
+  classifications: RepoClassification[];
+};
+type RunCommandFn = (command: string, args: string[]) => Promise<void>;
+type FsModule = typeof fs;
+type PackageJsonLike = {
+  keywords?: unknown;
+  bin?: unknown;
+  exports?: unknown;
+  module?: unknown;
+  main?: unknown;
+  dependencies?: Record<string, unknown>;
+  devDependencies?: Record<string, unknown>;
+  peerDependencies?: Record<string, unknown>;
+};
+type InspectionDirectory = {
+  directory: string;
+  cleanup: (() => Promise<void>) | null;
+};
+type InspectRepoMetadataOptions = {
+  repo: RepoRecord;
+  sourceRepo?: Partial<RepoRecord>;
+  env?: Environment;
+  runCommandFn?: RunCommandFn;
+  fsModule?: FsModule;
+  tempDirRoot?: string;
+  curateMetadataFn?: typeof curateRepoMetadataWithCodex;
+  useCodexCleanup?: boolean;
+};
+type InferMetadataFromDirectoryOptions = {
+  directory: string;
+  repo: RepoRecord;
+  sourceRepo: Partial<RepoRecord>;
+  fsModule: FsModule;
+};
 
 export async function inspectRepoClassifications({
   repo,
@@ -161,16 +197,7 @@ export async function inspectRepoClassifications({
   tempDirRoot = os.tmpdir(),
   curateMetadataFn = curateRepoMetadataWithCodex,
   useCodexCleanup = true
-}: {
-  repo: RepoRecord;
-  sourceRepo?: Partial<RepoRecord>;
-  env?: Environment;
-  runCommandFn?: (...args: any[]) => Promise<string>;
-  fsModule?: typeof fs;
-  tempDirRoot?: string;
-  curateMetadataFn?: typeof curateRepoMetadataWithCodex;
-  useCodexCleanup?: boolean;
-}): Promise<RepoClassification[]> {
+}: InspectRepoMetadataOptions): Promise<RepoClassification[]> {
   const metadata = await inspectRepoMetadata({
     repo,
     sourceRepo,
@@ -194,20 +221,7 @@ export async function inspectRepoMetadata({
   tempDirRoot = os.tmpdir(),
   curateMetadataFn = curateRepoMetadataWithCodex,
   useCodexCleanup = true
-}: {
-  repo: RepoRecord;
-  sourceRepo?: Partial<RepoRecord>;
-  env?: Environment;
-  runCommandFn?: (...args: any[]) => Promise<string>;
-  fsModule?: typeof fs;
-  tempDirRoot?: string;
-  curateMetadataFn?: typeof curateRepoMetadataWithCodex;
-  useCodexCleanup?: boolean;
-}): Promise<{
-  description: string;
-  topics: string[];
-  classifications: RepoClassification[];
-}> {
+}: InspectRepoMetadataOptions): Promise<RepoMetadata> {
   const inspection = await prepareInspectionDirectory({
     repo,
     env,
@@ -229,8 +243,7 @@ export async function inspectRepoMetadata({
           directory: inspection.directory,
           repo,
           sourceRepo,
-          inferredMetadata,
-          env
+          inferredMetadata
         });
       } catch {
         return inferredMetadata;
@@ -249,7 +262,13 @@ export async function inspectRepoMetadata({
   }
 }
 
-async function prepareInspectionDirectory({ repo, env, fsModule, runCommandFn, tempDirRoot }) {
+async function prepareInspectionDirectory({
+  repo,
+  env,
+  fsModule,
+  runCommandFn,
+  tempDirRoot
+}: Required<Pick<InspectRepoMetadataOptions, "repo" | "env" | "fsModule" | "runCommandFn" | "tempDirRoot">>): Promise<InspectionDirectory> {
   const managedRepoDirectory = getManagedRepoDirectory(getDefaultManagedReposRoot(env), repo);
   if (await exists(fsModule, managedRepoDirectory)) {
     return {
@@ -260,6 +279,14 @@ async function prepareInspectionDirectory({ repo, env, fsModule, runCommandFn, t
 
   const tempRoot = await fsModule.mkdtemp(path.join(tempDirRoot, "archa-discovery-"));
   const cloneDirectory = path.join(tempRoot, getManagedRepoRelativePath(repo));
+  const cloneUrl = repo.url;
+
+  if (typeof cloneUrl !== "string" || cloneUrl.trim() === "") {
+    return {
+      directory: managedRepoDirectory,
+      cleanup: null
+    };
+  }
 
   try {
     await fsModule.mkdir(path.dirname(cloneDirectory), { recursive: true });
@@ -270,7 +297,7 @@ async function prepareInspectionDirectory({ repo, env, fsModule, runCommandFn, t
       "--branch",
       repo.defaultBranch || "main",
       "--single-branch",
-      repo.url,
+      cloneUrl,
       cloneDirectory
     ]);
   } catch {
@@ -287,7 +314,12 @@ async function prepareInspectionDirectory({ repo, env, fsModule, runCommandFn, t
   };
 }
 
-async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModule }) {
+async function inferMetadataFromDirectory({
+  directory,
+  repo,
+  sourceRepo,
+  fsModule
+}: InferMetadataFromDirectoryOptions): Promise<RepoMetadata> {
   if (!(await exists(fsModule, directory))) {
     return {
       description: "",
@@ -296,9 +328,9 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
     };
   }
 
-  const signals = new Set();
-  const topicCandidates = [];
-  const classifications = [];
+  const signals = new Set<string>();
+  const topicCandidates: string[] = [];
+  const classifications: RepoClassification[] = [];
   const hasFrontend = await hasAnyPath(fsModule, directory, FRONTEND_DIRECTORIES)
     || await hasAnyFile(fsModule, directory, FRONTEND_CONFIG_FILES);
   const hasMobile = await hasAnyPath(fsModule, directory, MOBILE_DIRECTORIES);
@@ -392,7 +424,7 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
     repo.name,
     repo.description,
     readmeLeadText,
-    packageJson?.keywords || []
+    Array.isArray(packageJson?.keywords) ? packageJson.keywords : []
   ])) && !classifications.includes("internal")) {
     classifications.push("external");
   }
@@ -411,7 +443,7 @@ async function inferMetadataFromDirectory({ directory, repo, sourceRepo, fsModul
   };
 }
 
-function hasExternalFacingEvidence(values) {
+function hasExternalFacingEvidence(values: Array<string | string[] | undefined>): boolean {
   const haystack = values
     .flatMap(value => Array.isArray(value) ? value : [value])
     .filter(value => typeof value === "string" && value.trim() !== "")
@@ -421,7 +453,7 @@ function hasExternalFacingEvidence(values) {
   return EXTERNAL_FACING_PHRASES.some(phrase => haystack.includes(phrase));
 }
 
-function inferDescriptionFromReadme(readmeText) {
+function inferDescriptionFromReadme(readmeText: string): string {
   const leadParagraph = extractReadmeLeadText(readmeText);
 
   if (!leadParagraph) {
@@ -435,10 +467,15 @@ function inferDescriptionFromReadme(readmeText) {
   return `${leadParagraph.slice(0, DESCRIPTION_MAX_LENGTH - 3).trimEnd()}...`;
 }
 
-function inferTopicsFromSignals(tokens, classifications, excludedTokens = [], sizeKb) {
-  const classificationSet = new Set(classifications);
-  const excluded = new Set(excludedTokens);
-  const ranked = new Map();
+function inferTopicsFromSignals(
+  tokens: string[],
+  classifications: RepoClassification[],
+  excludedTokens: string[] = [],
+  sizeKb: number | undefined
+): string[] {
+  const classificationSet = new Set<string>(classifications);
+  const excluded = new Set<string>(excludedTokens);
+  const ranked = new Map<string, { count: number; firstIndex: number }>();
   let index = 0;
 
   for (const token of tokens) {
@@ -467,7 +504,7 @@ function inferTopicsFromSignals(tokens, classifications, excludedTokens = [], si
     .map(([token]) => token);
 }
 
-async function hasAnyPath(fsModule, rootDirectory, relativePaths) {
+async function hasAnyPath(fsModule: FsModule, rootDirectory: string, relativePaths: string[]): Promise<boolean> {
   for (const relativePath of relativePaths) {
     if (await exists(fsModule, path.join(rootDirectory, relativePath))) {
       return true;
@@ -477,7 +514,7 @@ async function hasAnyPath(fsModule, rootDirectory, relativePaths) {
   return false;
 }
 
-async function hasAnyFile(fsModule, rootDirectory, filenames) {
+async function hasAnyFile(fsModule: FsModule, rootDirectory: string, filenames: string[]): Promise<boolean> {
   for (const filename of filenames) {
     const candidatePath = path.join(rootDirectory, filename);
     if (await exists(fsModule, candidatePath)) {
@@ -488,18 +525,21 @@ async function hasAnyFile(fsModule, rootDirectory, filenames) {
   return false;
 }
 
-async function hasRootFileWithSuffix(fsModule, rootDirectory, suffixes) {
-  let entries = [];
+async function hasRootFileWithSuffix(fsModule: FsModule, rootDirectory: string, suffixes: string[]): Promise<boolean> {
+  let entries: Array<{ isFile(): boolean; name: string }> = [];
   try {
-    entries = await fsModule.readdir(rootDirectory, { withFileTypes: true });
+    entries = await fsModule.readdir(rootDirectory, { withFileTypes: true, encoding: "utf8" }) as Array<{
+      isFile(): boolean;
+      name: string;
+    }>;
   } catch {
     return false;
   }
 
-  return entries.some(entry => entry.isFile() && suffixes.some(suffix => entry.name.endsWith(suffix)));
+  return entries.some(entry => entry.isFile() && suffixes.some((suffix: string) => entry.name.endsWith(suffix)));
 }
 
-async function readFirstExisting(fsModule, rootDirectory, filenames) {
+async function readFirstExisting(fsModule: FsModule, rootDirectory: string, filenames: string[]): Promise<string> {
   for (const filename of filenames) {
     const text = await readTextIfExists(fsModule, path.join(rootDirectory, filename));
     if (text) {
@@ -510,7 +550,7 @@ async function readFirstExisting(fsModule, rootDirectory, filenames) {
   return "";
 }
 
-async function readTextIfExists(fsModule, targetPath) {
+async function readTextIfExists(fsModule: FsModule, targetPath: string): Promise<string> {
   try {
     return await fsModule.readFile(targetPath, "utf8");
   } catch {
@@ -518,15 +558,15 @@ async function readTextIfExists(fsModule, targetPath) {
   }
 }
 
-async function readJson(fsModule, targetPath) {
+async function readJson(fsModule: FsModule, targetPath: string): Promise<PackageJsonLike | null> {
   try {
-    return JSON.parse(await fsModule.readFile(targetPath, "utf8"));
+    return JSON.parse(await fsModule.readFile(targetPath, "utf8")) as PackageJsonLike;
   } catch {
     return null;
   }
 }
 
-function collectPackageDependencies(packageJson) {
+function collectPackageDependencies(packageJson: PackageJsonLike | null): string[] {
   if (!packageJson || typeof packageJson !== "object") {
     return [];
   }
@@ -538,11 +578,11 @@ function collectPackageDependencies(packageJson) {
   ];
 }
 
-function hasMatchingDependency(dependencyNames, knownNames) {
+function hasMatchingDependency(dependencyNames: string[], knownNames: Set<string>): boolean {
   return dependencyNames.some(name => knownNames.has(name.toLowerCase()));
 }
 
-function addWords(target, value) {
+function addWords(target: Set<string>, value: unknown): void {
   if (Array.isArray(value)) {
     for (const item of value) {
       addWords(target, item);
@@ -564,7 +604,7 @@ function addWords(target, value) {
   }
 }
 
-function collectWords(target, value) {
+function collectWords(target: string[], value: unknown): void {
   if (Array.isArray(value)) {
     for (const item of value) {
       collectWords(target, item);
@@ -581,7 +621,7 @@ function collectWords(target, value) {
   }
 }
 
-function tokenizeTerms(value) {
+function tokenizeTerms(value: string): string[] {
   return (value.match(/[A-Za-z0-9-]+/g) || [])
     .flatMap(token => token.split("-"))
     .flatMap(token => token.split(/(?=[A-Z])/))
@@ -589,14 +629,14 @@ function tokenizeTerms(value) {
     .filter(Boolean);
 }
 
-function buildExcludedTopicTokens(repo) {
+function buildExcludedTopicTokens(repo: Pick<RepoRecord, "name" | "url">): string[] {
   return [
     ...tokenizeTerms(repo.name),
     ...parseRepoOwnerTokens(repo.url)
   ];
 }
 
-function parseRepoOwnerTokens(url) {
+function parseRepoOwnerTokens(url: string | undefined): string[] {
   if (typeof url !== "string" || url.trim() === "") {
     return [];
   }
@@ -606,10 +646,11 @@ function parseRepoOwnerTokens(url) {
     return [];
   }
 
-  return tokenizeTerms(match[1]);
+  const owner = match[1];
+  return owner ? tokenizeTerms(owner) : [];
 }
 
-function stripMarkdown(value) {
+function stripMarkdown(value: string): string {
   return value
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
@@ -620,7 +661,7 @@ function stripMarkdown(value) {
     .trim();
 }
 
-function extractReadmeLeadText(readmeText) {
+function extractReadmeLeadText(readmeText: string): string {
   if (!readmeText) {
     return "";
   }
@@ -642,11 +683,11 @@ function extractReadmeLeadText(readmeText) {
   return paragraphs.find(candidate => candidate.length >= 20) || "";
 }
 
-function hasAnyTerm(signals, terms) {
+function hasAnyTerm(signals: Set<string>, terms: string[]): boolean {
   return terms.some(term => signals.has(term));
 }
 
-async function exists(fsModule, targetPath) {
+async function exists(fsModule: FsModule, targetPath: string): Promise<boolean> {
   try {
     await fsModule.access(targetPath);
     return true;
@@ -655,8 +696,8 @@ async function exists(fsModule, targetPath) {
   }
 }
 
-async function runCommand(command, args) {
-  await new Promise((resolve, reject) => {
+async function runCommand(command: string, args: string[]): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: {
@@ -666,8 +707,8 @@ async function runCommand(command, args) {
     });
 
     let stderr = "";
-    child.stderr.on("data", chunk => {
-      stderr += chunk;
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
     });
     child.on("error", error => {
       reject(normalizeGitExecutionError(error));

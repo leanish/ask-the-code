@@ -2,14 +2,21 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { inspectRepoClassifications, inspectRepoMetadata } from "../src/core/discovery/repo-classification-inspector.js";
+import type { RepoClassification } from "../src/core/types.js";
+
+type CuratedMetadata = {
+  description: string;
+  topics: string[];
+  classifications: RepoClassification[];
+};
 
 describe("repo-classification-inspector", () => {
-  let tempRoot;
-  let env;
-  let curateMetadataFn;
+  let tempRoot: string;
+  let env: NodeJS.ProcessEnv;
+  let curateMetadataFn: Mock<(args: { inferredMetadata: CuratedMetadata }) => Promise<CuratedMetadata>>;
 
   beforeEach(async () => {
     tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "archa-inspect-"));

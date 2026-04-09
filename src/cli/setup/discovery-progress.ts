@@ -3,12 +3,13 @@ import process from "node:process";
 import type { GithubDiscoveryProgressEvent } from "../../core/types.js";
 
 const ACCESSIBLE_GITHUB_OWNER = "@accessible";
+type DiscoveryProgressOutput = Pick<NodeJS.WriteStream, "write" | "isTTY">;
 
 export function createGithubDiscoveryProgressReporter({
   output = process.stderr,
   isInteractive = Boolean(output?.isTTY)
 }: {
-  output?: NodeJS.WriteStream;
+  output?: DiscoveryProgressOutput;
   isInteractive?: boolean;
 } = {}) {
   let hasActiveInlineProgress = false;

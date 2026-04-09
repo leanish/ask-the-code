@@ -7,6 +7,10 @@ export function isSupportedAnswerAudience(value: string): value is AnswerAudienc
   return SUPPORTED_ANSWER_AUDIENCES.includes(value as AnswerAudience);
 }
 
-export function resolveAnswerAudience(value: string | null | undefined): string {
-  return value ?? DEFAULT_ANSWER_AUDIENCE;
+export function resolveAnswerAudience(value: string | null | undefined): AnswerAudience {
+  if (typeof value === "string" && isSupportedAnswerAudience(value)) {
+    return value;
+  }
+
+  return DEFAULT_ANSWER_AUDIENCE;
 }

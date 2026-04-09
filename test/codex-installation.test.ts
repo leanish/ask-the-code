@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,26 +8,27 @@ import {
   formatUnconfiguredCodexMessage,
   normalizeCodexExecutionError
 } from "../src/core/codex/codex-installation.js";
+import { createSpawnSyncResult } from "./test-helpers.js";
 
 describe("codex-installation", () => {
   it("returns quietly when codex is installed and logged in", () => {
     expect(() => ensureCodexInstalled({
       spawnSyncFn: vi
         .fn()
-        .mockReturnValueOnce({})
-        .mockReturnValueOnce({
+        .mockReturnValueOnce(createSpawnSyncResult())
+        .mockReturnValueOnce(createSpawnSyncResult({
           status: 0,
           stdout: "Logged in using ChatGPT\n",
           stderr: ""
-        })
+        })) as unknown as typeof spawnSync
     })).not.toThrow();
   });
 
   it("throws an install hint when codex is missing", () => {
     expect(() => ensureCodexInstalled({
-      spawnSyncFn: vi.fn(() => ({
+      spawnSyncFn: vi.fn(() => createSpawnSyncResult({
         error: Object.assign(new Error("spawnSync codex ENOENT"), { code: "ENOENT" })
-      }))
+      })) as unknown as typeof spawnSync
     })).toThrow(formatMissingCodexMessage());
   });
 
@@ -33,12 +36,12 @@ describe("codex-installation", () => {
     expect(() => ensureCodexInstalled({
       spawnSyncFn: vi
         .fn()
-        .mockReturnValueOnce({})
-        .mockReturnValueOnce({
+        .mockReturnValueOnce(createSpawnSyncResult())
+        .mockReturnValueOnce(createSpawnSyncResult({
           status: 1,
           stdout: "Not logged in\n",
           stderr: ""
-        })
+        })) as unknown as typeof spawnSync
     })).toThrow(formatUnconfiguredCodexMessage());
   });
 

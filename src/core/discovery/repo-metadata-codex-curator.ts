@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { runCodexPrompt } from "../codex/codex-runner.js";
+import { REPO_CLASSIFICATIONS } from "../types.js";
 import type { RepoClassification, RepoRecord } from "../types.js";
 
 const DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS = 60_000;
@@ -10,16 +10,7 @@ const MEDIUM_REPO_MAX_TOPICS = 5;
 const LARGE_REPO_MAX_TOPICS = 8;
 const HUGE_REPO_MAX_TOPICS = 20;
 const MASSIVE_REPO_MAX_TOPICS = 30;
-const ALLOWED_CLASSIFICATIONS = new Set([
-  "infra",
-  "library",
-  "internal",
-  "external",
-  "frontend",
-  "backend",
-  "cli",
-  "microservice"
-]);
+const ALLOWED_CLASSIFICATIONS = new Set<string>(REPO_CLASSIFICATIONS);
 const EXTERNAL_FACING_PHRASES = [
   "external",
   "customer-facing",
@@ -66,6 +57,24 @@ const TOPIC_STOP_WORDS = new Set([
 const INFRA_TERMS = ["infra", "infrastructure", "terraform", "helm", "kubernetes", "k8s", "ops", "devops"];
 const LIBRARY_TERMS = ["library", "sdk", "module", "plugin", "package"];
 const MICROSERVICE_TERMS = ["microservice", "worker", "daemon"];
+type RepoMetadata = {
+  description: string;
+  topics: string[];
+  classifications: RepoClassification[];
+};
+type RepoMetadataPromptInput = {
+  repo: RepoRecord;
+  sourceRepo: Partial<RepoRecord>;
+  inferredMetadata: RepoMetadata;
+};
+type ClassificationContext = RepoMetadataPromptInput & {
+  description: string;
+  topics: string[];
+};
+type ParseCuratedMetadataContext = RepoMetadataPromptInput & {
+  repoName: string;
+  sizeKb?: number | undefined;
+};
 
 export async function curateRepoMetadataWithCodex({
   directory,
@@ -77,17 +86,9 @@ export async function curateRepoMetadataWithCodex({
   directory: string;
   repo: RepoRecord;
   sourceRepo?: Partial<RepoRecord>;
-  inferredMetadata: {
-    description: string;
-    topics: string[];
-    classifications: RepoClassification[];
-  };
+  inferredMetadata: RepoMetadata;
   runCodexPromptFn?: typeof runCodexPrompt;
-}): Promise<{
-  description: string;
-  topics: string[];
-  classifications: RepoClassification[];
-}> {
+}): Promise<RepoMetadata> {
   if (typeof runCodexPromptFn !== "function") {
     return inferredMetadata;
   }
@@ -109,13 +110,17 @@ export async function curateRepoMetadataWithCodex({
     sourceRepo,
     repoName: repo.name,
     inferredMetadata,
-    sizeKb: sourceRepo.size
+    ...(sourceRepo.size === undefined ? {} : { sizeKb: sourceRepo.size })
   });
 
   return parsed || inferredMetadata;
 }
 
-function buildRepoMetadataCurationPrompt({ repo, sourceRepo, inferredMetadata }) {
+function buildRepoMetadataCurationPrompt({
+  repo,
+  sourceRepo,
+  inferredMetadata
+}: RepoMetadataPromptInput): string {
   const topicLimit = getTopicLimit(sourceRepo.size);
 
   return [
@@ -149,12 +154,15 @@ function buildRepoMetadataCurationPrompt({ repo, sourceRepo, inferredMetadata })
   ].join("\n");
 }
 
-function parseCuratedMetadata(text, { repo, sourceRepo, repoName, inferredMetadata, sizeKb }) {
+function parseCuratedMetadata(
+  text: string,
+  { repo, sourceRepo, repoName, inferredMetadata, sizeKb }: ParseCuratedMetadataContext
+): RepoMetadata | null {
   if (typeof text !== "string" || text.trim() === "") {
     return null;
   }
 
-  let parsed;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
@@ -165,9 +173,11 @@ function parseCuratedMetadata(text, { repo, sourceRepo, repoName, inferredMetada
     return null;
   }
 
-  const description = normalizeDescription(parsed.description) || inferredMetadata.description;
-  const topics = normalizeTopics(parsed.topics, repoName, getTopicLimit(sizeKb), repo?.url);
-  const classifications = normalizeClassifications(parsed.classifications, {
+  const parsedObject = parsed as Record<string, unknown>;
+
+  const description = normalizeDescription(parsedObject.description) || inferredMetadata.description;
+  const topics = normalizeTopics(parsedObject.topics, repoName, getTopicLimit(sizeKb), repo.url);
+  const classifications = normalizeClassifications(parsedObject.classifications, {
     repo,
     sourceRepo,
     inferredMetadata,
@@ -182,7 +192,7 @@ function parseCuratedMetadata(text, { repo, sourceRepo, repoName, inferredMetada
   };
 }
 
-function normalizeDescription(value) {
+function normalizeDescription(value: unknown): string {
   if (typeof value !== "string") {
     return "";
   }
@@ -199,7 +209,7 @@ function normalizeDescription(value) {
   return `${normalized.slice(0, MAX_DESCRIPTION_LENGTH - 3).trimEnd()}...`;
 }
 
-function normalizeTopics(value, repoName, limit, repoUrl = "") {
+function normalizeTopics(value: unknown, repoName: string, limit: number, repoUrl = ""): string[] | null {
   if (!Array.isArray(value)) {
     return null;
   }
@@ -208,8 +218,8 @@ function normalizeTopics(value, repoName, limit, repoUrl = "") {
     ...tokenizeRepoName(repoName),
     ...parseRepoOwnerTokens(repoUrl)
   ]);
-  const seen = new Set();
-  const topics = [];
+  const seen = new Set<string>();
+  const topics: string[] = [];
 
   for (const item of value) {
     if (topics.length >= limit) {
@@ -234,7 +244,7 @@ function normalizeTopics(value, repoName, limit, repoUrl = "") {
   return topics;
 }
 
-function normalizeTopic(value) {
+function normalizeTopic(value: unknown): string {
   if (typeof value !== "string") {
     return "";
   }
@@ -248,20 +258,20 @@ function normalizeTopic(value) {
     .replace(/^-|-$/g, "");
 }
 
-function normalizeClassifications(value, context) {
+function normalizeClassifications(value: unknown, context: ClassificationContext): RepoClassification[] | null {
   if (!Array.isArray(value)) {
     return null;
   }
 
-  const classifications = [];
-  const seen = new Set();
+  const classifications: RepoClassification[] = [];
+  const seen = new Set<RepoClassification>();
 
   for (const item of value) {
     if (typeof item !== "string") {
       continue;
     }
 
-    const normalized = item.trim().toLowerCase();
+    const normalized = item.trim().toLowerCase() as RepoClassification;
     if (
       !ALLOWED_CLASSIFICATIONS.has(normalized)
       || seen.has(normalized)
@@ -277,13 +287,13 @@ function normalizeClassifications(value, context) {
   return classifications;
 }
 
-function shouldKeepCuratedClassification(classification, {
+function shouldKeepCuratedClassification(classification: RepoClassification, {
   repo,
   sourceRepo,
   inferredMetadata,
   description,
   topics
-}) {
+}: ClassificationContext): boolean {
   switch (classification) {
     case "external":
       return shouldKeepExternalClassification({
@@ -328,7 +338,7 @@ function shouldKeepExternalClassification({
   inferredMetadata,
   description,
   topics
-}) {
+}: ClassificationContext): boolean {
   if (inferredMetadata.classifications.includes("external") || inferredMetadata.classifications.includes("frontend")) {
     return true;
   }
@@ -353,7 +363,7 @@ function shouldKeepLibraryClassification({
   inferredMetadata,
   description,
   topics
-}) {
+}: ClassificationContext): boolean {
   if (inferredMetadata.classifications.includes("library")) {
     return true;
   }
@@ -374,13 +384,13 @@ function shouldKeepLibraryClassification({
   return LIBRARY_TERMS.some(term => haystack.includes(term));
 }
 
-function shouldKeepKeywordClassification(classification, terms, {
+function shouldKeepKeywordClassification(classification: RepoClassification, terms: string[], {
   repo,
   sourceRepo,
   inferredMetadata,
   description,
   topics
-}) {
+}: ClassificationContext): boolean {
   if (inferredMetadata.classifications.includes(classification)) {
     return true;
   }
@@ -402,7 +412,7 @@ function buildClassificationHaystack({
   inferredMetadata,
   description,
   topics
-}) {
+}: ClassificationContext): string {
   return [
     repo?.name,
     repo?.description,
@@ -415,13 +425,13 @@ function buildClassificationHaystack({
   ].join("\n").toLowerCase();
 }
 
-function tokenizeRepoName(name) {
+function tokenizeRepoName(name: string): string[] {
   return (name.toLowerCase().match(/[a-z0-9-]+/g) || [])
     .flatMap(token => token.includes("-") ? [token, ...token.split("-")] : [token])
     .filter(Boolean);
 }
 
-function parseRepoOwnerTokens(url) {
+function parseRepoOwnerTokens(url: string): string[] {
   if (typeof url !== "string" || url.trim() === "") {
     return [];
   }
@@ -431,10 +441,11 @@ function parseRepoOwnerTokens(url) {
     return [];
   }
 
-  return tokenizeRepoName(match[1]);
+  const owner = match[1];
+  return owner ? tokenizeRepoName(owner) : [];
 }
 
-function getTopicLimit(sizeKb) {
+function getTopicLimit(sizeKb: number | undefined): number {
   if (typeof sizeKb !== "number" || Number.isNaN(sizeKb)) {
     return MEDIUM_REPO_MAX_TOPICS;
   }

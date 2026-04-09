@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type { Key } from "node:readline";
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,6 +11,24 @@ import {
   promptToInitializeConfig,
   renderConfigInit
 } from "../src/cli/setup/bootstrap.js";
+import type { CreateInterfaceFn, PromptInput, ReadlineLike } from "../src/cli/setup/interactive-prompts.js";
+import { createInitializeConfigResult, createLoadedConfig, createManagedRepo } from "./test-helpers.js";
+
+type TestRawKeypressInput = EventEmitter & PromptInput & {
+  isTTY: true;
+  isRaw: boolean;
+  _paused: boolean;
+  setRawMode(enabled: boolean): void;
+  isPaused(): boolean;
+  resume(): void;
+  pause(): void;
+  emit(event: "keypress", input: string, key: Key): boolean;
+};
+
+type PendingReadlineInstance = {
+  resolveQuestion: ((value: string) => void) | null;
+  readline: ReadlineLike;
+};
 
 describe("cli-bootstrap", () => {
   it("detects whether interactive prompts are available", () => {
@@ -176,7 +195,7 @@ describe("cli-bootstrap", () => {
 
     expect(result).toBeNull();
     expect(readlineFactory.instances).toHaveLength(1);
-    expect(readlineFactory.instances[0].readline.question).toHaveBeenCalledWith(
+    expect(readlineFactory.instances[0]!.readline.question).toHaveBeenCalledWith(
       "GitHub owner to discover from (user or org).\nPress Enter to use all accessible repos from your authenticated GitHub access.\n> "
     );
     expect(output.write).toHaveBeenCalledTimes(1);
@@ -202,9 +221,9 @@ describe("cli-bootstrap", () => {
   it("initializes and continues into discovery when config is missing", async () => {
     const loadConfigFn = vi.fn()
       .mockRejectedValueOnce(new Error('Archa config not found at /tmp/archa-config.json. Run "archa config init" or set ARCHA_CONFIG_PATH.'))
-      .mockResolvedValueOnce({ repos: [] })
-      .mockResolvedValueOnce({ repos: [{ name: "archa" }] });
-    const initializeConfigFn = vi.fn(async () => ({
+      .mockResolvedValueOnce(createLoadedConfig({ repos: [] }))
+      .mockResolvedValueOnce(createLoadedConfig({ repos: [createManagedRepo({ name: "archa" })] }));
+    const initializeConfigFn = vi.fn(async () => createInitializeConfigResult({
       configPath: "/tmp/archa-config.json",
       managedReposRoot: "/workspace/repos",
       repoCount: 0
@@ -248,7 +267,7 @@ describe("cli-bootstrap", () => {
       env: process.env,
       input: { isTTY: true },
       output,
-      loadConfigFn: vi.fn(async () => ({ repos: [] })),
+      loadConfigFn: vi.fn(async () => createLoadedConfig({ repos: [] })),
       initializeConfigFn: vi.fn(),
       getConfigPathFn: () => "/tmp/archa-config.json",
       runDiscoveryFn: vi.fn(),
@@ -270,7 +289,7 @@ describe("cli-bootstrap", () => {
       env: process.env,
       input: { isTTY: true },
       output,
-      loadConfigFn: vi.fn(async () => ({ repos: [] })),
+      loadConfigFn: vi.fn(async () => createLoadedConfig({ repos: [] })),
       initializeConfigFn: vi.fn(),
       getConfigPathFn: () => "/tmp/archa-config.json",
       runDiscoveryFn,
@@ -287,7 +306,7 @@ describe("cli-bootstrap", () => {
   });
 });
 
-function createReadline(answers) {
+function createReadline(answers: string[]): ReadlineLike {
   const queue = [...answers];
 
   return {
@@ -299,8 +318,10 @@ function createReadline(answers) {
 
 function createRawKeypressInput({
   paused = true
-} = {}) {
-  const input = new EventEmitter();
+}: {
+  paused?: boolean;
+} = {}): TestRawKeypressInput {
+  const input = new EventEmitter() as TestRawKeypressInput;
 
   input.isTTY = true;
   input.isRaw = false;
@@ -320,15 +341,15 @@ function createRawKeypressInput({
 }
 
 function createPendingReadlineFactory() {
-  const instances = [];
+  const instances: PendingReadlineInstance[] = [];
 
   return {
     instances,
-    createInterfaceFn() {
-      const instance = {
+    createInterfaceFn: (() => {
+      const instance: PendingReadlineInstance = {
         resolveQuestion: null,
         readline: {
-          question: vi.fn(() => new Promise(resolve => {
+          question: vi.fn(() => new Promise<string>(resolve => {
             instance.resolveQuestion = resolve;
           })),
           write: vi.fn(),
@@ -338,6 +359,6 @@ function createPendingReadlineFactory() {
 
       instances.push(instance);
       return instance.readline;
-    }
+    }) as CreateInterfaceFn
   };
 }

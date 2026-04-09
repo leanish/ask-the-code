@@ -3,9 +3,9 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { normalizeGitExecutionError } from "../git/git-installation.js";
-import type { ManagedRepo, RepoSyncAction, RepoSyncCallbacks, SyncReportItem } from "../types.js";
+import type { RepoSyncAction, RepoSyncCallbacks, RepoSyncTarget, SyncReportItem } from "../types.js";
 
-export async function syncRepos(repos: ManagedRepo[], callbacks: RepoSyncCallbacks = {}): Promise<SyncReportItem[]> {
+export async function syncRepos(repos: RepoSyncTarget[], callbacks: RepoSyncCallbacks = {}): Promise<SyncReportItem[]> {
   const report: SyncReportItem[] = [];
 
   for (const repo of repos) {
@@ -15,7 +15,7 @@ export async function syncRepos(repos: ManagedRepo[], callbacks: RepoSyncCallbac
   return report;
 }
 
-export async function syncRepo(repo: ManagedRepo, callbacks: RepoSyncCallbacks = {}): Promise<SyncReportItem> {
+export async function syncRepo(repo: RepoSyncTarget, callbacks: RepoSyncCallbacks = {}): Promise<SyncReportItem> {
   try {
     const trunkBranch = getTrackedBranch(repo);
 
@@ -28,7 +28,7 @@ export async function syncRepo(repo: ManagedRepo, callbacks: RepoSyncCallbacks =
         "--branch",
         trunkBranch,
         "--single-branch",
-        repo.url,
+        getCloneUrl(repo),
         repo.directory
       ]);
 
@@ -56,7 +56,7 @@ export async function syncRepo(repo: ManagedRepo, callbacks: RepoSyncCallbacks =
   }
 }
 
-function getTrackedBranch(repo: Pick<ManagedRepo, "name" | "defaultBranch" | "branch">): string {
+function getTrackedBranch(repo: Pick<RepoSyncTarget, "name" | "defaultBranch" | "branch">): string {
   const branchValue = repo.defaultBranch || repo.branch;
   const branch = typeof branchValue === "string"
     ? branchValue.trim()
@@ -67,6 +67,15 @@ function getTrackedBranch(repo: Pick<ManagedRepo, "name" | "defaultBranch" | "br
     );
   }
   return branch;
+}
+
+function getCloneUrl(repo: Pick<RepoSyncTarget, "name" | "url">): string {
+  const url = typeof repo.url === "string" ? repo.url.trim() : "";
+  if (!url) {
+    throw new Error(`Managed repo ${repo.name} is missing a clone URL. Update its config entry with url, then retry.`);
+  }
+
+  return url;
 }
 
 async function exists(targetPath: string): Promise<boolean> {
@@ -123,7 +132,7 @@ async function runCommand(
   });
 }
 
-function createSyncItem(repo: ManagedRepo, action: RepoSyncAction, detail?: string): SyncReportItem {
+function createSyncItem(repo: RepoSyncTarget, action: RepoSyncAction, detail?: string): SyncReportItem {
   return {
     name: repo.name,
     directory: repo.directory,

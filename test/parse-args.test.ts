@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import { HelpError, parseArgs } from "../src/cli/parse-args.js";
+import type { AskCommandOptions, ReposSyncCommandOptions } from "../src/core/types.js";
+
+function parseAskArgs(argv: string[], env: NodeJS.ProcessEnv): AskCommandOptions {
+  const parsed = parseArgs(argv, env);
+  expect(parsed.command).toBe("ask");
+  return parsed as AskCommandOptions;
+}
+
+function parseReposSyncArgs(argv: string[], env: NodeJS.ProcessEnv): ReposSyncCommandOptions {
+  const parsed = parseArgs(argv, env);
+  expect(parsed.command).toBe("repos-sync");
+  return parsed as ReposSyncCommandOptions;
+}
 
 describe("parseArgs", () => {
   it("defaults ask command to gpt-5.4-mini low", () => {
-    const parsed = parseArgs(["How", "is", "x-codec-meta", "implemented?"], {});
+    const parsed = parseAskArgs(["How", "is", "x-codec-meta", "implemented?"], {});
 
-    expect(parsed.command).toBe("ask");
     expect(parsed.audience).toBe("general");
     expect(parsed.model).toBe("gpt-5.4-mini");
     expect(parsed.reasoningEffort).toBe("low");
@@ -14,9 +26,8 @@ describe("parseArgs", () => {
   });
 
   it("supports repos sync subcommand", () => {
-    const parsed = parseArgs(["repos", "sync", "sqs-codec", "java-conventions"], {});
+    const parsed = parseReposSyncArgs(["repos", "sync", "sqs-codec", "java-conventions"], {});
 
-    expect(parsed.command).toBe("repos-sync");
     expect(parsed.repoNames).toEqual(["sqs-codec", "java-conventions"]);
   });
 
@@ -80,7 +91,7 @@ describe("parseArgs", () => {
   });
 
   it("parses ask options and env overrides", () => {
-    const parsed = parseArgs(
+    const parsed = parseAskArgs(
       ["--repo", "sqs-codec,java-conventions", "--audience", "codebase", "--model", "gpt-5.4", "--reasoning-effort", "high", "--no-sync", "--no-synthesis", "How", "does", "it", "work?"],
       {
         ARCHA_DEFAULT_MODEL: "ignored",
@@ -98,7 +109,7 @@ describe("parseArgs", () => {
   });
 
   it("uses the new default-setting env vars when flags are absent", () => {
-    const parsed = parseArgs(["How", "does", "it", "work?"], {
+    const parsed = parseAskArgs(["How", "does", "it", "work?"], {
       ARCHA_DEFAULT_MODEL: "gpt-5.4-mini",
       ARCHA_DEFAULT_REASONING_EFFORT: "medium"
     });
@@ -108,7 +119,7 @@ describe("parseArgs", () => {
   });
 
   it("keeps supporting legacy env var names for compatibility", () => {
-    const parsed = parseArgs(["How", "does", "it", "work?"], {
+    const parsed = parseAskArgs(["How", "does", "it", "work?"], {
       ARCHA_MODEL: "gpt-5.4-mini",
       ARCHA_REASONING_EFFORT: "medium"
     });
@@ -118,7 +129,7 @@ describe("parseArgs", () => {
   });
 
   it("prefers the new env var names over legacy aliases when both are set", () => {
-    const parsed = parseArgs(["How", "does", "it", "work?"], {
+    const parsed = parseAskArgs(["How", "does", "it", "work?"], {
       ARCHA_DEFAULT_MODEL: "gpt-5.4",
       ARCHA_MODEL: "gpt-5.4-mini",
       ARCHA_DEFAULT_REASONING_EFFORT: "low",
@@ -130,7 +141,7 @@ describe("parseArgs", () => {
   });
 
   it("supports reading the question from a file", () => {
-    const parsed = parseArgs(["--repo", "sqs-codec", "--question-file", "/tmp/question.txt"], {});
+    const parsed = parseAskArgs(["--repo", "sqs-codec", "--question-file", "/tmp/question.txt"], {});
 
     expect(parsed.repoNames).toEqual(["sqs-codec"]);
     expect(parsed.questionFile).toBe("/tmp/question.txt");
@@ -138,9 +149,8 @@ describe("parseArgs", () => {
   });
 
   it("supports -- to stop option parsing for question text", () => {
-    const parsed = parseArgs(["--", "--repo", "sqs-codec", "question"], {});
+    const parsed = parseAskArgs(["--", "--repo", "sqs-codec", "question"], {});
 
-    expect(parsed.command).toBe("ask");
     expect(parsed.question).toBe("--repo sqs-codec question");
   });
 
@@ -151,9 +161,8 @@ describe("parseArgs", () => {
   });
 
   it("returns empty repoNames when syncing all repos", () => {
-    const parsed = parseArgs(["repos", "sync"], {});
+    const parsed = parseReposSyncArgs(["repos", "sync"], {});
 
-    expect(parsed.command).toBe("repos-sync");
     expect(parsed.repoNames).toEqual([]);
   });
 

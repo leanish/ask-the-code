@@ -9,13 +9,18 @@ import { ensureInteractiveConfigSetup } from "../cli/setup/bootstrap.js";
 import { runGithubDiscoveryPipeline } from "../core/discovery/discovery-pipeline.js";
 import { createGithubDiscoveryProgressReporter } from "../cli/setup/discovery-progress.js";
 import { promptGithubDiscoverySelection } from "../cli/setup/discovery-selection.js";
-import { startHttpServer } from "./api/http-server.js";
+import { startHttpServer, type HttpServerHandle } from "./api/http-server.js";
 import { renderGithubDiscovery } from "../cli/render.js";
 import { HelpError, parseServerArgs } from "./args.js";
 import type { ConfigDiscoverGithubCommandOptions } from "../core/types.js";
 
 type ServerGithubDiscoveryOptions = Omit<ConfigDiscoverGithubCommandOptions, "command" | "owner"> & {
   owner: string;
+};
+type ShutdownProcessRef = {
+  on(event: string, listener: () => void): unknown;
+  exit(code?: number): unknown;
+  stderr: Pick<NodeJS.WriteStream, "write">;
 };
 
 export async function main(argv: string[]) {
@@ -87,10 +92,10 @@ async function runServerGithubDiscovery(
   }
 }
 
-export function setupShutdownHandlers(serverHandle: Awaited<ReturnType<typeof startHttpServer>>, {
+export function setupShutdownHandlers(serverHandle: Pick<HttpServerHandle, "close">, {
   processRef = process
 }: {
-  processRef?: typeof process;
+  processRef?: ShutdownProcessRef;
 } = {}) {
   let shuttingDown = false;
 

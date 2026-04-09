@@ -4,7 +4,7 @@ const LARGE_REPO_MAX_INFERRED_TOPICS = 8;
 const HUGE_REPO_MAX_INFERRED_TOPICS = 20;
 const MASSIVE_REPO_MAX_INFERRED_TOPICS = 30;
 
-export const EXTERNAL_FACING_PHRASES = [
+export const EXTERNAL_FACING_PHRASES: readonly string[] = [
   "external",
   "customer-facing",
   "user-facing",
@@ -19,7 +19,7 @@ export const EXTERNAL_FACING_PHRASES = [
   "public endpoint"
 ];
 
-export function getMaxInferredTopics(sizeKb) {
+export function getMaxInferredTopics(sizeKb: number | null | undefined): number {
   if (typeof sizeKb !== "number" || Number.isNaN(sizeKb)) {
     return MEDIUM_REPO_MAX_INFERRED_TOPICS;
   }

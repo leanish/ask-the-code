@@ -2,20 +2,63 @@ import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAskJobManager } from "../src/core/jobs/ask-job-manager.js";
+import type { AnswerQuestionFn, AskJobEvent, AskJobSnapshot, AskJobStatus } from "../src/core/types.js";
 import { createHttpHandler } from "../src/server/api/http-server.js";
+import { createLoadedConfig, createManagedRepo } from "./test-helpers.js";
 
-const managers = [];
+type HttpHandler = ReturnType<typeof createHttpHandler>;
+type HttpJobManager = Parameters<typeof createHttpHandler>[0]["jobManager"];
+type HandlerRequestOptions = {
+  method: string;
+  path: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  rawBody?: string;
+  skipAutoEndWrite?: boolean;
+};
+type MockRequest = PassThrough & {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  destroyed: boolean;
+};
+type MockResponse = PassThrough & {
+  statusCode: number;
+  headers: Record<string, string>;
+  body: string;
+  destroyed: boolean;
+  setHeader(name: string, value: string): void;
+  writeHead(statusCode: number, headers?: Record<string, string>): MockResponse;
+};
+type ManualRequest = {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  destroyed: boolean;
+  on(event: "data", handler: (chunk: Buffer) => void): ManualRequest;
+  on(event: "end", handler: () => void): ManualRequest;
+  on(event: "error", handler: (error: Error) => void): ManualRequest;
+  destroy(): void;
+  emit(event: "data" | "end" | "error", ...args: unknown[]): void;
+};
+type SseEvent = {
+  type: string;
+  data: Record<string, unknown>;
+};
+
+const managers: Array<ReturnType<typeof createAskJobManager>> = [];
 
 describe("http-server", () => {
   afterEach(async () => {
     while (managers.length > 0) {
-      managers.pop().close();
+      managers.pop()?.close();
     }
   });
 
   it("creates async ask jobs and exposes them over HTTP", async () => {
     const manager = createAskJobManager({
-      answerQuestionFn: async ({ question }, { statusReporter }) => {
+      answerQuestionFn: async ({ question }, execution) => {
+        const statusReporter = getRequiredStatusReporter(execution);
         statusReporter.info("selected repos");
 
         return {
@@ -125,7 +168,7 @@ describe("http-server", () => {
 
   it("returns ok health even when a custom job manager does not expose stats", async () => {
     const handler = createHttpHandler({
-      jobManager: {}
+      jobManager: createHttpJobManager()
     });
 
     const healthResponse = await performRequest(handler, {
@@ -141,8 +184,10 @@ describe("http-server", () => {
   });
 
   it("includes job stats in the health endpoint after creating jobs", async () => {
-    let releaseJob;
-    const jobReleased = new Promise(resolve => {
+    let releaseJob: () => void = () => {
+      throw new Error("Job release was not initialized.");
+    };
+    const jobReleased = new Promise<void>(resolve => {
       releaseJob = resolve;
     });
     const manager = createAskJobManager({
@@ -219,21 +264,21 @@ describe("http-server", () => {
     managers.push(manager);
     const handler = createHttpHandler({
       jobManager: manager,
-      loadConfigFn: async () => ({
+      loadConfigFn: async () => createLoadedConfig({
         repos: [
-          {
+          createManagedRepo({
             name: "archa",
             defaultBranch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
             aliases: ["self"],
             directory: "/workspace/archa"
-          },
-          {
+          }),
+          createManagedRepo({
             name: "demo-repo",
             defaultBranch: "master",
             description: "Demo repo",
             aliases: []
-          }
+          })
         ]
       })
     });
@@ -277,7 +322,7 @@ describe("http-server", () => {
     managers.push(manager);
     const handler = createHttpHandler({
       jobManager: manager,
-      loadConfigFn: async () => ({
+      loadConfigFn: async () => createLoadedConfig({
         repos: []
       })
     });
@@ -362,12 +407,15 @@ describe("http-server", () => {
   });
 
   it("streams job events over server-sent events", async () => {
-    let releaseJob;
-    const jobReleased = new Promise(resolve => {
+    let releaseJob: () => void = () => {
+      throw new Error("Job release was not initialized.");
+    };
+    const jobReleased = new Promise<void>(resolve => {
       releaseJob = resolve;
     });
     const manager = createAskJobManager({
-      answerQuestionFn: async ({ question }, { statusReporter }) => {
+      answerQuestionFn: async ({ question }, execution) => {
+        const statusReporter = getRequiredStatusReporter(execution);
         statusReporter.info(`running ${question}`);
         await jobReleased;
         statusReporter.info(`done ${question}`);
@@ -721,33 +769,17 @@ describe("http-server", () => {
   });
 
   it("does not write SSE events after the response is already destroyed", async () => {
-    let listener;
+    const listenerRef: { current: ((event: AskJobEvent) => void) | null } = { current: null };
     const unsubscribe = vi.fn();
-    const jobManager = {
-      createJob: vi.fn(),
-      getJob: vi.fn(() => ({
-        id: "job-1",
-        status: "running",
-        request: {
-          question: "ignored",
-          repoNames: null,
-          model: null,
-          reasoningEffort: null,
-          noSync: false,
-          noSynthesis: false
-        },
-        createdAt: "2026-04-03T00:00:00.000Z",
-        startedAt: "2026-04-03T00:00:00.000Z",
-        finishedAt: null,
-        error: null,
-        result: null,
-        events: []
+    const jobManager = createHttpJobManager({
+      getJob: vi.fn(() => createJobSnapshot({
+        status: "running"
       })),
-      subscribe: vi.fn((jobId, callback) => {
-        listener = callback;
+      subscribe: vi.fn((_jobId, callback) => {
+        listenerRef.current = callback;
         return unsubscribe;
       })
-    };
+    });
     const handler = createHttpHandler({ jobManager });
     const exchange = startRequest(handler, {
       method: "GET",
@@ -758,12 +790,14 @@ describe("http-server", () => {
     const initialBody = exchange.response.body;
     exchange.response.destroyed = true;
 
-    listener({
-      sequence: 1,
-      type: "status",
-      message: "after close",
-      timestamp: "2026-04-03T00:00:01.000Z"
-    });
+    if (listenerRef.current) {
+      listenerRef.current({
+        sequence: 1,
+        type: "status",
+        message: "after close",
+        timestamp: "2026-04-03T00:00:01.000Z"
+      });
+    }
 
     expect(exchange.response.body).toBe(initialBody);
 
@@ -772,25 +806,12 @@ describe("http-server", () => {
   });
 
   it("cleans up the SSE subscription when the terminal snapshot cannot be written", async () => {
-    let listener;
+    const listenerRef: { current: ((event: AskJobEvent) => void) | null } = { current: null };
     const unsubscribe = vi.fn();
-    const jobManager = {
-      createJob: vi.fn(),
-      getJob: vi.fn(() => ({
-        id: "job-1",
+    const jobManager = createHttpJobManager({
+      getJob: vi.fn(() => createJobSnapshot({
         status: "running",
-        request: {
-          question: "ignored",
-          repoNames: null,
-          model: null,
-          reasoningEffort: null,
-          noSync: false,
-          noSynthesis: false
-        },
-        createdAt: "2026-04-03T00:00:00.000Z",
-        startedAt: "2026-04-03T00:00:00.000Z",
         finishedAt: "2026-04-03T00:00:01.000Z",
-        error: null,
         result: {
           mode: "answer",
           question: "ignored",
@@ -799,14 +820,13 @@ describe("http-server", () => {
           synthesis: {
             text: "done"
           }
-        },
-        events: []
+        }
       })),
-      subscribe: vi.fn((jobId, callback) => {
-        listener = callback;
+      subscribe: vi.fn((_jobId, callback) => {
+        listenerRef.current = callback;
         return unsubscribe;
       })
-    };
+    });
     const request = createManualRequest({
       method: "GET",
       path: "/jobs/job-1/events"
@@ -825,12 +845,14 @@ describe("http-server", () => {
     });
     void createHttpHandler({ jobManager })(request, response);
 
-    listener({
-      sequence: 2,
-      type: "completed",
-      message: "done",
-      timestamp: "2026-04-03T00:00:01.000Z"
-    });
+    if (listenerRef.current) {
+      listenerRef.current({
+        sequence: 2,
+        type: "completed",
+        message: "done",
+        timestamp: "2026-04-03T00:00:01.000Z"
+      });
+    }
 
     expect(unsubscribe).toHaveBeenCalled();
     expect(response.body).toContain("event: completed");
@@ -838,11 +860,7 @@ describe("http-server", () => {
 
   it("does not parse truncated bodies after the request was already rejected for size", async () => {
     const parseSpy = vi.spyOn(JSON, "parse");
-    const jobManager = {
-      createJob: vi.fn(),
-      getJob: vi.fn(),
-      subscribe: vi.fn()
-    };
+    const jobManager = createHttpJobManager();
     const handler = createHttpHandler({
       bodyLimitBytes: 5,
       jobManager
@@ -871,13 +889,13 @@ describe("http-server", () => {
   });
 });
 
-async function waitFor(predicate) {
+async function waitFor(predicate: () => boolean | Promise<boolean>): Promise<void> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (await predicate()) {
       return;
     }
 
-    await new Promise(resolve => {
+    await new Promise<void>(resolve => {
       setTimeout(resolve, 0);
     });
   }
@@ -885,12 +903,12 @@ async function waitFor(predicate) {
   throw new Error("Condition not met in time.");
 }
 
-async function collectSseEvents(response, untilType) {
-  const events = [];
+async function collectSseEvents(response: MockResponse, untilType: string): Promise<SseEvent[]> {
+  const events: SseEvent[] = [];
   let buffer = "";
 
-  return await new Promise((resolve, reject) => {
-    response.on("data", chunk => {
+  return await new Promise<SseEvent[]>((resolve, reject) => {
+    response.on("data", (chunk: Buffer) => {
       buffer += chunk.toString("utf8");
 
       let delimiterIndex = buffer.indexOf("\n\n");
@@ -918,7 +936,7 @@ async function collectSseEvents(response, untilType) {
   });
 }
 
-function parseSseEvent(rawEvent) {
+function parseSseEvent(rawEvent: string): SseEvent | null {
   const lines = rawEvent.split("\n");
   let type = "message";
   let data = "";
@@ -944,33 +962,41 @@ function parseSseEvent(rawEvent) {
 
   return {
     type,
-    data: JSON.parse(data)
+    data: JSON.parse(data) as Record<string, unknown>
   };
 }
 
-function parseSseStreamBody(body) {
+function parseSseStreamBody(body: string): SseEvent[] {
   return body
     .split("\n\n")
     .map(chunk => chunk.trim())
     .filter(Boolean)
     .map(parseSseEvent)
-    .filter(Boolean);
+    .filter((event): event is SseEvent => event !== null);
 }
 
-async function performRequest(handler, options) {
+async function performRequest(handler: HttpHandler, options: HandlerRequestOptions): Promise<MockResponse> {
   const exchange = startRequest(handler, options);
   await exchange.completed;
   return exchange.response;
 }
 
-function startRequest(handler, { method, path, headers = {}, body = null, rawBody = null, skipAutoEndWrite = false }) {
-  const request = new PassThrough();
+function startRequest(
+  handler: HttpHandler,
+  { method, path, headers = {}, body, rawBody, skipAutoEndWrite = false }: HandlerRequestOptions
+): {
+  request: MockRequest;
+  response: MockResponse;
+  completed: Promise<void>;
+} {
+  const request = new PassThrough() as MockRequest;
   request.method = method;
   request.url = path;
   request.headers = headers;
+  request.destroyed = false;
 
   const response = createMockResponse();
-  const completed = new Promise((resolve, reject) => {
+  const completed = new Promise<void>((resolve, reject) => {
     response.on("finish", () => {
       resolve();
     });
@@ -1001,16 +1027,16 @@ function startRequest(handler, { method, path, headers = {}, body = null, rawBod
   };
 }
 
-function createMockResponse() {
-  const response = new PassThrough();
+function createMockResponse(): MockResponse {
+  const response = new PassThrough() as MockResponse;
 
   response.statusCode = 200;
   response.headers = {};
   response.body = "";
-  response.setHeader = (name, value) => {
+  response.setHeader = (name: string, value: string) => {
     response.headers[name.toLowerCase()] = value;
   };
-  response.writeHead = (statusCode, headers = {}) => {
+  response.writeHead = (statusCode: number, headers: Record<string, string> = {}) => {
     response.statusCode = statusCode;
 
     for (const [name, value] of Object.entries(headers)) {
@@ -1020,7 +1046,7 @@ function createMockResponse() {
     return response;
   };
 
-  response.on("data", chunk => {
+  response.on("data", (chunk: Buffer) => {
     response.body += chunk.toString("utf8");
   });
   response.on("finish", () => {
@@ -1031,8 +1057,16 @@ function createMockResponse() {
   return response;
 }
 
-function createManualRequest({ method, path, headers = {} }) {
-  const handlers = new Map();
+function createManualRequest({
+  method,
+  path,
+  headers = {}
+}: Pick<HandlerRequestOptions, "method" | "path" | "headers">): ManualRequest {
+  const handlers = {
+    data: [] as Array<(chunk: Buffer) => void>,
+    end: [] as Array<() => void>,
+    error: [] as Array<(error: Error) => void>
+  };
 
   return {
     method,
@@ -1040,29 +1074,44 @@ function createManualRequest({ method, path, headers = {} }) {
     headers,
     destroyed: false,
     on(event, handler) {
-      const current = handlers.get(event) || [];
-      current.push(handler);
-      handlers.set(event, current);
+      handlers[event].push(handler as never);
       return this;
     },
     destroy() {
       this.destroyed = true;
     },
     emit(event, ...args) {
-      for (const handler of handlers.get(event) || []) {
-        handler(...args);
+      if (event === "data") {
+        for (const handler of handlers.data) {
+          handler(args[0] as Buffer);
+        }
+        return;
+      }
+
+      if (event === "error") {
+        for (const handler of handlers.error) {
+          handler(args[0] as Error);
+        }
+        return;
+      }
+
+      for (const handler of handlers.end) {
+        handler();
       }
     }
   };
 }
 
-async function performManualRequest(handler, emitEvents) {
+async function performManualRequest(
+  handler: HttpHandler,
+  emitEvents: (request: ManualRequest) => void
+): Promise<MockResponse> {
   const request = createManualRequest({
     method: "POST",
     path: "/ask"
   });
   const response = createMockResponse();
-  const completed = new Promise((resolve, reject) => {
+  const completed = new Promise<void>((resolve, reject) => {
     response.on("finish", resolve);
     response.on("error", reject);
   });
@@ -1074,7 +1123,7 @@ async function performManualRequest(handler, emitEvents) {
   return response;
 }
 
-function createValidationHandler(bodyLimitBytes) {
+function createValidationHandler(bodyLimitBytes: number): HttpHandler {
   const manager = createAskJobManager({
     answerQuestionFn: async () => ({
       mode: "answer",
@@ -1093,4 +1142,56 @@ function createValidationHandler(bodyLimitBytes) {
     bodyLimitBytes,
     jobManager: manager
   });
+}
+
+function createHttpJobManager(overrides: Partial<HttpJobManager> = {}): HttpJobManager {
+  return {
+    createJob: vi.fn(() => {
+      throw new Error("createJob was not configured.");
+    }),
+    getJob: vi.fn(() => null),
+    subscribe: vi.fn(() => null),
+    ...overrides
+  };
+}
+
+function createJobSnapshot(overrides: Partial<AskJobSnapshot> = {}): AskJobSnapshot {
+  return {
+    id: "job-1",
+    status: "running",
+    request: {
+      question: "ignored",
+      repoNames: null,
+      audience: "general",
+      model: null,
+      reasoningEffort: null,
+      noSync: false,
+      noSynthesis: false
+    },
+    createdAt: "2026-04-03T00:00:00.000Z",
+    startedAt: "2026-04-03T00:00:00.000Z",
+    finishedAt: null,
+    error: null,
+    result: null,
+    events: [],
+    ...overrides
+  };
+}
+
+function getRequiredStatusReporter(execution: Parameters<AnswerQuestionFn>[1]): { info(message: string): void } {
+  const reporter = (
+    execution
+    && typeof execution === "object"
+    && "statusReporter" in execution
+    && execution.statusReporter
+    && typeof execution.statusReporter === "object"
+    && "info" in execution.statusReporter
+  )
+    ? execution.statusReporter
+    : null;
+  if (!reporter) {
+    throw new Error("Expected a status reporter in test execution context.");
+  }
+
+  return reporter as { info(message: string): void };
 }

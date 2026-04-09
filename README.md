@@ -10,6 +10,7 @@ Archa has two adapters over the same repo-aware question-answering core:
 Both adapters manage a configured set of repositories, keep them in sync, and use the local `codex exec` CLI to answer codebase questions across them.
 
 The source is written as TypeScript ESM under `src/`. Published CLI entrypoints are built into `dist/bin/`.
+The published package is CLI-only and intentionally exposes no importable library entrypoint.
 
 The project is intentionally split in two:
 
@@ -77,6 +78,12 @@ npm run server
 
 That path does not require rebuilding `dist/`, so rerunning it after source edits will pick up the latest `src/` changes.
 
+To run the CLI directly from TypeScript source during development, use:
+
+```bash
+npm run cli -- "How does this codebase behave?"
+```
+
 ## Configuration
 
 By default, `archa` reads config from:
@@ -139,8 +146,8 @@ Example using a few public `leanish` repos:
 }
 ```
 
-Repos may also set `"alwaysSelect": true` to stay in scope during automatic repo selection. This is useful for foundational repos that should always be available when Archa narrows to likely matches. Automatic selection first asks Codex, with `reasoning_effort="none"`, to choose from the configured repo metadata, then falls back to the local heuristic selector if that step fails or returns unusable output. If nothing scores positively in the fallback path, Archa still uses all configured repos.
-`classifications` are handled separately from free-form `topics` and remain useful evidence for automatic selection, but Codex is prompted to ignore generic cues such as `api`, `backend`, `internal`, `service`, `data`, or `platform` when those words are the only match. `external` is reserved for outward-facing applications or service surfaces; repos are not marked `external` just because they mention or integrate with GraphQL, REST, or APIs. Classifications are additive rather than exclusive, so a repo can carry multiple accurate roles when the evidence supports that.
+Repos may also set `"alwaysSelect": true` to stay in scope during automatic repo selection. This is useful for foundational repos that should always be available when Archa narrows to likely matches. Automatic selection first asks Codex with `reasoningEffort: "none"` to choose from the configured repo metadata, merges any `alwaysSelect` repos into that result, and falls back to local heuristic scoring when the selector call fails or returns unusable output. If nothing scores positively in that fallback, Archa still uses all configured repos.
+`classifications` are handled separately from free-form `topics` and weighted more strongly during automatic repo selection for cues like `infra`, `library`, `internal`, `external`, and `microservice`. `external` is reserved for outward-facing applications or service surfaces; repos are not marked `external` just because they mention or integrate with GraphQL, REST, or APIs. Classifications are additive rather than exclusive, so a repo can carry multiple accurate roles when the evidence supports that.
 
 Bootstrap an empty config:
 
@@ -224,8 +231,8 @@ archa repos sync sqs-codec,java-conventions
 
 Ask a question. By default `archa` will:
 
-1. choose likely repos from the configured repo list, while keeping any repos marked with `"alwaysSelect": true` in scope
-   Archa first asks Codex to choose from the configured repo metadata and falls back to the local heuristic selector if that step fails. If nothing scores positively in the fallback path, all configured repos are used.
+1. ask Codex to choose likely repos from the configured repo metadata with `reasoningEffort: "none"`, while keeping any repos marked with `"alwaysSelect": true` in scope
+   If that selector pass fails or returns unusable output, Archa falls back to local heuristic scoring. If nothing scores positively there, all configured repos are used.
 2. sync them to the latest tracked trunk tip
 3. run `codex exec` with `gpt-5.4-mini` and `low` reasoning effort
 
@@ -404,7 +411,7 @@ GitHub Actions CI runs `npm ci` and `npm test -- --coverage` on pull requests an
 
 ## Current limits
 
-- automatic repo selection depends on a local Codex selection pass over configured repo metadata, with heuristic fallback when that pass fails or returns unusable output
+- automatic repo selection depends on a best-effort Codex pre-pass over repo metadata, with fallback to local heuristic scoring based on repo names, descriptions, topics, classifications, and any repos pinned with `alwaysSelect`
 - syncing assumes the managed clones can fast-forward cleanly
 - the configured repo set is explicit and must be maintained in local config
 - HTTP job state is in-memory only and is lost when the server process restarts

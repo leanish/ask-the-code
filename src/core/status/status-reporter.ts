@@ -1,6 +1,9 @@
 import type { StatusReporter } from "../types.js";
 
-type WritableStatusStream = Pick<NodeJS.WriteStream, "write" | "isTTY">;
+type WritableStatusStream = {
+  write(chunk: string): unknown;
+  isTTY?: boolean;
+};
 
 export function createStreamStatusReporter(
   stream: WritableStatusStream,

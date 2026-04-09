@@ -1,19 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createRepoSyncCoordinator } from "../src/core/repos/repo-sync-coordinator.js";
+import type { RepoSyncTarget, SyncReportItem } from "../src/core/types.js";
+import { createSyncReportItem } from "./test-helpers.js";
 
 describe("repo-sync-coordinator", () => {
   it("deduplicates concurrent syncs for the same repo and makes waiters reuse the result", async () => {
-    let resolveSync;
-    const syncRepoFn = vi.fn(() => new Promise(resolve => {
-      resolveSync = resolve;
+    let resolveSync: (item: SyncReportItem) => void = (_item: SyncReportItem) => {
+      throw new Error("Sync resolver was not initialized.");
+    };
+    const syncRepoFn = vi.fn(() => new Promise<SyncReportItem>(resolve => {
+      resolveSync = item => resolve(item);
     }));
     const coordinator = createRepoSyncCoordinator({ syncRepoFn });
     const callbacks = {
       onRepoWait: vi.fn(),
       onRepoResult: vi.fn()
     };
-    const repo = {
+    const repo: RepoSyncTarget = {
       name: "archa",
       directory: "/workspace/repos/archa",
       defaultBranch: "main"
@@ -25,12 +29,12 @@ describe("repo-sync-coordinator", () => {
     expect(syncRepoFn).toHaveBeenCalledTimes(1);
     expect(callbacks.onRepoWait).toHaveBeenCalledWith(repo, "main");
 
-    resolveSync({
+    resolveSync(createSyncReportItem({
       name: "archa",
       directory: "/workspace/repos/archa",
       action: "updated",
       detail: "main"
-    });
+    }));
 
     await expect(firstSyncPromise).resolves.toEqual([
       {
@@ -57,14 +61,14 @@ describe("repo-sync-coordinator", () => {
   });
 
   it("starts a fresh sync after the previous coordinated sync has finished", async () => {
-    const syncRepoFn = vi.fn(async repo => ({
+    const syncRepoFn = vi.fn(async (repo: RepoSyncTarget) => createSyncReportItem({
       name: repo.name,
       directory: repo.directory,
       action: "updated",
       detail: "main"
     }));
     const coordinator = createRepoSyncCoordinator({ syncRepoFn });
-    const repo = {
+    const repo: RepoSyncTarget = {
       name: "archa",
       directory: "/workspace/repos/archa",
       defaultBranch: "main"

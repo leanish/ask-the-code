@@ -9,7 +9,14 @@ import {
   getPrimarySourceOwner,
   groupDiscoveryItemsByOwner
 } from "../../core/discovery/repo-display-utils.js";
-import { canPromptInteractively, promptLineOrCancel } from "./interactive-prompts.js";
+import {
+  canPromptInteractively,
+  defaultCreateInterface,
+  promptLineOrCancel,
+  type CreateInterfaceFn,
+  type PromptInput,
+  type PromptOutput
+} from "./interactive-prompts.js";
 import type {
   GithubDiscoveryPlan,
   GithubDiscoveryPlanEntry,
@@ -18,6 +25,7 @@ import type {
   RepoRecord
 } from "../../core/types.js";
 
+type GithubDiscoverySelectionPlan = Pick<GithubDiscoveryPlan, "entries"> & Partial<Pick<GithubDiscoveryPlan, "owner" | "ownerDisplay">>;
 type SelectableEntry = Pick<GithubDiscoveryPlanEntry, "status" | "repo">;
 type ConflictEntry = Pick<GithubDiscoveryPlanEntry, "status" | "repo" | "configuredRepo">;
 type DisplayEntry = SelectableEntry | ConflictEntry;
@@ -31,7 +39,7 @@ type AddAllPromptResult =
   | { type: "confirm" }
   | { type: "customize"; value: string };
 
-export function selectGithubDiscoveryRepos(plan: GithubDiscoveryPlan, {
+export function selectGithubDiscoveryRepos(plan: GithubDiscoverySelectionPlan, {
   addRepoNames = [],
   overrideRepoNames = []
 }: {
@@ -52,14 +60,14 @@ export function selectGithubDiscoveryRepos(plan: GithubDiscoveryPlan, {
   };
 }
 
-export async function promptGithubDiscoverySelection(plan: GithubDiscoveryPlan, {
+export async function promptGithubDiscoverySelection(plan: GithubDiscoverySelectionPlan, {
   input = process.stdin,
   output = process.stdout,
-  createInterfaceFn = createInterface
+  createInterfaceFn = defaultCreateInterface
 }: {
-  input?: NodeJS.ReadStream;
-  output?: NodeJS.WriteStream;
-  createInterfaceFn?: typeof createInterface;
+  input?: PromptInput;
+  output?: PromptOutput;
+  createInterfaceFn?: CreateInterfaceFn;
 } = {}): Promise<GithubDiscoverySelection> {
   if (!canPromptInteractively({ input, output })) {
     throw new Error(
@@ -80,19 +88,19 @@ export async function promptGithubDiscoverySelection(plan: GithubDiscoveryPlan, 
   });
 }
 
-function getAddableRepos(plan: GithubDiscoveryPlan): RepoRecord[] {
+function getAddableRepos(plan: GithubDiscoverySelectionPlan): RepoRecord[] {
   return plan.entries
     .filter(entry => entry.status === "new")
     .map(entry => entry.repo);
 }
 
-function getOverridableRepos(plan: GithubDiscoveryPlan): RepoRecord[] {
+function getOverridableRepos(plan: GithubDiscoverySelectionPlan): RepoRecord[] {
   return plan.entries
     .filter(entry => entry.status === "configured")
     .map(entry => entry.repo);
 }
 
-function getSelectableEntries(plan: GithubDiscoveryPlan): SelectableEntry[] {
+function getSelectableEntries(plan: GithubDiscoverySelectionPlan): SelectableEntry[] {
   return plan.entries
     .filter(entry => entry.status === "new" || entry.status === "configured")
     .map(entry => ({
@@ -101,7 +109,7 @@ function getSelectableEntries(plan: GithubDiscoveryPlan): SelectableEntry[] {
     }));
 }
 
-function getConflictEntries(plan: GithubDiscoveryPlan): ConflictEntry[] {
+function getConflictEntries(plan: GithubDiscoverySelectionPlan): ConflictEntry[] {
   return plan.entries
     .filter(entry => entry.status === "conflict")
     .map(entry => ({
@@ -133,6 +141,7 @@ function resolveSelectedRepos(
 
   const selectionOptions = buildRepoSelectionOptions(
     availableRepos.map(repo => ({
+      status: "new" as const,
       repo
     })),
     {
@@ -185,9 +194,9 @@ async function promptForSelection({
   primarySourceOwner = null,
   defaultSourceOwner = null
 }: {
-  input: NodeJS.ReadStream;
-  output: NodeJS.WriteStream;
-  createInterfaceFn: typeof createInterface;
+  input: PromptInput;
+  output: PromptOutput;
+  createInterfaceFn: CreateInterfaceFn;
   selectableEntries: SelectableEntry[];
   conflictEntries?: ConflictEntry[];
   primarySourceOwner?: string | null;
@@ -318,7 +327,8 @@ async function promptForSelection({
           .filter(repo => configuredRepoSet.has(repo))
       };
     } catch (error) {
-      output.write?.(`${error.message}\n`);
+      const message = error instanceof Error ? error.message : String(error);
+      output.write?.(`${message}\n`);
     }
   }
 }
@@ -329,9 +339,9 @@ async function promptAddAllOrCustomize({
   createInterfaceFn,
   newRepoCount
 }: {
-  input: NodeJS.ReadStream;
-  output: NodeJS.WriteStream;
-  createInterfaceFn: typeof createInterface;
+  input: PromptInput;
+  output: PromptOutput;
+  createInterfaceFn: CreateInterfaceFn;
   newRepoCount: number;
 }): Promise<AddAllPromptResult> {
   const prompt = `Add all ${newRepoCount} new repo(s)? Press Enter to confirm, or type repo names to customize.\n> `;
@@ -362,13 +372,13 @@ async function promptAddAllOrCustomize({
   };
 }
 
-function buildRepoSelectionOptions(entries, {
+function buildRepoSelectionOptions<T extends DisplayEntry>(entries: T[], {
   defaultSourceOwner = null,
   allEntries = entries
 }: {
   defaultSourceOwner?: string | null;
   allEntries?: DisplayEntry[];
-} = {}): SelectionOption[] {
+} = {}): Array<T & Pick<SelectionOption, "label" | "identifiers">> {
   const repoNameCounts = buildRepoNameCounts(allEntries);
 
   return entries.map(entry => {
@@ -458,7 +468,7 @@ function formatConfiguredRepoLabel(repo: ManagedRepoDefinition): string {
   return repo.name;
 }
 
-function getDefaultSourceOwner(plan: GithubDiscoveryPlan): string | null {
+function getDefaultSourceOwner(plan: GithubDiscoverySelectionPlan): string | null {
   const primarySourceOwner = getPrimarySourceOwner(plan.ownerDisplay ?? undefined);
   if (primarySourceOwner) {
     return primarySourceOwner;

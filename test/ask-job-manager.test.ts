@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAskJobManager } from "../src/core/jobs/ask-job-manager.js";
+import type { AnswerQuestionFn, AskJobEvent, AskResult } from "../src/core/types.js";
+import { createAnswerResult } from "./test-helpers.js";
 
 describe("ask-job-manager", () => {
   afterEach(() => {
@@ -8,11 +10,17 @@ describe("ask-job-manager", () => {
   });
 
   it("queues jobs, streams status updates, and respects the concurrency limit", async () => {
-    let finishFirstJob;
-    const firstJobDone = new Promise(resolve => {
-      finishFirstJob = resolve;
+    let finishFirstJob: () => void = () => {
+      throw new Error("First job release was not initialized.");
+    };
+    const firstJobDone = new Promise<void>(resolve => {
+      finishFirstJob = () => resolve();
     });
-    const answerQuestionFn = vi.fn(async ({ question }, { statusReporter }) => {
+    const answerQuestionFn = vi.fn(async (
+      { question }: Parameters<AnswerQuestionFn>[0],
+      execution: Parameters<AnswerQuestionFn>[1]
+    ) => {
+      const statusReporter = getRequiredStatusReporter(execution);
       statusReporter.info(`processing ${question}`);
 
       if (question === "first") {
@@ -21,15 +29,12 @@ describe("ask-job-manager", () => {
 
       statusReporter.info(`finished ${question}`);
 
-      return {
-        mode: "answer",
+      return createAnswerResult({
         question,
-        selectedRepos: [],
-        syncReport: [],
         synthesis: {
           text: `answer:${question}`
         }
-      };
+      });
     });
     const manager = createAskJobManager({
       answerQuestionFn,
@@ -38,8 +43,8 @@ describe("ask-job-manager", () => {
       maxConcurrentJobs: 1,
       jobRetentionMs: 60_000
     });
-    const firstEvents = [];
-    const secondEvents = [];
+    const firstEvents: AskJobEvent[] = [];
+    const secondEvents: AskJobEvent[] = [];
 
     const firstJob = manager.createJob({ question: "first" });
     const secondJob = manager.createJob({ question: "second" });
@@ -73,29 +78,28 @@ describe("ask-job-manager", () => {
     expect(secondEvents.map(event => event.type)).toContain("started");
     expect(secondEvents.find(event => event.type === "status")?.message).toBe("processing second");
     expect(secondEvents.find(event => event.type === "completed")?.message).toBe("Job completed. (0s total)");
-    expect(manager.getJob(secondJob.id)?.result?.synthesis.text).toBe("answer:second");
+    expect(getAnswerText(manager.getJob(secondJob.id)?.result)).toBe("answer:second");
 
     manager.close();
   });
 
   it("includes total elapsed time from queue insertion in the completed event", async () => {
-    let releaseJob;
-    const jobReleased = new Promise(resolve => {
-      releaseJob = resolve;
+    let releaseJob: () => void = () => {
+      throw new Error("Timed job release was not initialized.");
+    };
+    const jobReleased = new Promise<void>(resolve => {
+      releaseJob = () => resolve();
     });
     const manager = createAskJobManager({
       answerQuestionFn: vi.fn(async () => {
         await jobReleased;
 
-        return {
-          mode: "answer",
+        return createAnswerResult({
           question: "timed",
-          selectedRepos: [],
-          syncReport: [],
           synthesis: {
             text: "answer:timed"
           }
-        };
+        });
       }),
       generateJobId: createSequenceIdGenerator(),
       now: createSequenceClock([
@@ -108,7 +112,7 @@ describe("ask-job-manager", () => {
       ]),
       jobRetentionMs: 60_000
     });
-    const events = [];
+    const events: AskJobEvent[] = [];
     const job = manager.createJob({ question: "timed" });
 
     manager.subscribe(job.id, event => {
@@ -130,21 +134,20 @@ describe("ask-job-manager", () => {
         statusReporter.info("Running Codex...");
         statusReporter.info("Running Codex... done in 34s");
 
-        return {
-          mode: "answer",
+        return createAnswerResult({
           question: "timed",
           selectedRepos: [],
           syncReport: [],
           synthesis: {
             text: "answer:timed"
           }
-        };
+        });
       }),
       generateJobId: createSequenceIdGenerator(),
       now: createSequenceClock(new Array(8).fill("2026-04-07T18:00:00.000Z")),
       jobRetentionMs: 60_000
     });
-    const events = [];
+    const events: AskJobEvent[] = [];
     const job = manager.createJob({ question: "timed" });
 
     manager.subscribe(job.id, event => {
@@ -159,24 +162,23 @@ describe("ask-job-manager", () => {
   });
 
   it("runs up to three jobs concurrently by default", async () => {
-    let releaseJobs;
-    const jobsReleased = new Promise(resolve => {
-      releaseJobs = resolve;
+    let releaseJobs: () => void = () => {
+      throw new Error("Job release was not initialized.");
+    };
+    const jobsReleased = new Promise<void>(resolve => {
+      releaseJobs = () => resolve();
     });
     const answerQuestionFn = vi.fn(async ({ question }) => {
       if (question !== "fourth") {
         await jobsReleased;
       }
 
-      return {
-        mode: "answer",
+      return createAnswerResult({
         question,
-        selectedRepos: [],
-        syncReport: [],
         synthesis: {
           text: `answer:${question}`
         }
-      };
+      });
     });
     const manager = createAskJobManager({
       answerQuestionFn,
@@ -207,11 +209,8 @@ describe("ask-job-manager", () => {
 
   it("preserves an explicit request audience on the job snapshot", () => {
     const manager = createAskJobManager({
-      answerQuestionFn: vi.fn(async () => ({
-        mode: "answer",
+      answerQuestionFn: vi.fn(async () => createAnswerResult({
         question: "ignored",
-        selectedRepos: [],
-        syncReport: [],
         synthesis: {
           text: "ignored"
         }
@@ -253,24 +252,23 @@ describe("ask-job-manager", () => {
   });
 
   it("shutdown cancels queued jobs and waits for running jobs to finish", async () => {
-    let finishFirstJob;
-    const firstJobDone = new Promise(resolve => {
-      finishFirstJob = resolve;
+    let finishFirstJob: () => void = () => {
+      throw new Error("First job release was not initialized.");
+    };
+    const firstJobDone = new Promise<void>(resolve => {
+      finishFirstJob = () => resolve();
     });
     const answerQuestionFn = vi.fn(async ({ question }) => {
       if (question === "first") {
         await firstJobDone;
       }
 
-      return {
-        mode: "answer",
+      return createAnswerResult({
         question,
-        selectedRepos: [],
-        syncReport: [],
         synthesis: {
           text: `answer:${question}`
         }
-      };
+      });
     });
     const manager = createAskJobManager({
       answerQuestionFn,
@@ -304,22 +302,21 @@ describe("ask-job-manager", () => {
   });
 
   it("reports correct stats as jobs progress through states", async () => {
-    let finishFirstJob;
-    const firstJobDone = new Promise(resolve => {
-      finishFirstJob = resolve;
+    let finishFirstJob: () => void = () => {
+      throw new Error("First job release was not initialized.");
+    };
+    const firstJobDone = new Promise<void>(resolve => {
+      finishFirstJob = () => resolve();
     });
     const answerQuestionFn = vi.fn(async ({ question }) => {
       if (question === "first") {
         await firstJobDone;
       }
 
-      return {
-        mode: "answer",
+      return createAnswerResult({
         question,
-        selectedRepos: [],
-        syncReport: [],
         synthesis: { text: `answer:${question}` }
-      };
+      });
     });
     const manager = createAskJobManager({
       answerQuestionFn,
@@ -366,11 +363,8 @@ describe("ask-job-manager", () => {
 
   it("returns null when subscribing to an unknown job", () => {
     const manager = createAskJobManager({
-      answerQuestionFn: vi.fn(async () => ({
-        mode: "answer",
+      answerQuestionFn: vi.fn(async () => createAnswerResult({
         question: "ignored",
-        selectedRepos: [],
-        syncReport: [],
         synthesis: {
           text: "ignored"
         }
@@ -385,11 +379,8 @@ describe("ask-job-manager", () => {
   it("expires completed jobs after the retention timeout", async () => {
     vi.useFakeTimers();
     const manager = createAskJobManager({
-      answerQuestionFn: vi.fn(async () => ({
-        mode: "answer",
+      answerQuestionFn: vi.fn(async () => createAnswerResult({
         question: "cleanup",
-        selectedRepos: [],
-        syncReport: [],
         synthesis: {
           text: "done"
         }
@@ -422,24 +413,23 @@ describe("ask-job-manager", () => {
   });
 
   it("stops queued work and avoids cleanup timers after close", async () => {
-    let finishFirstJob;
-    const firstJobDone = new Promise(resolve => {
-      finishFirstJob = resolve;
+    let finishFirstJob: () => void = () => {
+      throw new Error("First job release was not initialized.");
+    };
+    const firstJobDone = new Promise<void>(resolve => {
+      finishFirstJob = () => resolve();
     });
     const answerQuestionFn = vi.fn(async ({ question }) => {
       if (question === "first") {
         await firstJobDone;
       }
 
-      return {
-        mode: "answer",
+      return createAnswerResult({
         question,
-        selectedRepos: [],
-        syncReport: [],
         synthesis: {
           text: question
         }
-      };
+      });
     });
     const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const manager = createAskJobManager({
@@ -481,17 +471,36 @@ function createSequenceIdGenerator() {
   };
 }
 
-function createSequenceClock(values) {
+function createSequenceClock(values: string[]): () => Date {
   let index = 0;
 
   return () => {
-    const resolvedValue = values[Math.min(index, values.length - 1)];
+    const resolvedValue = values[Math.min(index, values.length - 1)] ?? values[values.length - 1]!;
     index += 1;
     return new Date(resolvedValue);
   };
 }
 
-async function waitFor(predicate) {
+function getRequiredStatusReporter(execution: Parameters<AnswerQuestionFn>[1]) {
+  if (
+    !execution
+    || typeof execution !== "object"
+    || !("statusReporter" in execution)
+    || !execution.statusReporter
+    || typeof execution.statusReporter !== "object"
+    || !("info" in execution.statusReporter)
+  ) {
+    throw new Error("Missing status reporter.");
+  }
+
+  return execution.statusReporter;
+}
+
+function getAnswerText(result: AskResult | null | undefined): string | null {
+  return result?.mode === "answer" ? result.synthesis.text : null;
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (predicate()) {
       return;

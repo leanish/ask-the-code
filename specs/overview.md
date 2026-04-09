@@ -4,7 +4,7 @@ Archa is your personal code archaeologist. Ask your codebase how it behaves.
 
 Archa exposes the same repo-aware question-answering core through a CLI and an optional HTTP server. Both adapters manage a configured set of repositories, keep local clones up to date, and run the local `codex exec` CLI against either a user-selected repo workspace or the managed repos root chosen by automatic selection.
 
-Archa is implemented as a TypeScript ESM codebase under `src/` and builds publishable runtime artifacts into `dist/`.
+Archa is implemented as a TypeScript ESM codebase under `src/` and builds publishable runtime artifacts into `dist/`. The published package is CLI-only and does not expose a library import entrypoint.
 
 The source tree is organized by adapter and shared logic:
 
@@ -32,11 +32,11 @@ The source tree is organized by adapter and shared logic:
 - repo names and aliases are validated eagerly and must be unique case-insensitively
 - `repos list` shows configured repos and whether they are cloned locally
 - `repos sync` clones missing managed repos, syncs existing ones against their configured tracked branch, and first unshallows any previously shallow managed checkout
-- asking a question uses Codex-driven automatic repo selection by default, or an explicit repo subset when provided, then syncs them and runs Codex
+- asking a question uses automatic repo selection by default, or an explicit repo subset when provided; automatic selection first asks Codex to choose from repo metadata with minimal reasoning and falls back to local heuristic scoring when that selector pass fails or returns unusable output, then syncs the final repo set and runs Codex for the answer
 - the HTTP adapter exposes the same ask flow as async jobs plus status streams
 - the built-in web UI can load the configured repo catalog and present it as a picker instead of raw comma-separated input
-- repos can be pinned into automatic selection with `alwaysSelect`; automatic selection first asks Codex, with minimal reasoning, to choose from configured repo metadata and falls back to the local heuristic selector when that pass fails or returns unusable output, still falling back to all configured repos when nothing scores positively
-- high-signal classifications such as `infra`, `library`, `internal`, `external`, and `microservice` remain separate from generic topics during automatic selection, are additive when multiple roles apply, and keep `external` reserved for clearly outward-facing repos rather than generic API integrations
+- repos can be pinned into automatic selection with `alwaysSelect`, and automatic selection still falls back to all configured repos when neither the Codex selector nor the heuristic fallback can narrow the repo set usefully
+- high-signal classifications such as `infra`, `library`, `internal`, `external`, and `microservice` are handled separately from generic topics, are additive when multiple roles apply, are weighted more strongly during automatic selection, and keep `external` reserved for clearly outward-facing repos rather than generic API integrations
 - answers default to non-engineering readers with plain-language, low-reference explanations and can optionally target codebase-aware readers
 
 ## Non-goals

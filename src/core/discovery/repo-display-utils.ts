@@ -13,7 +13,9 @@ export function getGithubRepoIdentityFromUrl(url: string | undefined): string | 
   return `${match[1]}/${match[2]}`;
 }
 
-export function getGithubRepoDisplayIdentity(repo: Pick<RepoRecord, "sourceFullName" | "url">): string | null {
+export function getGithubRepoDisplayIdentity(
+  repo: Partial<Pick<RepoRecord, "sourceFullName" | "url">> | null | undefined
+): string | null {
   if (typeof repo?.sourceFullName === "string" && repo.sourceFullName.trim() !== "") {
     return repo.sourceFullName.trim();
   }
@@ -21,7 +23,9 @@ export function getGithubRepoDisplayIdentity(repo: Pick<RepoRecord, "sourceFullN
   return getGithubRepoIdentityFromUrl(repo?.url);
 }
 
-export function getDiscoveryRepoBaseName(repo: Pick<RepoRecord, "name" | "sourceFullName">): string {
+export function getDiscoveryRepoBaseName(
+  repo: Partial<Pick<RepoRecord, "name" | "sourceFullName">> | null | undefined
+): string {
   if (typeof repo?.sourceFullName === "string" && repo.sourceFullName.includes("/")) {
     return repo.sourceFullName.split("/").pop()?.trim() ?? "";
   }
@@ -33,7 +37,9 @@ export function getDiscoveryRepoBaseName(repo: Pick<RepoRecord, "name" | "source
   return typeof repo?.name === "string" ? repo.name : "";
 }
 
-export function getDiscoveryOwnerLabel(repo: Pick<RepoRecord, "sourceFullName" | "sourceOwner" | "url">): string {
+export function getDiscoveryOwnerLabel(
+  repo: Partial<Pick<RepoRecord, "sourceFullName" | "sourceOwner" | "url">> | null | undefined
+): string {
   if (typeof repo?.sourceOwner === "string" && repo.sourceOwner.trim() !== "") {
     return repo.sourceOwner.trim();
   }

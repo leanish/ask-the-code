@@ -197,7 +197,7 @@ function normalizeSelectedRepoNames(value: unknown[]): string[] | null {
     return null;
   }
 
-  return Array.from(new Set(value.map(item => (item as string).trim())));
+  return Array.from(new Set((value as string[]).map(item => item.trim())));
 }
 
 function selectRequestedRepos(config: LoadedConfig, requestedRepoNames: string[]): ManagedRepo[] {

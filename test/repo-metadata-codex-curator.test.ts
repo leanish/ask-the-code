@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { curateRepoMetadataWithCodex } from "../src/core/discovery/repo-metadata-codex-curator.js";
+import type { RepoClassification } from "../src/core/types.js";
 
 describe("repo-metadata-codex-curator", () => {
   it("accepts Codex-curated metadata and normalizes it", async () => {
@@ -43,7 +44,11 @@ describe("repo-metadata-codex-curator", () => {
   });
 
   it("falls back to inferred metadata when Codex does not return valid JSON", async () => {
-    const inferredMetadata = {
+    const inferredMetadata: {
+      description: string;
+      topics: string[];
+      classifications: RepoClassification[];
+    } = {
       description: "Terminator is a small Java library.",
       topics: ["java", "shutdown", "blocking"],
       classifications: ["library"]

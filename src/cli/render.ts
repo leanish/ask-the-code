@@ -9,14 +9,16 @@ import {
 } from "../core/discovery/repo-display-utils.js";
 import type {
   AnswerResult,
-  GithubDiscoveryPipelineResult,
   GithubDiscoveryPlanEntry,
   ManagedRepo,
   RetrievalOnlyResult,
   SyncReportItem
 } from "../core/types.js";
 
-type GithubDiscoveryRenderResult = GithubDiscoveryPipelineResult["plan"] & {
+type GithubDiscoveryRenderResult = {
+  owner: string;
+  ownerDisplay?: string;
+  ownerType: string;
   appliedEntries?: GithubDiscoveryPlanEntry[];
   selectedCount?: number;
   configPath: string | null;
@@ -146,16 +148,16 @@ function formatDiscoveryRepoLabel(repo: GithubDiscoveryPlanEntry["repo"], useSou
   return repo.name;
 }
 
-function formatDiscoveryEntry(entry, {
+function formatDiscoveryEntry(entry: GithubDiscoveryPlanEntry, {
   useSourceLabels
 }: {
   useSourceLabels: boolean;
 }): string {
   const status = formatDiscoveryStatus(entry);
-  const classifications = entry.repo.classifications?.length > 0
-    ? ` classifications=${entry.repo.classifications.join(",")}`
+  const classifications = (entry.repo.classifications?.length ?? 0) > 0
+    ? ` classifications=${entry.repo.classifications?.join(",")}`
     : "";
-  const topics = entry.repo.topics?.length > 0 ? ` topics=${entry.repo.topics.join(",")}` : "";
+  const topics = (entry.repo.topics?.length ?? 0) > 0 ? ` topics=${entry.repo.topics?.join(",")}` : "";
   const description = entry.repo.description ? ` ${entry.repo.description}` : "";
   const suggestions = entry.suggestions?.length > 0 ? ` review=${entry.suggestions.join("; ")}` : "";
   return `- ${formatDiscoveryRepoLabel(entry.repo, useSourceLabels)} [${status}]${classifications}${topics}${suggestions}${description}`;

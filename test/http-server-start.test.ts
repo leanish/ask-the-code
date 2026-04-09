@@ -1,3 +1,5 @@
+import type { AddressInfo } from "node:net";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +13,8 @@ vi.mock("node:http", () => ({
 }));
 
 import { startHttpServer } from "../src/server/api/http-server.js";
+import type { AskJobManager } from "../src/core/types.js";
+import { createLoadedConfig } from "./test-helpers.js";
 
 describe("http-server startup", () => {
   beforeEach(() => {
@@ -25,17 +29,17 @@ describe("http-server startup", () => {
         port: 43123
       }
     });
-    const jobManager = {
+    const jobManager = createJobManagerDouble({
       shutdown: vi.fn(() => Promise.resolve()),
       close: vi.fn()
-    };
+    });
     mocks.createServer.mockReturnValue(server);
 
     const handle = await startHttpServer({
       host: "::1",
       port: 43123,
       bodyLimitBytes: 1024,
-      loadConfigFn: async () => ({ repos: [] }),
+      loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
     });
 
@@ -51,8 +55,10 @@ describe("http-server startup", () => {
   });
 
   it("waits for server close and job shutdown before clearing the manager", async () => {
-    let finishShutdown;
-    const shutdownPromise = new Promise(resolve => {
+    let finishShutdown: () => void = () => {
+      throw new Error("Shutdown resolver was not initialized.");
+    };
+    const shutdownPromise = new Promise<void>(resolve => {
       finishShutdown = resolve;
     });
     const server = createServerDouble({
@@ -63,14 +69,14 @@ describe("http-server startup", () => {
       },
       deferClose: true
     });
-    const jobManager = {
+    const jobManager = createJobManagerDouble({
       shutdown: vi.fn(() => shutdownPromise),
       close: vi.fn()
-    };
+    });
     mocks.createServer.mockReturnValue(server);
 
     const handle = await startHttpServer({
-      loadConfigFn: async () => ({ repos: [] }),
+      loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
     });
 
@@ -96,11 +102,8 @@ describe("http-server startup", () => {
     mocks.createServer.mockReturnValue(server);
 
     const handle = await startHttpServer({
-      loadConfigFn: async () => ({ repos: [] }),
-      jobManager: {
-        shutdown: vi.fn(() => Promise.resolve()),
-        close: vi.fn()
-      }
+      loadConfigFn: async () => createLoadedConfig({ repos: [] }),
+      jobManager: createJobManagerDouble()
     });
 
     expect(handle.url).toBeNull();
@@ -109,16 +112,16 @@ describe("http-server startup", () => {
   });
 
   it("rejects invalid numeric server configuration from the environment", async () => {
-    const jobManager = {
+    const jobManager = createJobManagerDouble({
       shutdown: vi.fn(() => Promise.resolve()),
       close: vi.fn()
-    };
+    });
 
     await expect(startHttpServer({
       env: {
         ARCHA_SERVER_PORT: "wat"
       },
-      loadConfigFn: async () => ({ repos: [] }),
+      loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
     })).rejects.toThrow("Invalid ARCHA_SERVER_PORT: wat. Use a TCP port between 0 and 65535.");
 
@@ -126,7 +129,7 @@ describe("http-server startup", () => {
       env: {
         ARCHA_SERVER_BODY_LIMIT_BYTES: "wat"
       },
-      loadConfigFn: async () => ({ repos: [] }),
+      loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
     })).rejects.toThrow("Invalid ARCHA_SERVER_BODY_LIMIT_BYTES: wat. Use a positive integer.");
 
@@ -134,7 +137,7 @@ describe("http-server startup", () => {
       env: {
         ARCHA_SERVER_MAX_CONCURRENT_JOBS: "wat"
       },
-      loadConfigFn: async () => ({ repos: [] }),
+      loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
     })).rejects.toThrow("Invalid ARCHA_SERVER_MAX_CONCURRENT_JOBS: wat. Use a positive integer.");
 
@@ -142,7 +145,7 @@ describe("http-server startup", () => {
       env: {
         ARCHA_SERVER_JOB_RETENTION_MS: "wat"
       },
-      loadConfigFn: async () => ({ repos: [] }),
+      loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
     })).rejects.toThrow("Invalid ARCHA_SERVER_JOB_RETENTION_MS: wat. Use a positive integer.");
   });
@@ -155,16 +158,16 @@ describe("http-server startup", () => {
         port: 0
       }
     });
-    const jobManager = {
+    const jobManager = createJobManagerDouble({
       close: vi.fn()
-    };
+    });
     mocks.createServer.mockReturnValue(server);
 
     const handle = await startHttpServer({
       env: {
         ARCHA_SERVER_PORT: "0"
       },
-      loadConfigFn: async () => ({ repos: [] }),
+      loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
     });
 
@@ -187,37 +190,40 @@ describe("http-server startup", () => {
       loadConfigFn: async () => {
         throw new Error("Invalid Archa config at /tmp/config.json: bad value");
       },
-      jobManager: {
-        shutdown: vi.fn(() => Promise.resolve()),
-        close: vi.fn()
-      }
+      jobManager: createJobManagerDouble()
     })).rejects.toThrow("Invalid Archa config at /tmp/config.json: bad value");
 
     expect(mocks.createServer).not.toHaveBeenCalled();
   });
 });
 
-function createServerDouble({ addressValue, deferClose = false }) {
-  const handlers = new Map();
-  let closeCallback = null;
+function createServerDouble({
+  addressValue,
+  deferClose = false
+}: {
+  addressValue: AddressInfo | string | null;
+  deferClose?: boolean;
+}) {
+  const handlers = new Map<string, (...args: unknown[]) => void>();
+  let closeCallback: (() => void) | null = null;
   const server = {
-    on: vi.fn((event, handler) => {
+    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
       handlers.set(event, handler);
       return server;
     }),
-    off: vi.fn((event, handler) => {
+    off: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
       if (handlers.get(event) === handler) {
         handlers.delete(event);
       }
 
       return server;
     }),
-    listen: vi.fn((port, host, callback) => {
+    listen: vi.fn((_port: number, _host: string, callback?: () => void) => {
       callback?.();
       return server;
     }),
-    close: vi.fn(callback => {
-      closeCallback = callback;
+    close: vi.fn((callback?: () => void) => {
+      closeCallback = callback ?? null;
       if (!deferClose) {
         closeCallback?.();
       }
@@ -228,10 +234,24 @@ function createServerDouble({ addressValue, deferClose = false }) {
     finishClose() {
       closeCallback?.();
     },
-    emit(event, ...args) {
+    emit(event: string, ...args: unknown[]) {
       handlers.get(event)?.(...args);
     }
   };
 
   return server;
+}
+
+function createJobManagerDouble(
+  overrides: Partial<AskJobManager> = {}
+): AskJobManager {
+  return {
+    createJob: vi.fn(),
+    getJob: vi.fn(() => null),
+    getStats: vi.fn(() => ({ queued: 0, running: 0, completed: 0, failed: 0 })),
+    shutdown: vi.fn(() => Promise.resolve()),
+    subscribe: vi.fn(() => null),
+    close: vi.fn(),
+    ...overrides
+  };
 }

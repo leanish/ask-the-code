@@ -7,15 +7,18 @@
     "archa": "./dist/bin/archa.js",
     "archa-server": "./dist/bin/archa-server.js"
   },
+  "exports": {},
   "files": [
     "dist/",
     "README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json",
+    "postbuild": "node ./scripts/ensure-bin-executable.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "check": "npm run typecheck && npm test && npm run build",
     "prepack": "npm run build",
+    "cli": "node --import tsx src/bin/archa.ts",
     "server": "node --import tsx src/bin/archa-server.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"

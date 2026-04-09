@@ -8,8 +8,8 @@ import { appendReposToConfig, applyGithubDiscoveryToConfig, initializeConfig, lo
 import { getConfigPath, getDefaultManagedReposRoot } from "../src/core/config/config-paths.js";
 
 describe("config", () => {
-  let tempRoot;
-  let env;
+  let tempRoot: string;
+  let env: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
     tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "archa-config-"));
@@ -359,6 +359,22 @@ describe("config", () => {
     }));
 
     await expect(loadConfig(env)).rejects.toThrow(/non-string or empty classifications/);
+  });
+
+  it("rejects unsupported classification values", async () => {
+    const configPath = getConfigPath(env);
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
+    await fs.writeFile(configPath, JSON.stringify({
+      repos: [
+        {
+          name: "foundation",
+          url: "https://github.com/leanish/foundation.git",
+          classifications: ["banana"]
+        }
+      ]
+    }));
+
+    await expect(loadConfig(env)).rejects.toThrow(/unsupported classification "banana"/);
   });
 
   it("rejects duplicate repo names case-insensitively", async () => {

@@ -55,7 +55,8 @@ describe("github-discovery-progress", () => {
 
     reporter.start("OtherCo");
     reporter.onProgress({
-      type: "discovery-fetching"
+      type: "discovery-fetching",
+      owner: "OtherCo"
     });
     reporter.onProgress({
       type: "discovery-page",
@@ -103,7 +104,8 @@ describe("github-discovery-progress", () => {
 
     reporter.start("OtherCo");
     reporter.onProgress({
-      type: "discovery-fetching"
+      type: "discovery-fetching",
+      owner: "OtherCo"
     });
     reporter.onProgress({
       type: "discovery-page",

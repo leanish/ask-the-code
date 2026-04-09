@@ -5,6 +5,7 @@ import {
   planGithubRepoDiscovery,
   refineDiscoveredGithubRepos
 } from "../src/core/discovery/github-catalog.js";
+import { createLoadedConfig } from "./test-helpers.js";
 
 describe("github-catalog", () => {
   it("discovers user repos, keeping forks and filtering archived repos by default", async () => {
@@ -283,7 +284,7 @@ describe("github-catalog", () => {
       inspectRepoFn
     });
 
-    expect(result.discoveryContext.discoveredRepos).toEqual([
+    expect(result.discoveryContext?.discoveredRepos).toEqual([
       {
         name: "archa",
         clone_url: "https://github.com/leanish/archa.git",
@@ -650,12 +651,16 @@ describe("github-catalog", () => {
   });
 
   it("processes repo inspection sequentially during discovery", async () => {
-    let resolveFirstStarted;
-    const firstStarted = new Promise(resolve => {
+    let resolveFirstStarted: () => void = () => {
+      throw new Error("First-start resolver was not initialized.");
+    };
+    const firstStarted = new Promise<void>(resolve => {
       resolveFirstStarted = resolve;
     });
-    let resolveFirstInspection;
-    const firstInspection = new Promise(resolve => {
+    let resolveFirstInspection: () => void = () => {
+      throw new Error("First-inspection resolver was not initialized.");
+    };
+    const firstInspection = new Promise<void>(resolve => {
       resolveFirstInspection = resolve;
     });
     const inspectRepoFn = vi.fn(async ({ repo }) => {
@@ -1217,7 +1222,7 @@ describe("github-catalog", () => {
       curateWithCodex: false
     });
 
-    expect(result.repos[0].topics).toEqual([
+    expect(result.repos[0]!.topics).toEqual([
       "checkout",
       "storefront",
       "onboarding",
@@ -1602,7 +1607,7 @@ describe("github-catalog", () => {
   });
 
   it("plans additions, conflicts, and metadata suggestions against the current config", () => {
-    const plan = planGithubRepoDiscovery({
+    const plan = planGithubRepoDiscovery(createLoadedConfig({
       repos: [
         {
           name: "foundation",
@@ -1612,10 +1617,11 @@ describe("github-catalog", () => {
           topics: [],
           classifications: [],
           aliases: ["shared"],
+          alwaysSelect: false,
           directory: "/repos/foundation"
         }
       ]
-    }, {
+    }), {
       owner: "leanish",
       ownerType: "User",
       skippedForks: 0,
@@ -1694,7 +1700,7 @@ describe("github-catalog", () => {
   });
 
   it("does not suggest a url review when configured SSH and GitHub HTTPS URLs point to the same repo", () => {
-    const plan = planGithubRepoDiscovery({
+    const plan = planGithubRepoDiscovery(createLoadedConfig({
       repos: [
         {
           name: "foundation",
@@ -1704,10 +1710,11 @@ describe("github-catalog", () => {
           topics: [],
           classifications: [],
           aliases: [],
+          alwaysSelect: false,
           directory: "/repos/foundation"
         }
       ]
-    }, {
+    }), {
       owner: "leanish",
       ownerType: "User",
       skippedForks: 0,
@@ -1725,14 +1732,14 @@ describe("github-catalog", () => {
     });
 
     expect(plan.entries).toHaveLength(1);
-    expect(plan.entries[0].status).toBe("configured");
-    expect(plan.entries[0].suggestions).not.toContain(
+    expect(plan.entries[0]!.status).toBe("configured");
+    expect(plan.entries[0]!.suggestions).not.toContain(
       "review url (git@github.com:leanish/foundation.git -> https://github.com/leanish/foundation.git)"
     );
   });
 
   it("compares suggested topics case-insensitively against configured repos", () => {
-    const plan = planGithubRepoDiscovery({
+    const plan = planGithubRepoDiscovery(createLoadedConfig({
       repos: [
         {
           name: "foundation",
@@ -1742,10 +1749,11 @@ describe("github-catalog", () => {
           topics: ["React"],
           classifications: [],
           aliases: [],
+          alwaysSelect: false,
           directory: "/repos/foundation"
         }
       ]
-    }, {
+    }), {
       owner: "leanish",
       ownerType: "User",
       skippedForks: 0,
@@ -1763,12 +1771,12 @@ describe("github-catalog", () => {
     });
 
     expect(plan.entries).toHaveLength(1);
-    expect(plan.entries[0].status).toBe("configured");
-    expect(plan.entries[0].suggestions).not.toContain("consider topics: react");
+    expect(plan.entries[0]!.status).toBe("configured");
+    expect(plan.entries[0]!.suggestions).not.toContain("consider topics: react");
   });
 
   it("qualifies owner-colliding repo names so they can coexist", () => {
-    const plan = planGithubRepoDiscovery({
+    const plan = planGithubRepoDiscovery(createLoadedConfig({
       repos: [
         {
           name: "nullability",
@@ -1778,10 +1786,11 @@ describe("github-catalog", () => {
           topics: [],
           classifications: [],
           aliases: [],
+          alwaysSelect: false,
           directory: "/repos/nullability"
         }
       ]
-    }, {
+    }), {
       owner: "@accessible",
       ownerDisplay: "leanish + orgs",
       ownerType: "Accessible",
@@ -1836,7 +1845,7 @@ describe("github-catalog", () => {
   });
 });
 
-function createJsonResponse(status, value) {
+function createJsonResponse(status: number, value: unknown) {
   return {
     ok: status >= 200 && status < 300,
     status,

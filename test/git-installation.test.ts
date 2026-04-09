@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -5,19 +7,20 @@ import {
   formatMissingGitMessage,
   normalizeGitExecutionError
 } from "../src/core/git/git-installation.js";
+import { createSpawnSyncResult } from "./test-helpers.js";
 
 describe("git-installation", () => {
   it("returns quietly when git is installed", () => {
     expect(() => ensureGitInstalled({
-      spawnSyncFn: vi.fn(() => ({}))
+      spawnSyncFn: vi.fn(() => createSpawnSyncResult()) as unknown as typeof spawnSync
     })).not.toThrow();
   });
 
   it("throws an install hint when git is missing", () => {
     expect(() => ensureGitInstalled({
-      spawnSyncFn: vi.fn(() => ({
+      spawnSyncFn: vi.fn(() => createSpawnSyncResult({
         error: Object.assign(new Error("spawnSync git ENOENT"), { code: "ENOENT" })
-      }))
+      })) as unknown as typeof spawnSync
     })).toThrow(formatMissingGitMessage());
   });
 

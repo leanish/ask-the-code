@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { GithubDiscoveryPlan, GithubDiscoverySelection } from "../src/core/types.js";
 
 const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
@@ -87,13 +88,14 @@ vi.mock("../src/core/repos/repo-sync.js", () => ({
 }));
 
 import { main } from "../src/cli/main.js";
+import { createAnswerResult, createManagedRepo, createLoadedConfig } from "./test-helpers.js";
 
 describe("cli", () => {
-  let stdout;
-  let stderr;
-  let originalStdoutWrite;
-  let originalStderrWrite;
-  let originalStderrIsTTYDescriptor;
+  let stdout: string[];
+  let stderr: string[];
+  let originalStdoutWrite: typeof process.stdout.write;
+  let originalStderrWrite: typeof process.stderr.write;
+  let originalStderrIsTTYDescriptor: PropertyDescriptor | undefined;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -114,8 +116,8 @@ describe("cli", () => {
     mocks.ensureCodexInstalled.mockImplementation(() => {});
     mocks.ensureGitInstalled.mockImplementation(() => {});
     mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {});
-    mocks.getGithubDiscoveryRepoKey.mockImplementation(repo => repo.sourceFullName || repo.name);
-    mocks.buildAppliedGithubDiscoveryEntries.mockImplementation((plan, selection) => [
+    mocks.getGithubDiscoveryRepoKey.mockImplementation((repo: { sourceFullName?: string; name: string }) => repo.sourceFullName || repo.name);
+    mocks.buildAppliedGithubDiscoveryEntries.mockImplementation((plan: GithubDiscoveryPlan, selection: GithubDiscoverySelection) => [
       ...selection.reposToAdd.map(repo => plan.entries.find(entry => entry.repo === repo) || {
         repo,
         status: "new",
@@ -154,18 +156,18 @@ describe("cli", () => {
 
       return lines.join("\n");
     });
-    mocks.loadConfig.mockResolvedValue({
+    mocks.loadConfig.mockResolvedValue(createLoadedConfig({
       configPath: "/tmp/archa-config.json",
       repos: [
-        {
+        createManagedRepo({
           name: "sqs-codec",
           aliases: ["codec"],
           directory: "/workspace/repos/sqs-codec",
           defaultBranch: "main",
           description: "SQS execution interceptor with compression and checksum metadata"
-        }
+        })
       ]
-    });
+    }));
     mocks.syncRepos.mockResolvedValue([
       {
         name: "sqs-codec",
@@ -195,7 +197,7 @@ describe("cli", () => {
         withSuggestions: 0
       }
     });
-    mocks.mergeGithubDiscoveryPlan.mockImplementation((basePlan, refinedPlan) => {
+    mocks.mergeGithubDiscoveryPlan.mockImplementation((basePlan: GithubDiscoveryPlan, refinedPlan: GithubDiscoveryPlan) => {
       const refinedEntriesByName = new Map(
         refinedPlan.entries.map(entry => [entry.repo.name, entry])
       );
@@ -220,8 +222,8 @@ describe("cli", () => {
       overriddenCount: 0,
       totalCount: 1
     });
-    mocks.answerQuestion.mockResolvedValue({
-      mode: "answer",
+    mocks.answerQuestion.mockResolvedValue(createAnswerResult({
+      question: "ignored",
       selectedRepos: [
         {
           name: "sqs-codec"
@@ -237,7 +239,7 @@ describe("cli", () => {
       synthesis: {
         text: "Final answer"
       }
-    });
+    }));
   });
 
   afterEach(() => {
@@ -247,7 +249,12 @@ describe("cli", () => {
     if (originalStderrIsTTYDescriptor) {
       Object.defineProperty(process.stderr, "isTTY", originalStderrIsTTYDescriptor);
     } else {
-      delete process.stderr.isTTY;
+      Object.defineProperty(process.stderr, "isTTY", {
+        configurable: true,
+        enumerable: true,
+        value: undefined,
+        writable: true
+      });
     }
   });
 
@@ -737,7 +744,16 @@ describe("cli", () => {
       skippedArchived: 0,
       repos: [selectedRepo]
     });
-    mocks.planGithubRepoDiscovery.mockImplementation((config, discovery) => ({
+    mocks.planGithubRepoDiscovery.mockImplementation((
+      config: { repos: Array<{ name: string }> },
+      discovery: {
+        owner: string;
+        ownerType: string;
+        skippedForks: number;
+        skippedArchived: number;
+        repos: Array<{ name: string }>;
+      }
+    ) => ({
       owner: discovery.owner,
       ownerType: discovery.ownerType,
       skippedForks: discovery.skippedForks,

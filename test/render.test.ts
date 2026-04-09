@@ -11,6 +11,13 @@ vi.mock("node:fs/promises", () => ({
 }));
 
 import { renderAnswer, renderGithubDiscovery, renderRepoList, renderRetrievalOnly, renderSyncReport } from "../src/cli/render.js";
+import {
+  createAnswerResult,
+  createGithubDiscoveryPlanEntry,
+  createManagedRepo,
+  createRepoRecord,
+  createRetrievalOnlyResult
+} from "./test-helpers.js";
 
 describe("render", () => {
   beforeEach(() => {
@@ -21,13 +28,13 @@ describe("render", () => {
     mocks.access.mockResolvedValue(undefined);
 
     const output = await renderRepoList([
-      {
+      createManagedRepo({
         name: "sqs-codec",
         directory: "/workspace/repos/sqs-codec",
         aliases: ["codec"],
         defaultBranch: "main",
         description: "SQS execution interceptor with compression and checksum metadata"
-      }
+      })
     ]);
 
     expect(output).toContain("Managed repos:");
@@ -38,12 +45,13 @@ describe("render", () => {
     mocks.access.mockResolvedValue(undefined);
 
     const output = await renderRepoList([
-      {
+      createManagedRepo({
         name: "broken-config-repo",
         directory: "/workspace/repos/broken-config-repo",
         aliases: [],
+        defaultBranch: "",
         description: "Missing branch metadata"
-      }
+      })
     ]);
 
     expect(output).toContain("- broken-config-repo [local] ? Missing branch metadata");
@@ -58,7 +66,7 @@ describe("render", () => {
   });
 
   it("renders retrieval-only mode with selected repos and sync report", () => {
-    const output = renderRetrievalOnly({
+    const output = renderRetrievalOnly(createRetrievalOnlyResult({
       question: "How does x-codec-meta work?",
       selectedRepos: [{ name: "sqs-codec" }, { name: "java-conventions" }],
       syncReport: [
@@ -68,7 +76,7 @@ describe("render", () => {
           detail: "main"
         }
       ]
-    });
+    }));
 
     expect(output).toContain("Question: How does x-codec-meta work?");
     expect(output).toContain("Selected repos: sqs-codec, java-conventions");
@@ -77,7 +85,8 @@ describe("render", () => {
   });
 
   it("renders answer mode and sync details", () => {
-    const output = renderAnswer({
+    const output = renderAnswer(createAnswerResult({
+      question: "ignored",
       synthesis: {
         text: "Final answer"
       },
@@ -88,7 +97,7 @@ describe("render", () => {
           action: "skipped"
         }
       ]
-    });
+    }));
 
     expect(output).toContain("Final answer");
     expect(output).toContain("Repos used: sqs-codec");
@@ -111,16 +120,16 @@ describe("render", () => {
       owner: "leanish",
       ownerType: "User",
       appliedEntries: [
-        {
+        createGithubDiscoveryPlanEntry({
           status: "new",
-          repo: {
+          repo: createRepoRecord({
             name: "archa",
             description: "Repo-aware CLI",
             topics: ["cli"],
             classifications: ["cli"]
-          },
+          }),
           suggestions: []
-        }
+        })
       ],
       selectedCount: 1,
       configPath: "/tmp/archa-config.json",
@@ -139,14 +148,14 @@ describe("render", () => {
       owner: "leanish",
       ownerType: "User",
       appliedEntries: [
-        {
+        createGithubDiscoveryPlanEntry({
           status: "new",
-          repo: {
+          repo: createRepoRecord({
             name: "archa",
             description: "Repo-aware CLI"
-          },
+          }),
           suggestions: []
-        }
+        })
       ],
       selectedCount: 1,
       configPath: "/tmp/archa-config.json",
@@ -164,30 +173,30 @@ describe("render", () => {
       ownerDisplay: "leanish + orgs",
       ownerType: "Accessible",
       appliedEntries: [
-        {
+        createGithubDiscoveryPlanEntry({
           status: "new",
-          repo: {
+          repo: createRepoRecord({
             name: "archa",
             sourceOwner: "leanish",
             sourceFullName: "leanish/archa",
             description: "Repo-aware CLI",
             topics: ["cli"],
             classifications: ["cli"]
-          },
+          }),
           suggestions: []
-        },
-        {
+        }),
+        createGithubDiscoveryPlanEntry({
           status: "new",
-          repo: {
+          repo: createRepoRecord({
             name: "dtv",
             sourceOwner: "OtherCo",
             sourceFullName: "OtherCo/dtv",
             description: "Storefront backend",
             topics: ["play"],
             classifications: ["backend", "external"]
-          },
+          }),
           suggestions: []
-        }
+        })
       ],
       selectedCount: 2,
       configPath: "/tmp/archa-config.json",
@@ -207,30 +216,30 @@ describe("render", () => {
       ownerDisplay: "leanish + orgs",
       ownerType: "Accessible",
       appliedEntries: [
-        {
+        createGithubDiscoveryPlanEntry({
           status: "new",
-          repo: {
+          repo: createRepoRecord({
             name: "shared",
             sourceOwner: "leanish",
             sourceFullName: "leanish/shared",
             description: "",
             topics: [],
             classifications: []
-          },
+          }),
           suggestions: []
-        },
-        {
+        }),
+        createGithubDiscoveryPlanEntry({
           status: "new",
-          repo: {
+          repo: createRepoRecord({
             name: "shared",
             sourceOwner: "OtherCo",
             sourceFullName: "OtherCo/shared",
             description: "",
             topics: [],
             classifications: []
-          },
+          }),
           suggestions: []
-        }
+        })
       ],
       selectedCount: 2,
       configPath: "/tmp/archa-config.json",
@@ -248,20 +257,20 @@ describe("render", () => {
       ownerDisplay: "leanish + orgs",
       ownerType: "Accessible",
       appliedEntries: [
-        {
+        createGithubDiscoveryPlanEntry({
           status: "configured",
-          repo: {
+          repo: createRepoRecord({
             name: "nullability",
             url: "https://github.com/leanish/nullability.git",
             description: "",
             topics: [],
             classifications: []
-          },
+          }),
           suggestions: []
-        },
-        {
+        }),
+        createGithubDiscoveryPlanEntry({
           status: "new",
-          repo: {
+          repo: createRepoRecord({
             name: "otherco/nullability",
             sourceOwner: "OtherCo",
             sourceFullName: "OtherCo/nullability",
@@ -269,9 +278,9 @@ describe("render", () => {
             description: "",
             topics: [],
             classifications: []
-          },
+          }),
           suggestions: []
-        }
+        })
       ],
       selectedCount: 2,
       configPath: "/tmp/archa-config.json",

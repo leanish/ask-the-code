@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { GithubDiscoveryPlan, GithubDiscoverySelection } from "../src/core/types.js";
 
 const mocks = vi.hoisted(() => ({
   startHttpServer: vi.fn(),
@@ -62,12 +63,13 @@ vi.mock("../src/cli/render.js", () => ({
 }));
 
 import { main, setupShutdownHandlers } from "../src/server/main.js";
+import { createGithubDiscoveryPlan, createLoadedConfig } from "./test-helpers.js";
 
 describe("server-main", () => {
-  let stdout;
-  let stderr;
-  let originalStdoutWrite;
-  let originalStderrWrite;
+  let stdout: string[];
+  let stderr: string[];
+  let originalStdoutWrite: typeof process.stdout.write;
+  let originalStderrWrite: typeof process.stderr.write;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -86,8 +88,8 @@ describe("server-main", () => {
     mocks.ensureCodexInstalled.mockImplementation(() => {});
     mocks.ensureGitInstalled.mockImplementation(() => {});
     mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {});
-    mocks.getGithubDiscoveryRepoKey.mockImplementation(repo => repo.sourceFullName || repo.name);
-    mocks.buildAppliedGithubDiscoveryEntries.mockImplementation((plan, selection) => [
+    mocks.getGithubDiscoveryRepoKey.mockImplementation((repo: { sourceFullName?: string; name: string }) => repo.sourceFullName || repo.name);
+    mocks.buildAppliedGithubDiscoveryEntries.mockImplementation((plan: GithubDiscoveryPlan, selection: GithubDiscoverySelection) => [
       ...selection.reposToAdd.map(repo => plan.entries.find(entry => entry.repo === repo) || {
         repo,
         status: "new",
@@ -107,10 +109,10 @@ describe("server-main", () => {
       repos: []
     });
     mocks.ensureInteractiveConfigSetup.mockResolvedValue(true);
-    mocks.loadConfig.mockResolvedValue({
+    mocks.loadConfig.mockResolvedValue(createLoadedConfig({
       configPath: "/tmp/archa-config.json",
       repos: []
-    });
+    }));
     mocks.discoverGithubOwnerRepos.mockResolvedValue({
       owner: "leanish",
       ownerType: "User",
@@ -118,7 +120,7 @@ describe("server-main", () => {
       skippedForks: 0,
       skippedArchived: 0
     });
-    mocks.planGithubRepoDiscovery.mockReturnValue({
+    mocks.planGithubRepoDiscovery.mockReturnValue(createGithubDiscoveryPlan({
       owner: "leanish",
       ownerType: "User",
       skippedForks: 0,
@@ -132,8 +134,8 @@ describe("server-main", () => {
         conflicts: 0,
         withSuggestions: 0
       }
-    });
-    mocks.mergeGithubDiscoveryPlan.mockImplementation((basePlan, refinedPlan) => {
+    }));
+    mocks.mergeGithubDiscoveryPlan.mockImplementation((basePlan: GithubDiscoveryPlan, refinedPlan: GithubDiscoveryPlan) => {
       const refinedEntriesByName = new Map(
         refinedPlan.entries.map(entry => [entry.repo.name, entry])
       );
@@ -387,7 +389,16 @@ describe("server-main", () => {
       skippedArchived: 0,
       repos: [selectedRepo]
     });
-    mocks.planGithubRepoDiscovery.mockImplementation((config, discovery) => ({
+    mocks.planGithubRepoDiscovery.mockImplementation((
+      config: { repos: Array<{ name: string }> },
+      discovery: {
+        owner: string;
+        ownerType: string;
+        skippedForks: number;
+        skippedArchived: number;
+        repos: Array<{ name: string }>;
+      }
+    ) => ({
       owner: discovery.owner,
       ownerType: discovery.ownerType,
       skippedForks: discovery.skippedForks,
@@ -480,17 +491,17 @@ describe("server-main", () => {
 
 describe("setupShutdownHandlers", () => {
   function createProcessDouble() {
-    const handlers = new Map();
+    const handlers = new Map<string, Array<() => void>>();
 
     return {
       stderr: { write: vi.fn() },
       exit: vi.fn(),
-      on: vi.fn((event, handler) => {
+      on: vi.fn((event: string, handler: () => void) => {
         const existing = handlers.get(event) || [];
         existing.push(handler);
         handlers.set(event, existing);
       }),
-      emit(event) {
+      emit(event: string) {
         for (const handler of handlers.get(event) || []) {
           handler();
         }
@@ -514,7 +525,7 @@ describe("setupShutdownHandlers", () => {
     expect(handle.close).toHaveBeenCalled();
     expect(proc.stderr.write).toHaveBeenCalledWith("Shutting down (SIGTERM)...\n");
 
-    await handle.close.mock.results[0].value;
+    await handle.close.mock.results[0]!.value;
     expect(proc.exit).toHaveBeenCalledWith(0);
   });
 
@@ -528,7 +539,7 @@ describe("setupShutdownHandlers", () => {
     expect(handle.close).toHaveBeenCalled();
     expect(proc.stderr.write).toHaveBeenCalledWith("Shutting down (SIGINT)...\n");
 
-    await handle.close.mock.results[0].value;
+    await handle.close.mock.results[0]!.value;
     expect(proc.exit).toHaveBeenCalledWith(0);
   });
 

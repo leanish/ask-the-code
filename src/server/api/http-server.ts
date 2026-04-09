@@ -16,14 +16,38 @@ import type {
   AnswerQuestionFn,
   Environment,
   LoadedConfig,
-  ManagedRepo
+  ManagedRepoDefinition
 } from "../../core/types.js";
+
+type HttpRequestLike = {
+  method?: string | undefined;
+  url?: string | undefined;
+  headers: IncomingMessage["headers"];
+  on(event: "data", handler: (chunk: Buffer) => void): unknown;
+  on(event: "end", handler: () => void): unknown;
+  on(event: "error", handler: (error: Error) => void): unknown;
+  destroy(): void;
+};
+type HttpResponseLike = {
+  destroyed?: boolean | undefined;
+  writableEnded?: boolean | undefined;
+  writeHead(statusCode: number, headers?: Record<string, string>): unknown;
+  end(chunk?: string): unknown;
+  write(chunk: string): boolean;
+  setHeader(name: string, value: string): unknown;
+  on(event: "close", handler: () => void): unknown;
+  on(event: "error", handler: (error: Error) => void): unknown;
+};
+type HttpJobManager = Pick<AskJobManager, "createJob" | "getJob" | "subscribe"> & Partial<Pick<AskJobManager, "getStats">>;
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8787;
 const DEFAULT_BODY_LIMIT_BYTES = 65_536;
 
-type LoadConfigFn = (env: Environment) => Promise<LoadedConfig>;
+type LoadedRepoList = Pick<LoadedConfig, "repos">;
+type LoadedServerConfig = Pick<LoadedConfig, "repos" | "configPath">;
+type LoadServerConfigFn = (env: Environment) => Promise<LoadedServerConfig>;
+type LoadRepoListFn = (env: Environment) => Promise<LoadedRepoList>;
 type StartHttpServerOptions = {
   env?: Environment;
   host?: string | null;
@@ -31,23 +55,23 @@ type StartHttpServerOptions = {
   bodyLimitBytes?: number | null;
   jobManager?: AskJobManager | null;
   answerQuestionFn?: AnswerQuestionFn | null;
-  loadConfigFn?: LoadConfigFn;
+  loadConfigFn?: LoadServerConfigFn;
   maxConcurrentJobs?: number | null;
   jobRetentionMs?: number | null;
 };
 type CreateHttpHandlerOptions = {
-  jobManager: AskJobManager;
+  jobManager: HttpJobManager;
   bodyLimitBytes?: number;
   env?: Environment;
-  loadConfigFn?: LoadConfigFn;
+  loadConfigFn?: LoadRepoListFn;
 };
 type HandleRequestOptions = {
-  request: IncomingMessage;
-  response: ServerResponse;
-  jobManager: AskJobManager;
+  request: HttpRequestLike;
+  response: HttpResponseLike;
+  jobManager: HttpJobManager;
   bodyLimitBytes: number;
   env: Environment;
-  loadConfigFn: LoadConfigFn;
+  loadConfigFn: LoadRepoListFn;
 };
 
 export interface HttpServerHandle {
@@ -111,7 +135,7 @@ export async function startHttpServer({
     server,
     url: formatServerUrl(server),
     configuredRepoCount: loadedConfig.repos.length,
-    configPath: loadedConfig.configPath || null,
+    configPath: loadedConfig.configPath ?? null,
     async close(): Promise<void> {
       const shutdownPromise = typeof resolvedJobManager.shutdown === "function"
         ? resolvedJobManager.shutdown()
@@ -137,8 +161,8 @@ export function createHttpHandler({
   bodyLimitBytes = DEFAULT_BODY_LIMIT_BYTES,
   env = process.env,
   loadConfigFn = loadConfig
-}: CreateHttpHandlerOptions): (request: IncomingMessage, response: ServerResponse) => Promise<void> {
-  return async function handleHttpRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
+}: CreateHttpHandlerOptions): (request: HttpRequestLike, response: HttpResponseLike) => Promise<void> {
+  return async function handleHttpRequest(request: HttpRequestLike, response: HttpResponseLike): Promise<void> {
     await handleRequest({
       request,
       response,
@@ -245,7 +269,7 @@ async function handleRequest({
   }
 }
 
-async function streamJobEvents(response: ServerResponse, jobManager: AskJobManager, jobId: string): Promise<void> {
+async function streamJobEvents(response: HttpResponseLike, jobManager: HttpJobManager, jobId: string): Promise<void> {
   const job = jobManager.getJob(jobId);
   if (!job) {
     throw new HttpError(404, `Unknown job: ${jobId}`);
@@ -319,7 +343,7 @@ async function streamJobEvents(response: ServerResponse, jobManager: AskJobManag
   }
 }
 
-async function readJsonBody(request: IncomingMessage, bodyLimitBytes: number): Promise<unknown> {
+async function readJsonBody(request: HttpRequestLike, bodyLimitBytes: number): Promise<unknown> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
 
@@ -391,10 +415,12 @@ function normalizeAskRequest(body: unknown): AskRequest {
     throw new HttpError(400, 'Request body must include a non-empty "question" string.');
   }
 
+  const audience = normalizeAudience(requestBody.audience);
+
   return {
     question: requestBody.question,
     repoNames: normalizeRepoNames(requestBody.repoNames ?? requestBody.repos),
-    audience: normalizeAudience(requestBody.audience),
+    ...(audience === undefined ? {} : { audience }),
     model: normalizeOptionalString(requestBody.model, "model"),
     reasoningEffort: normalizeOptionalString(requestBody.reasoningEffort, "reasoningEffort"),
     noSync: normalizeOptionalBoolean(requestBody.noSync, "noSync"),
@@ -491,7 +517,9 @@ function withJobLinks(job: AskJobSnapshot): AskJobSnapshot & { links: { self: st
   };
 }
 
-function serializeRepoSummary(repo: ManagedRepo): Pick<ManagedRepo, "name" | "defaultBranch" | "description" | "aliases"> {
+function serializeRepoSummary(
+  repo: Pick<ManagedRepoDefinition, "name" | "defaultBranch" | "description" | "aliases">
+): Pick<ManagedRepoDefinition, "name" | "defaultBranch" | "description" | "aliases"> {
   return {
     name: repo.name,
     defaultBranch: repo.defaultBranch,
@@ -504,13 +532,13 @@ function getEmptyConfigSetupHint(): string {
   return 'No configured repos available. Try "archa config discover-github" to discover and add repos.';
 }
 
-function setCorsHeaders(response: ServerResponse): void {
+function setCorsHeaders(response: HttpResponseLike): void {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type,Accept");
 }
 
-function writeJson(response: ServerResponse, statusCode: number, payload: unknown): void {
+function writeJson(response: HttpResponseLike, statusCode: number, payload: unknown): void {
   response.writeHead(statusCode, {
     "Content-Type": "application/json; charset=utf-8"
   });
@@ -518,7 +546,7 @@ function writeJson(response: ServerResponse, statusCode: number, payload: unknow
 }
 
 function writeSseEvent(
-  response: ServerResponse,
+  response: HttpResponseLike,
   type: string,
   payload: unknown,
   isClosed: () => boolean = () => false
@@ -591,7 +619,7 @@ function isTerminalStatus(status: string): boolean {
   return status === "completed" || status === "failed";
 }
 
-function writeResponseChunk(response: ServerResponse, chunk: string, isClosed: () => boolean): boolean {
+function writeResponseChunk(response: HttpResponseLike, chunk: string, isClosed: () => boolean): boolean {
   if (isResponseClosed(response, isClosed)) {
     return false;
   }
@@ -600,7 +628,7 @@ function writeResponseChunk(response: ServerResponse, chunk: string, isClosed: (
   return !isResponseClosed(response, isClosed);
 }
 
-function endSseStream(response: ServerResponse, cleanup: () => void, isClosed: () => boolean): void {
+function endSseStream(response: HttpResponseLike, cleanup: () => void, isClosed: () => boolean): void {
   if (isResponseClosed(response, isClosed)) {
     cleanup();
     return;
@@ -610,11 +638,11 @@ function endSseStream(response: ServerResponse, cleanup: () => void, isClosed: (
   response.end();
 }
 
-function isResponseClosed(response: ServerResponse, isClosed: () => boolean): boolean {
-  return isClosed() || response.destroyed || response.writableEnded;
+function isResponseClosed(response: HttpResponseLike, isClosed: () => boolean): boolean {
+  return isClosed() || response.destroyed === true || response.writableEnded === true;
 }
 
-function prefersHtml(request: IncomingMessage): boolean {
+function prefersHtml(request: HttpRequestLike): boolean {
   const accept = request.headers.accept || "";
   return accept.includes("text/html");
 }

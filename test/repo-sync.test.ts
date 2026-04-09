@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { RepoSyncTarget } from "../src/core/types.js";
 
 const mocks = vi.hoisted(() => ({
   access: vi.fn(),
@@ -19,24 +20,39 @@ vi.mock("node:child_process", () => ({
 
 import { syncRepos } from "../src/core/repos/repo-sync.js";
 
+type DataHandler = (chunk: Buffer) => void;
+type CloseHandler = (code: number | null) => void;
+type ErrorHandler = (error: Error) => void;
+type ChildDouble = {
+  stdout: {
+    on(event: "data", handler: DataHandler): void;
+  };
+  stderr: {
+    on(event: "data", handler: DataHandler): void;
+  };
+  on(event: "close", handler: CloseHandler): void;
+  on(event: "error", handler: ErrorHandler): void;
+  emitError?(error: Error): void;
+};
+
+const repo: RepoSyncTarget = {
+  name: "sqs-codec",
+  url: "git@github.com:leanish/sqs-codec.git",
+  directory: "/workspace/repos/sqs-codec",
+  defaultBranch: "main"
+};
+
 describe("syncRepos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.mkdir.mockResolvedValue();
+    mocks.mkdir.mockResolvedValue(undefined);
   });
 
   it("clones missing repos and reports them as cloned", async () => {
     mocks.access.mockRejectedValueOnce(new Error("missing"));
     mocks.spawn.mockReturnValue(createSuccessfulChild());
 
-    const report = await syncRepos([
-      {
-        name: "sqs-codec",
-        url: "git@github.com:leanish/sqs-codec.git",
-        directory: "/workspace/repos/sqs-codec",
-        defaultBranch: "main"
-      }
-    ]);
+    const report = await syncRepos([repo]);
 
     expect(report).toEqual([
       {
@@ -59,7 +75,7 @@ describe("syncRepos", () => {
   });
 
   it("updates existing repos and reports them as updated", async () => {
-    mocks.access.mockResolvedValue();
+    mocks.access.mockResolvedValue(undefined);
     mocks.spawn
       .mockReturnValueOnce(createSuccessfulChild({ stdoutChunks: ["false\n"] }))
       .mockReturnValueOnce(createSuccessfulChild())
@@ -67,12 +83,7 @@ describe("syncRepos", () => {
       .mockReturnValueOnce(createSuccessfulChild());
 
     const report = await syncRepos([
-      {
-        name: "sqs-codec",
-        url: "git@github.com:leanish/sqs-codec.git",
-        directory: "/workspace/repos/sqs-codec",
-        defaultBranch: "main"
-      }
+      repo
     ]);
 
     expect(report).toEqual([
@@ -92,7 +103,7 @@ describe("syncRepos", () => {
   });
 
   it("unshallows existing shallow repos before updating them", async () => {
-    mocks.access.mockResolvedValue();
+    mocks.access.mockResolvedValue(undefined);
     mocks.spawn
       .mockReturnValueOnce(createSuccessfulChild({ stdoutChunks: ["true\n"] }))
       .mockReturnValueOnce(createSuccessfulChild())
@@ -100,12 +111,7 @@ describe("syncRepos", () => {
       .mockReturnValueOnce(createSuccessfulChild());
 
     const report = await syncRepos([
-      {
-        name: "sqs-codec",
-        url: "git@github.com:leanish/sqs-codec.git",
-        directory: "/workspace/repos/sqs-codec",
-        defaultBranch: "main"
-      }
+      repo
     ]);
 
     expect(report).toEqual([
@@ -125,18 +131,13 @@ describe("syncRepos", () => {
   });
 
   it("records failures instead of throwing for individual repos", async () => {
-    mocks.access.mockResolvedValue();
+    mocks.access.mockResolvedValue(undefined);
     mocks.spawn
       .mockReturnValueOnce(createSuccessfulChild({ stdoutChunks: ["false\n"] }))
       .mockReturnValueOnce(createFailingChild("fetch failed"));
 
     const report = await syncRepos([
-      {
-        name: "sqs-codec",
-        url: "git@github.com:leanish/sqs-codec.git",
-        directory: "/workspace/repos/sqs-codec",
-        defaultBranch: "main"
-      }
+      repo
     ]);
 
     expect(report).toEqual([
@@ -156,12 +157,7 @@ describe("syncRepos", () => {
     ));
 
     const report = await syncRepos([
-      {
-        name: "sqs-codec",
-        url: "git@github.com:leanish/sqs-codec.git",
-        directory: "/workspace/repos/sqs-codec",
-        defaultBranch: "main"
-      }
+      repo
     ]);
 
     expect(report).toEqual([
@@ -180,9 +176,7 @@ describe("syncRepos", () => {
 
     const report = await syncRepos([
       {
-        name: "sqs-codec",
-        url: "git@github.com:leanish/sqs-codec.git",
-        directory: "/workspace/repos/sqs-codec",
+        ...repo,
         defaultBranch: "develop"
       }
     ]);
@@ -211,9 +205,7 @@ describe("syncRepos", () => {
   it("records a clear failure when the tracked branch is missing", async () => {
     const report = await syncRepos([
       {
-        name: "sqs-codec",
-        url: "git@github.com:leanish/sqs-codec.git",
-        directory: "/workspace/repos/sqs-codec",
+        ...repo,
         defaultBranch: ""
       }
     ]);
@@ -230,19 +222,30 @@ describe("syncRepos", () => {
   });
 });
 
-function createSuccessfulChild(options = {}) {
+function createSuccessfulChild(options: {
+  stdoutChunks?: string[];
+  stderrChunks?: string[];
+} = {}): ChildDouble {
   return createChild({ exitCode: 0, ...options });
 }
 
-function createFailingChild(stderr) {
+function createFailingChild(stderr: string): ChildDouble {
   return createChild({ exitCode: 1, stderrChunks: [stderr] });
 }
 
-function createChild({ exitCode, stdoutChunks = [], stderrChunks = [] }) {
-  const stdoutHandlers = [];
-  const stderrHandlers = [];
-  const closeHandlers = [];
-  const errorHandlers = [];
+function createChild({
+  exitCode,
+  stdoutChunks = [],
+  stderrChunks = []
+}: {
+  exitCode: number;
+  stdoutChunks?: string[];
+  stderrChunks?: string[];
+}): ChildDouble {
+  const stdoutHandlers: DataHandler[] = [];
+  const stderrHandlers: DataHandler[] = [];
+  const closeHandlers: CloseHandler[] = [];
+  const errorHandlers: ErrorHandler[] = [];
 
   setTimeout(() => {
     stdoutChunks.forEach(chunk => {
@@ -256,38 +259,38 @@ function createChild({ exitCode, stdoutChunks = [], stderrChunks = [] }) {
 
   return {
     stdout: {
-      on: vi.fn((event, handler) => {
+      on: vi.fn((event: "data", handler: DataHandler) => {
         if (event === "data") {
           stdoutHandlers.push(handler);
         }
       })
     },
     stderr: {
-      on: vi.fn((event, handler) => {
+      on: vi.fn((event: "data", handler: DataHandler) => {
         if (event === "data") {
           stderrHandlers.push(handler);
         }
       })
     },
-    on: vi.fn((event, handler) => {
+    on: vi.fn((event: "close" | "error", handler: CloseHandler | ErrorHandler) => {
       if (event === "close") {
-        closeHandlers.push(handler);
+        closeHandlers.push(handler as CloseHandler);
       }
       if (event === "error") {
-        errorHandlers.push(handler);
+        errorHandlers.push(handler as ErrorHandler);
       }
     }),
-    emitError(error) {
+    emitError(error: Error) {
       errorHandlers.forEach(handler => handler(error));
     }
   };
 }
 
-function createErroringChild(error) {
-  const stdoutHandlers = [];
-  const stderrHandlers = [];
-  const closeHandlers = [];
-  const errorHandlers = [];
+function createErroringChild(error: Error): ChildDouble {
+  const stdoutHandlers: DataHandler[] = [];
+  const stderrHandlers: DataHandler[] = [];
+  const closeHandlers: CloseHandler[] = [];
+  const errorHandlers: ErrorHandler[] = [];
 
   setTimeout(() => {
     errorHandlers.forEach(handler => handler(error));
@@ -295,25 +298,25 @@ function createErroringChild(error) {
 
   return {
     stdout: {
-      on: vi.fn((event, handler) => {
+      on: vi.fn((event: "data", handler: DataHandler) => {
         if (event === "data") {
           stdoutHandlers.push(handler);
         }
       })
     },
     stderr: {
-      on: vi.fn((event, handler) => {
+      on: vi.fn((event: "data", handler: DataHandler) => {
         if (event === "data") {
           stderrHandlers.push(handler);
         }
       })
     },
-    on: vi.fn((event, handler) => {
+    on: vi.fn((event: "close" | "error", handler: CloseHandler | ErrorHandler) => {
       if (event === "close") {
-        closeHandlers.push(handler);
+        closeHandlers.push(handler as CloseHandler);
       }
       if (event === "error") {
-        errorHandlers.push(handler);
+        errorHandlers.push(handler as ErrorHandler);
       }
     })
   };

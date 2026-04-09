@@ -1,7 +1,14 @@
-import { createInterface } from "node:readline/promises";
 import process from "node:process";
 
-import { canPromptInteractively, promptEnterOrCancel, promptLineOrCancel } from "./interactive-prompts.js";
+import {
+  canPromptInteractively,
+  defaultCreateInterface,
+  promptEnterOrCancel,
+  promptLineOrCancel,
+  type CreateInterfaceFn,
+  type PromptInput,
+  type PromptOutput
+} from "./interactive-prompts.js";
 import type {
   Environment,
   InitializeConfigResult,
@@ -15,6 +22,7 @@ type DiscoveryRunOptions = {
   addRepoNames: string[];
   overrideRepoNames: string[];
 };
+type LoadedRepoList = Pick<LoadedConfig, "repos">;
 
 export { canPromptInteractively };
 
@@ -22,12 +30,12 @@ export async function promptToInitializeConfig({
   configPath,
   input = process.stdin,
   output = process.stdout,
-  createInterfaceFn = createInterface
+  createInterfaceFn = defaultCreateInterface
 }: {
   configPath: string;
-  input?: NodeJS.ReadStream;
-  output?: NodeJS.WriteStream;
-  createInterfaceFn?: typeof createInterface;
+  input?: PromptInput;
+  output?: PromptOutput;
+  createInterfaceFn?: CreateInterfaceFn;
 }): Promise<boolean> {
   return promptEnterOrCancel({
     input,
@@ -41,11 +49,11 @@ export async function promptToInitializeConfig({
 export async function promptToContinueGithubDiscovery({
   input = process.stdin,
   output = process.stdout,
-  createInterfaceFn = createInterface
+  createInterfaceFn = defaultCreateInterface
 }: {
-  input?: NodeJS.ReadStream;
-  output?: NodeJS.WriteStream;
-  createInterfaceFn?: typeof createInterface;
+  input?: PromptInput;
+  output?: PromptOutput;
+  createInterfaceFn?: CreateInterfaceFn;
 } = {}): Promise<boolean> {
   return promptEnterOrCancel({
     input,
@@ -59,11 +67,11 @@ export async function promptToContinueGithubDiscovery({
 export async function promptForGithubOwner({
   input = process.stdin,
   output = process.stdout,
-  createInterfaceFn = createInterface
+  createInterfaceFn = defaultCreateInterface
 }: {
-  input?: NodeJS.ReadStream;
-  output?: NodeJS.WriteStream;
-  createInterfaceFn?: typeof createInterface;
+  input?: PromptInput;
+  output?: PromptOutput;
+  createInterfaceFn?: CreateInterfaceFn;
 } = {}): Promise<string | null> {
   const answer = await promptLineOrCancel({
     input,
@@ -101,9 +109,9 @@ export async function ensureInteractiveConfigSetup({
   skipDiscoveryPrompt = false
 }: {
   env?: Environment;
-  input?: NodeJS.ReadStream;
-  output?: NodeJS.WriteStream;
-  loadConfigFn: (env: Environment) => Promise<LoadedConfig>;
+  input?: PromptInput;
+  output?: PromptOutput;
+  loadConfigFn: (env: Environment) => Promise<LoadedRepoList>;
   initializeConfigFn: (options?: { env?: Environment }) => Promise<InitializeConfigResult>;
   getConfigPathFn: (env: Environment) => string;
   runDiscoveryFn: (options: DiscoveryRunOptions) => Promise<void>;
@@ -130,14 +138,14 @@ export async function ensureInteractiveConfigSetup({
     });
 
     if (!shouldInitialize) {
-      output.write(
+      output.write?.(
         'Initialization skipped. Configure the config file yourself or run "archa config init" when you are ready.\n'
       );
       return false;
     }
 
     const result = await initializeConfigFn({ env });
-    output.write(`${renderConfigInitFn(result, {
+    output.write?.(`${renderConfigInitFn(result, {
       includeNextStepSuggestion: false
     })}\n`);
 
@@ -149,7 +157,7 @@ export async function ensureInteractiveConfigSetup({
     return await maybeContinueWithZeroRepos(config);
   }
 
-  async function maybeContinueWithZeroRepos(config: LoadedConfig): Promise<boolean> {
+  async function maybeContinueWithZeroRepos(config: LoadedRepoList): Promise<boolean> {
     if (skipDiscoveryPrompt || config.repos.length > 0 || !canPromptInteractivelyFn({ input, output })) {
       return true;
     }
@@ -160,7 +168,7 @@ export async function ensureInteractiveConfigSetup({
     });
 
     if (!shouldDiscover) {
-      output.write(
+      output.write?.(
         'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
       );
       return allowProceedWithoutRepos;
@@ -171,7 +179,7 @@ export async function ensureInteractiveConfigSetup({
       output
     });
     if (owner === null) {
-      output.write(
+      output.write?.(
         'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
       );
       return allowProceedWithoutRepos;
@@ -190,14 +198,14 @@ export async function ensureInteractiveConfigSetup({
       return true;
     }
 
-    output.write(
+    output.write?.(
       'No repos were added. Configure repos manually or run "archa config discover-github".\n'
     );
     return allowProceedWithoutRepos;
   }
 }
 
-export function renderConfigInit(result, {
+export function renderConfigInit(result: InitializeConfigResult, {
   includeNextStepSuggestion = true
 }: {
   includeNextStepSuggestion?: boolean;
