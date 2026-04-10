@@ -397,6 +397,77 @@ describe("answerQuestion", () => {
     expect(statusReporter.info).toHaveBeenCalledWith("Skip repo sync: yes");
   });
 
+  it("reports selection comparisons when background selector runs complete", async () => {
+    const statusReporter = { info: vi.fn() };
+
+    mocks.selectRepos.mockResolvedValue({
+      repos: selectedRepos,
+      mode: "resolved",
+      selection: {
+        mode: "single",
+        shadowCompare: true,
+        source: "codex",
+        finalEffort: "none",
+        finalRepoNames: ["sqs-codec"],
+        runs: [
+          {
+            effort: "none",
+            repoNames: ["sqs-codec"],
+            latencyMs: 5,
+            confidence: 0.91,
+            usedForFinal: true
+          }
+        ]
+      },
+      selectionPromise: Promise.resolve({
+        mode: "single",
+        shadowCompare: true,
+        source: "codex",
+        finalEffort: "none",
+        finalRepoNames: ["sqs-codec"],
+        runs: [
+          {
+            effort: "none",
+            repoNames: ["sqs-codec"],
+            latencyMs: 5,
+            confidence: 0.91,
+            usedForFinal: true
+          },
+          {
+            effort: "low",
+            repoNames: [],
+            latencyMs: 9,
+            confidence: null,
+            usedForFinal: false
+          }
+        ]
+      })
+    });
+
+    await answerQuestion({
+      question: "How does x-codec-meta work?",
+      model: "gpt-5.4",
+      reasoningEffort: "low",
+      noSync: true,
+      noSynthesis: true,
+      repoNames: null
+    }, {
+      env: process.env,
+      statusReporter,
+      loadConfigFn: mocks.loadConfig,
+      selectReposFn: mocks.selectRepos,
+      syncReposFn: mocks.syncRepos,
+      existsSyncFn: mocks.existsSync,
+      getCodexTimeoutMsFn: mocks.getCodexTimeoutMs,
+      runCodexQuestionFn: mocks.runCodexQuestion,
+      nowFn: () => 0
+    });
+
+    expect(statusReporter.info).toHaveBeenCalledWith(
+      "Repo selection comparison: none=sqs-codec confidence=0.91 final | low=(none) confidence=?"
+    );
+  });
+
   it("preserves the legacy three-argument call shape when a status reporter is provided", async () => {
     const statusReporter = {
       info: vi.fn()

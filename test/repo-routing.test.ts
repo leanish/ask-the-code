@@ -1,0 +1,109 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  createEmptyRepoRouting,
+  getRepoRoutingSelectionEvidence,
+  hasRepoRoutingContent,
+  normalizeRepoRouting,
+  summarizeRepoRouting
+} from "../src/core/repos/repo-routing.js";
+
+describe("repo-routing", () => {
+  it("returns an empty routing card for null values", () => {
+    expect(normalizeRepoRouting(null, {
+      repoName: "archa",
+      sourcePath: "/tmp/config.json"
+    })).toEqual(createEmptyRepoRouting());
+  });
+
+  it("normalizes routing content and removes case-insensitive duplicates", () => {
+    expect(normalizeRepoRouting({
+      role: " developer-cli ",
+      reach: ["cli", "CLI", "http-server"],
+      responsibilities: ["Owns repo selection.", "Owns repo selection."],
+      owns: ["repo selection", "Repo Selection", "question answering"],
+      exposes: ["archa CLI", "archa CLI", "archa-server"],
+      consumes: ["Codex"],
+      workflows: ["Repo-aware Q&A"],
+      boundaries: ["Do not select only because another repo mentions Codex."],
+      selectWhen: ["The question is about repo selection."],
+      selectWithOtherReposWhen: ["Use with config repos when tracing selection inputs."]
+    }, {
+      repoName: "archa",
+      sourcePath: "/tmp/config.json"
+    })).toEqual({
+      role: "developer-cli",
+      reach: ["cli", "http-server"],
+      responsibilities: ["Owns repo selection."],
+      owns: ["repo selection", "question answering"],
+      exposes: ["archa CLI", "archa-server"],
+      consumes: ["Codex"],
+      workflows: ["Repo-aware Q&A"],
+      boundaries: ["Do not select only because another repo mentions Codex."],
+      selectWhen: ["The question is about repo selection."],
+      selectWithOtherReposWhen: ["Use with config repos when tracing selection inputs."]
+    });
+  });
+
+  it("throws clear errors for invalid routing payloads", () => {
+    expect(() => normalizeRepoRouting("bad", {
+      repoName: "archa",
+      sourcePath: "/tmp/config.json"
+    })).toThrow('repo "archa" has non-object "routing"');
+
+    expect(() => normalizeRepoRouting({
+      role: "developer-cli",
+      reach: "cli"
+    }, {
+      repoName: "archa",
+      sourcePath: "/tmp/config.json"
+    })).toThrow('repo "archa" has non-array "reach"');
+
+    expect(() => normalizeRepoRouting({
+      role: "developer-cli",
+      reach: ["cli", ""]
+    }, {
+      repoName: "archa",
+      sourcePath: "/tmp/config.json"
+    })).toThrow("has non-string or empty reach");
+  });
+
+  it("extracts selection evidence and summarizes populated routing cards", () => {
+    const routing = {
+      role: "developer-cli",
+      reach: ["cli", "http-server"],
+      responsibilities: ["Owns repo selection."],
+      owns: ["repo selection", "question answering"],
+      exposes: ["archa CLI", "archa-server"],
+      consumes: ["Codex"],
+      workflows: ["Repo-aware Q&A"],
+      boundaries: ["Do not select only because another repo mentions Codex."],
+      selectWhen: ["The question is about repo selection."],
+      selectWithOtherReposWhen: ["Use with config repos when tracing selection inputs."]
+    };
+
+    expect(hasRepoRoutingContent(undefined)).toBe(false);
+    expect(hasRepoRoutingContent(createEmptyRepoRouting())).toBe(false);
+    expect(hasRepoRoutingContent(routing)).toBe(true);
+    expect(getRepoRoutingSelectionEvidence(undefined)).toEqual([]);
+    expect(getRepoRoutingSelectionEvidence(routing)).toEqual([
+      "developer-cli",
+      "cli",
+      "http-server",
+      "Owns repo selection.",
+      "repo selection",
+      "question answering",
+      "archa CLI",
+      "archa-server",
+      "Codex",
+      "Repo-aware Q&A",
+      "Do not select only because another repo mentions Codex.",
+      "The question is about repo selection.",
+      "Use with config repos when tracing selection inputs."
+    ]);
+    expect(summarizeRepoRouting(createEmptyRepoRouting())).toBe("");
+    expect(summarizeRepoRouting(routing)).toBe(
+      "role=developer-cli reach=cli,http-server owns=repo selection,question answering exposes=archa CLI,archa-server"
+    );
+  });
+});

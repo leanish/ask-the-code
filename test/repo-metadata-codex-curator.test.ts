@@ -95,6 +95,95 @@ describe("repo-metadata-codex-curator", () => {
     expect(metadata).toEqual(inferredMetadata);
   });
 
+  it("falls back immediately when no Codex runner is available", async () => {
+    const inferredMetadata = {
+      description: "CLI utilities",
+      routing: {
+        role: "developer-cli",
+        reach: ["cli"],
+        responsibilities: ["Owns CLI utilities."],
+        owns: ["CLI behavior"],
+        exposes: ["archa CLI"],
+        consumes: ["Node.js"],
+        workflows: ["Handles CLI workflows."],
+        boundaries: [],
+        selectWhen: [],
+        selectWithOtherReposWhen: []
+      }
+    };
+
+    const metadata = await curateRepoMetadataWithCodex({
+      directory: "/workspace/repos/archa",
+      repo: {
+        name: "archa",
+        url: "https://github.com/leanish/archa.git",
+        defaultBranch: "main"
+      },
+      inferredMetadata,
+      runCodexPromptFn: null as never
+    });
+
+    expect(metadata).toEqual(inferredMetadata);
+  });
+
+  it("truncates long descriptions and filters invalid routing entries", async () => {
+    const metadata = await curateRepoMetadataWithCodex({
+      directory: "/workspace/repos/noisy-repo",
+      repo: {
+        name: "noisy-repo",
+        url: "https://github.com/leanish/noisy-repo.git",
+        defaultBranch: "main"
+      },
+      inferredMetadata: {
+        description: "Fallback description",
+        routing: {
+          role: "shared-library",
+          reach: ["shared-library"],
+          responsibilities: ["Keeps fallback responsibilities."],
+          owns: ["fallback ownership"],
+          exposes: ["npm package"],
+          consumes: ["Node.js"],
+          workflows: ["Fallback workflow."],
+          boundaries: ["Fallback boundary."],
+          selectWhen: ["Fallback selectWhen."],
+          selectWithOtherReposWhen: ["Fallback cross-repo guidance."]
+        }
+      },
+      runCodexPromptFn: vi.fn(async () => ({
+        text: JSON.stringify({
+          description: "x".repeat(220),
+          routing: {
+            role: 123,
+            reach: "bad",
+            responsibilities: [123, "", "Refines responsibilities.", "refines responsibilities."],
+            owns: ["", "Owns checkout.", "owns checkout.", 42, "Owns sync."],
+            exposes: ["", "archa CLI", "Archa CLI"],
+            consumes: [false, "Node.js", "node.js", "git"],
+            workflows: ["", "Handles sync flows."],
+            boundaries: [],
+            selectWhen: ["", "Select when the question is about sync."],
+            selectWithOtherReposWhen: null
+          }
+        })
+      }))
+    });
+
+    expect(metadata.description).toHaveLength(180);
+    expect(metadata.description.endsWith("...")).toBe(true);
+    expect(metadata.routing).toEqual({
+      role: "shared-library",
+      reach: ["shared-library"],
+      responsibilities: ["Refines responsibilities."],
+      owns: ["Owns checkout.", "Owns sync."],
+      exposes: ["archa CLI"],
+      consumes: ["Node.js", "git"],
+      workflows: ["Handles sync flows."],
+      boundaries: [],
+      selectWhen: ["Select when the question is about sync."],
+      selectWithOtherReposWhen: ["Fallback cross-repo guidance."]
+    });
+  });
+
   it("lets Codex clear routing arrays explicitly", async () => {
     const metadata = await curateRepoMetadataWithCodex({
       directory: "/workspace/repos/noisy-repo",
