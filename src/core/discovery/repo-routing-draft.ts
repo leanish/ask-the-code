@@ -218,7 +218,7 @@ function describeBoundaries(
   }
 
   if (consumes.length > 0) {
-    boundaries.push("Do not select only because it consumes shared infrastructure, services, or frameworks.");
+    boundaries.push("Do not select only because it consumes shared infrastructure or external services.");
   }
 
   return dedupeEntries(boundaries, 3);

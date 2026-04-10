@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { runCodexPrompt } from "../codex/codex-runner.js";
 import { DEFAULT_CODEX_MODEL } from "../codex/codex-defaults.js";
+import { filterRepoRoutingConsumes } from "./repo-routing.js";
 import type {
   LoadedConfig,
   ManagedRepo,
@@ -245,7 +246,10 @@ function buildRepoSelectionPrompt(config: LoadedConfig, question: string): strin
   const repoSummaries = config.repos.map(repo => ({
     name: repo.name,
     description: repo.description,
-    routing: repo.routing,
+    routing: {
+      ...repo.routing,
+      consumes: filterRepoRoutingConsumes(repo.routing.consumes)
+    },
     aliases: repo.aliases,
     alwaysSelect: repo.alwaysSelect
   }));
@@ -451,7 +455,7 @@ function scoreRepo(repo: ManagedRepo, questionTokens: string[]): number {
     { values: repo.routing.owns.flatMap(value => tokenize(value)), weight: 6 },
     { values: repo.routing.exposes.flatMap(value => tokenize(value)), weight: 6 },
     { values: repo.routing.workflows.flatMap(value => tokenize(value)), weight: 4 },
-    { values: repo.routing.consumes.flatMap(value => tokenize(value)), weight: 2 }
+    { values: filterRepoRoutingConsumes(repo.routing.consumes).flatMap(value => tokenize(value)), weight: 2 }
   ];
 
   let score = 0;

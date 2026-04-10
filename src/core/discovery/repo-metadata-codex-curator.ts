@@ -1,5 +1,5 @@
 import { runCodexPrompt } from "../codex/codex-runner.js";
-import { createEmptyRepoRouting } from "../repos/repo-routing.js";
+import { createEmptyRepoRouting, filterRepoRoutingConsumes } from "../repos/repo-routing.js";
 import type { RepoRecord, RepoRoutingMetadata } from "../types.js";
 
 const DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS = 60_000;
@@ -77,13 +77,14 @@ function buildRepoMetadataCurationPrompt({
     `routing.responsibilities: 0-${ROUTING_LIMITS.responsibilities} concrete responsibility statements.`,
     `routing.owns: 0-${ROUTING_LIMITS.owns} domains, APIs, surfaces, or behaviors this repo owns.`,
     `routing.exposes: 0-${ROUTING_LIMITS.exposes} commands, domains, endpoints, apps, or service surfaces this repo exposes.`,
-    `routing.consumes: 0-${ROUTING_LIMITS.consumes} external systems, frameworks, or services this repo depends on but does not own.`,
+    `routing.consumes: 0-${ROUTING_LIMITS.consumes} external systems, infrastructure dependencies, data stores, queues, or third-party service surfaces this repo depends on but does not own.`,
     `routing.workflows: 0-${ROUTING_LIMITS.workflows} recurring user or system workflows owned here.`,
     `routing.boundaries: 0-${ROUTING_LIMITS.boundaries} "do not select for..." statements when they materially improve routing precision.`,
     `routing.selectWhen: 0-${ROUTING_LIMITS.selectWhen} "select when..." statements tied to owned behavior or exposed surfaces.`,
     `routing.selectWithOtherReposWhen: 0-${ROUTING_LIMITS.selectWithOtherReposWhen} "use with..." statements for cross-repo flows.`,
     "Do not mention the repo name as a routing signal unless it is part of a real exposed surface.",
     "Do not add generic filler such as api, backend, service, platform, setup, tooling, or internal unless they are genuinely specific in context.",
+    "Do not put general libraries, runtimes, logging frameworks, build tools, test frameworks, or web frameworks into routing.consumes.",
     "Keep accurate draft values when they are already good. Improve them when the repo content shows a better answer.",
     "",
     "Current draft metadata:",
@@ -155,7 +156,7 @@ function normalizeRouting(value: unknown, fallback: RepoRoutingMetadata): RepoRo
     responsibilities: normalizeRoutingList(rawRouting.responsibilities, ROUTING_LIMITS.responsibilities) ?? fallback.responsibilities,
     owns: normalizeRoutingList(rawRouting.owns, ROUTING_LIMITS.owns) ?? fallback.owns,
     exposes: normalizeRoutingList(rawRouting.exposes, ROUTING_LIMITS.exposes) ?? fallback.exposes,
-    consumes: normalizeRoutingList(rawRouting.consumes, ROUTING_LIMITS.consumes) ?? fallback.consumes,
+    consumes: normalizeConsumes(rawRouting.consumes, fallback.consumes),
     workflows: normalizeRoutingList(rawRouting.workflows, ROUTING_LIMITS.workflows) ?? fallback.workflows,
     boundaries: normalizeRoutingList(rawRouting.boundaries, ROUTING_LIMITS.boundaries) ?? fallback.boundaries,
     selectWhen: normalizeRoutingList(rawRouting.selectWhen, ROUTING_LIMITS.selectWhen) ?? fallback.selectWhen,
@@ -206,4 +207,9 @@ function normalizeRoutingList(value: unknown, limit: number): string[] | null {
   }
 
   return normalized;
+}
+
+function normalizeConsumes(value: unknown, fallback: string[]): string[] {
+  const normalized = normalizeRoutingList(value, ROUTING_LIMITS.consumes);
+  return normalized == null ? fallback : filterRepoRoutingConsumes(normalized);
 }

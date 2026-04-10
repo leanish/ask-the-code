@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import { getDefaultManagedReposRoot } from "../config/config-paths.js";
 import { normalizeGitExecutionError } from "../git/git-installation.js";
 import { getManagedRepoDirectory, getManagedRepoRelativePath } from "../repos/repo-paths.js";
-import { createEmptyRepoRouting } from "../repos/repo-routing.js";
+import { createEmptyRepoRouting, filterRepoRoutingConsumes } from "../repos/repo-routing.js";
 import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.js";
 import { buildRepoRoutingDraft } from "./repo-routing-draft.js";
 import { curateRepoMetadataWithCodex } from "./repo-metadata-codex-curator.js";
@@ -484,7 +484,6 @@ async function inferMetadataFromDirectory({
 
   const normalizedClassifications = Array.from(new Set(classifications));
   const consumedTechnologies = inferConsumedTechnologies({
-    dependencyNames,
     gradleSource,
     pomSource,
     goSource,
@@ -679,37 +678,17 @@ function collectPackageDependencies(packageJson: PackageJsonLike | null): string
 }
 
 function inferConsumedTechnologies({
-  dependencyNames,
   gradleSource,
   pomSource,
   goSource,
   readmeSource
 }: {
-  dependencyNames: string[];
   gradleSource: string;
   pomSource: string;
   goSource: string;
   readmeSource: string;
 }): string[] {
   const technologies = new Set<string>();
-
-  for (const dependencyName of dependencyNames) {
-    const normalizedDependency = dependencyName.toLowerCase();
-
-    if (
-      normalizedDependency.includes("react")
-      || normalizedDependency.includes("next")
-      || normalizedDependency.includes("vue")
-      || normalizedDependency.includes("spring")
-      || normalizedDependency.includes("graphql")
-      || normalizedDependency.includes("play")
-      || normalizedDependency.includes("express")
-      || normalizedDependency.includes("koa")
-      || normalizedDependency.includes("cobra")
-    ) {
-      technologies.add(dependencyName);
-    }
-  }
 
   for (const source of [gradleSource, pomSource, goSource, readmeSource]) {
     if (source.includes("redis")) {
@@ -730,12 +709,18 @@ function inferConsumedTechnologies({
     if (source.includes("s3")) {
       technologies.add("S3");
     }
-    if (source.includes("graphql")) {
-      technologies.add("GraphQL");
+    if (source.includes("elasticsearch")) {
+      technologies.add("Elasticsearch");
+    }
+    if (source.includes("cassandra")) {
+      technologies.add("Cassandra");
+    }
+    if (source.includes("kinesis")) {
+      technologies.add("Kinesis");
     }
   }
 
-  return [...technologies].slice(0, 8);
+  return filterRepoRoutingConsumes([...technologies]).slice(0, 8);
 }
 
 function hasMatchingDependency(dependencyNames: string[], knownNames: Set<string>): boolean {

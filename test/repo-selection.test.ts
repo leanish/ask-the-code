@@ -256,6 +256,48 @@ describe("selectReposHeuristically", () => {
     expect(result.mode).toBe("all");
   });
 
+  it("ignores generic consumes values during heuristic selection", () => {
+    const result = selectReposHeuristically(createLoadedConfig({
+      ...config,
+      repos: [
+        createManagedRepo({
+          name: "helper-kit",
+          description: "Wrapper scripts",
+          routing: {
+            role: "shared-library",
+            reach: [],
+            responsibilities: [],
+            owns: [],
+            exposes: [],
+            consumes: ["Gradle", "Node.js"],
+            workflows: [],
+            boundaries: [],
+            selectWhen: [],
+            selectWithOtherReposWhen: []
+          }
+        }),
+        createManagedRepo({
+          name: "payments",
+          description: "Payment flows",
+          routing: {
+            role: "service-application",
+            reach: [],
+            responsibilities: [],
+            owns: ["payments"],
+            exposes: [],
+            consumes: [],
+            workflows: [],
+            boundaries: [],
+            selectWhen: [],
+            selectWithOtherReposWhen: []
+          }
+        })
+      ]
+    }), "Which repo uses Gradle?", null);
+
+    expect(result.mode).toBe("all");
+  });
+
   it("includes alwaysSelect repos during automatic selection even when they do not match the question", () => {
     const result = selectReposHeuristically(createLoadedConfig({
       ...config,

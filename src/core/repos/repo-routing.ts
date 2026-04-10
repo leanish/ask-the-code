@@ -12,6 +12,15 @@ const ROUTING_LIST_FIELDS = [
   "selectWithOtherReposWhen"
 ] as const;
 
+const GENERIC_CONSUMED_TECHNOLOGY_PATTERNS = [
+  /^(?:java|jdk|jre|javascript|typescript|node|node\.js)$/iu,
+  /^(?:gradle|maven|npm|yarn|pnpm|pip|poetry|bundler)$/iu,
+  /^(?:guava|slf4j|log4j|logback|jackson|lombok)$/iu,
+  /^(?:spring|spring boot|spring framework|play|play framework|express|koa|react|next|next\.js|vue|vue\.js|nuxt|svelte|angular|cobra)$/iu,
+  /^(?:graphql|graphql api|rest|rest api|grpc)$/iu,
+  /^git$/iu
+] as const;
+
 type RoutingListField = typeof ROUTING_LIST_FIELDS[number];
 
 export function createEmptyRepoRouting(): RepoRoutingMetadata {
@@ -91,12 +100,16 @@ export function getRepoRoutingSelectionEvidence(routing: RepoRoutingMetadata | n
     ...routing.responsibilities,
     ...routing.owns,
     ...routing.exposes,
-    ...routing.consumes,
+    ...filterRepoRoutingConsumes(routing.consumes),
     ...routing.workflows,
     ...routing.boundaries,
     ...routing.selectWhen,
     ...routing.selectWithOtherReposWhen
   ].filter(value => value.trim() !== "");
+}
+
+export function filterRepoRoutingConsumes(consumes: string[]): string[] {
+  return consumes.filter(consume => isSelectionRelevantConsumedTechnology(consume));
 }
 
 export function summarizeRepoRouting(routing: RepoRoutingMetadata | null | undefined): string {
@@ -166,4 +179,13 @@ function normalizeRoutingList(
   }
 
   return normalized;
+}
+
+function isSelectionRelevantConsumedTechnology(value: string): boolean {
+  const normalized = value.replace(/\s+/gu, " ").trim();
+  if (normalized === "") {
+    return false;
+  }
+
+  return !GENERIC_CONSUMED_TECHNOLOGY_PATTERNS.some(pattern => pattern.test(normalized));
 }

@@ -191,6 +191,8 @@ describe("repo-classification-inspector", () => {
     expect(metadata.routing.exposes).toContain("POST /order/track");
     expect(metadata.routing.exposes).toContain("GET /admin/overview");
     expect(metadata.routing.consumes).toContain("MongoDB");
+    expect(metadata.routing.consumes).not.toContain("GraphQL");
+    expect(metadata.routing.consumes).not.toContain("Play");
   });
 
   it("falls back to heuristic routing when Codex curation fails", async () => {

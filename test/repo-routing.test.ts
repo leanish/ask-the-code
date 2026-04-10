@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createEmptyRepoRouting,
+  filterRepoRoutingConsumes,
   getRepoRoutingSelectionEvidence,
   hasRepoRoutingContent,
   normalizeRepoRouting,
@@ -105,5 +106,24 @@ describe("repo-routing", () => {
     expect(summarizeRepoRouting(routing)).toBe(
       "role=developer-cli reach=cli,http-server owns=repo selection,question answering exposes=archa CLI,archa-server"
     );
+  });
+
+  it("drops generic framework and tooling values from consumes when routing is used for selection", () => {
+    expect(filterRepoRoutingConsumes([
+      "Gradle",
+      "Node.js",
+      "Spring Boot",
+      "GraphQL",
+      "Git",
+      "MongoDB",
+      "Redis",
+      "Shopify APIs",
+      "GitHub API"
+    ])).toEqual([
+      "MongoDB",
+      "Redis",
+      "Shopify APIs",
+      "GitHub API"
+    ]);
   });
 });
