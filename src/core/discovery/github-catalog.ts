@@ -1566,8 +1566,6 @@ function mergeRepoRoutingDraft(draft: RepoRoutingMetadata, inspected: RepoRoutin
   }
 
   return {
-    ...draft,
-    ...inspected,
     role: inspected.role || draft.role,
     reach: inspected.reach.length > 0 ? inspected.reach : draft.reach,
     responsibilities: inspected.responsibilities.length > 0 ? inspected.responsibilities : draft.responsibilities,
