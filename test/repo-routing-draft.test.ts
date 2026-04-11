@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { buildRepoRoutingDraft, inferRepoReach } from "../src/core/discovery/repo-routing-draft.js";
 
 describe("repo-routing-draft", () => {
-  it("marks public-api reach for HTTP route endpoints", () => {
+  it("marks http-surface reach for HTTP route endpoints", () => {
     expect(inferRepoReach(["backend"], [
       "GET /api/widgets",
       "POST /orders"
-    ])).toContain("public-api");
+    ])).toContain("http-surface");
   });
 
   it("keeps order workflows scoped to order path segments", () => {

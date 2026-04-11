@@ -133,7 +133,7 @@ export function inferRepoReach(
   }
 
   if (routeEndpoints.some(endpoint => hasHttpRouteSurface(endpoint))) {
-    reach.push("public-api");
+    reach.push("http-surface");
   }
 
   if (routeEndpoints.some(endpoint => endpoint.includes("/admin/"))) {
