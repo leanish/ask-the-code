@@ -273,7 +273,7 @@ async function promptEnterOrCancelWithEscape({
       handleKeypress = (_: string, key: Key) => {
         if (key?.name === "c" && key?.ctrl) {
           cleanup();
-      output.write?.("\n");
+          output.write?.("\n");
           resolve(false);
           return;
         }
