@@ -310,6 +310,8 @@ describe("buildRepoSelectionPrompt", () => {
     expect(prompt).not.toContain("\"selectWithOtherReposWhen\"");
     expect(prompt).toContain("{\"name\":\"repo-1\"");
     expect(prompt).toContain("\"owns\":[\"domain-1\"]");
+    expect(prompt).toContain("\"selectWhen\":[\"The question is about domain-1.\"]");
+    expect(prompt).toContain("\"boundaries\":[\"Boundary 1\"]");
   });
 });
 
