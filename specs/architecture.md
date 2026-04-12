@@ -15,7 +15,7 @@ flowchart LR
   Jobs --> Core
 
   Core --> Config["Config loader"]
-  Core --> Selection["Repo selection"]
+  Core --> Scope["Repo scope resolution"]
   Core --> Sync["Repo sync"]
   Core --> Codex["Codex runner"]
 
@@ -38,12 +38,12 @@ flowchart LR
 3. Discovery commands check that GitHub access is available via `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, via a usable `gh` login before continuing.
 4. Commands that require Codex check that the local `codex` CLI is installed and `codex login status` reports a logged-in session before continuing.
 5. Config is loaded from the user config path.
-6. Repo selection honors explicit repo names when provided; otherwise it asks Codex to choose from the configured repo metadata using `gpt-5.4-mini` at `medium` reasoning effort, keeps any pinned repos in scope, retries once when selector output is malformed, allows a valid empty selector result when no configured repo looks relevant, and in `cascade` mode escalates to `high` then `xhigh` until the selector returns a confidence-qualified usable repo set.
-7. Repo sync clones missing selected repos, unshallows any shallow managed checkout, and then fast-forwards it to the configured tracked branch tip.
-8. Codex runs against either the single selected repo or the managed repos root.
+6. Repo scope honors explicit repo names when provided; otherwise every configured repo stays in scope.
+7. Repo sync clones missing in-scope repos, unshallows any shallow managed checkout, and then fast-forwards it to the configured tracked branch tip.
+8. Codex runs against either the single in-scope repo or the managed repos root, and when multiple repos are in scope the prompt points Codex at the repo catalog as a hint index.
 9. The adapter renders the result:
    - CLI: text to stdout plus status to stderr
-   - HTTP: async job state plus SSE status events, with the web UI optionally loading the configured repo catalog for picker-style selection
+   - HTTP: async job state plus SSE status events, with the web UI optionally loading the configured repo catalog for picker-style narrowing
 
 ## HTTP ask flow
 
@@ -86,14 +86,14 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/cli/setup/bootstrap.ts`
   Hosts the shared interactive CLI prompts and bootstrap flow for missing-config initialization and optional GitHub discovery continuation, including the Enter-to-use-`@accessible` owner shortcut.
 - `src/core/config/config-paths.ts`
-  Resolves the active config path and default managed repos root.
+  Resolves the active control-config path, default managed repos root, and default repo-catalog path.
 - `src/core/config/config.ts`
-  Loads and validates config, bootstraps a config file from scratch or from an imported catalog, applies selected GitHub discovery additions or overrides into the active config, and drafts fallback routing cards from legacy repo `topics` / `classifications` when `routing` is still missing.
+  Loads and validates the control config plus repo catalog, bootstraps both files from scratch or from an imported catalog, applies selected GitHub discovery additions or overrides into the active repo catalog, and drafts fallback routing cards from legacy repo `topics` / `classifications` when `routing` is still missing.
   Derives each GitHub managed checkout directory from the repo's GitHub identity, so checkouts live under owner-scoped paths like `leanish/nullability` or `OtherCo/dtv` even when the configured repo name stays plain.
 - `src/core/discovery/github-catalog.ts`
   Discovers repos from a GitHub user or org, or from the special `@accessible` scope that spans the authenticated user's personal and organization-visible repos.
   Uses authenticated GitHub access from `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, the current `gh` login so private repos and higher rate limits can be used.
-  Normalizes repos into repo definitions, preserves source-owner metadata for multi-owner discovery displays, auto-qualifies owner-colliding repo names as `<owner>/<repo>`, supports a names-first selection pass without per-repo topic fetches, and then refines only the selected subset with repo-content inspection plus a Codex cleanup pass before comparing the result with the current config to classify additions, conflicts, and metadata review suggestions.
+  Normalizes repos into repo definitions, preserves source-owner metadata for multi-owner discovery displays, auto-qualifies owner-colliding repo names as `<owner>/<repo>`, supports a names-first selection pass without per-repo topic fetches, and then refines only the selected subset with repo-content inspection plus a Codex cleanup pass before comparing the result with the current repo catalog to classify additions, conflicts, and metadata review suggestions.
 - `src/core/discovery/discovery-pipeline.ts`
   Orchestrates the shared discovery flow used by both CLI and server bootstrap: fetch discovery results, plan additions and overrides, resolve the selected subset, refine only that subset, apply the selected repos into config in one write, and build the final applied summary.
 - `src/core/discovery/github-discovery-auth.ts`
@@ -110,8 +110,8 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
   Runs a Codex cleanup pass in the inspected repo checkout to refine the heuristic discovery draft into the final description and routing card written during selected-repo discovery apply flows.
 - `src/core/answer/question-answering.ts`
   Implements the transport-agnostic ask flow and accepts injectable adapters such as status reporters and sync functions.
-- `src/core/repos/repo-selection.ts`
-  Resolves explicit repo names and aliases, or asks Codex to choose from configured repo metadata while keeping repos marked `alwaysSelect` in scope, optionally cascading selector reasoning effort, and failing explicitly when selector output is unusable.
+- `src/core/repos/repo-filter.ts`
+  Resolves explicit repo names and aliases, or returns the full configured repo list when the request does not narrow scope.
 - `src/core/repos/repo-sync.ts`
   Clones missing repos and fast-forwards existing repos to the latest remote configured tracked branch tip, first unshallowing any shallow managed checkout.
 - `src/core/git/git-installation.ts`
@@ -135,7 +135,11 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 
 ## Configuration model
 
-The installed config file owns:
+The installed control config file owns:
+
+- the path to the repo catalog
+
+The repo catalog owns:
 
 - the root directory used for managed clones
 - the list of managed repos
@@ -149,7 +153,7 @@ Repo definitions include:
 - `routing`
   A structured routing card with `role`, `reach`, `responsibilities`, `owns`, `exposes`, `consumes`, `workflows`, `boundaries`, `selectWhen`, and `selectWithOtherReposWhen`. `consumes` should stay sparse and prefer purpose-qualified resource labels such as `search index` or `product data DB` over vendor names for generic infrastructure.
 - optional `aliases`
-- optional `alwaysSelect`
+- optional `alwaysSelect` (preserved as catalog metadata for compatibility, not consulted during ask-time repo scoping)
 
 Repo names and aliases are validated eagerly and must be unique case-insensitively.
 
@@ -169,7 +173,7 @@ Repo names and aliases are validated eagerly and must be unique case-insensitive
 - The highest-value tests cover:
   - argument parsing
   - config loading and initialization
-  - repo selection
+  - repo scope resolution
   - Codex runner behavior and error handling
   - sync coordination
   - async job lifecycle

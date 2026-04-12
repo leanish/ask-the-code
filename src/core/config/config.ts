@@ -1,7 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { getConfigPath, getDefaultManagedReposRoot } from "./config-paths.js";
+import {
+  getConfigPath,
+  getDefaultManagedReposRoot,
+  getDefaultRepoCatalogPath
+} from "./config-paths.js";
 import { buildRepoRoutingDraft } from "../discovery/repo-routing-draft.js";
 import { getManagedRepoDirectory } from "../repos/repo-paths.js";
 import { createEmptyRepoRouting, normalizeRepoRouting } from "../repos/repo-routing.js";
@@ -16,32 +20,47 @@ import type {
   RepoClassification
 } from "../types.js";
 
-type RawConfig = {
+type RawControlConfig = {
+  repoCatalogPath?: unknown;
+  managedReposRoot?: unknown;
+  repos?: unknown;
+};
+
+type RawRepoCatalog = {
   managedReposRoot?: unknown;
   repos?: unknown;
 };
 
 type RawRepo = Record<string, unknown>;
+
+type ResolvedRepoCatalog = {
+  managedReposRoot: string;
+  repoCatalogPath: string;
+  repoSourcePath: string;
+  repos: unknown[];
+};
+
 const LEGACY_REPO_CLASSIFICATIONS = new Set<string>(REPO_CLASSIFICATIONS);
 
 export async function loadConfig(env: Environment = process.env): Promise<LoadedConfig> {
   const configPath = getConfigPath(env);
-  const raw = await readConfigFile(configPath);
-  const parsed = parseConfigJson(configPath, raw);
+  const rawControl = await readConfigFile(configPath);
+  const parsedControl = parseConfigJson<RawControlConfig>(configPath, rawControl);
+  const repoCatalog = await resolveRepoCatalog({
+    env,
+    configPath,
+    parsedControl
+  });
+  const repos = repoCatalog.repos.map((repo, index) =>
+    normalizeRepo(repo, index, repoCatalog.managedReposRoot, repoCatalog.repoSourcePath)
+  );
 
-  if (!Array.isArray(parsed.repos)) {
-    throw new Error(`Invalid Archa config at ${configPath}: "repos" must be an array.`);
-  }
-
-  const managedReposRoot = typeof parsed.managedReposRoot === "string" && parsed.managedReposRoot.trim() !== ""
-    ? parsed.managedReposRoot
-    : getDefaultManagedReposRoot(env);
-  const repos = parsed.repos.map((repo, index) => normalizeRepo(repo, index, managedReposRoot, configPath));
-  validateUniqueRepoIdentifiers(repos, configPath);
+  validateUniqueRepoIdentifiers(repos, repoCatalog.repoSourcePath);
 
   return {
     configPath,
-    managedReposRoot,
+    managedReposRoot: repoCatalog.managedReposRoot,
+    repoCatalogPath: repoCatalog.repoCatalogPath,
     repos
   };
 }
@@ -59,22 +78,28 @@ export async function initializeConfig({
 } = {}): Promise<InitializeConfigResult> {
   const configPath = getConfigPath(env);
   const resolvedManagedReposRoot = managedReposRoot || getDefaultManagedReposRoot(env);
+  const repoCatalogPath = getDefaultRepoCatalogPath(env, resolvedManagedReposRoot);
 
   if (!force && await exists(configPath)) {
     throw new Error(`Archa config already exists at ${configPath}. Use --force to overwrite it.`);
   }
 
+  if (!force && await exists(repoCatalogPath)) {
+    throw new Error(`Archa repo catalog already exists at ${repoCatalogPath}. Use --force to overwrite it.`);
+  }
+
   const repos = catalogPath ? await importCatalog(catalogPath) : [];
 
-  await fs.mkdir(path.dirname(configPath), { recursive: true });
-  await fs.writeFile(configPath, JSON.stringify({
+  await writeConfigControlFile(configPath, repoCatalogPath);
+  await writeRepoCatalogFile(repoCatalogPath, {
     managedReposRoot: resolvedManagedReposRoot,
     repos
-  }, null, 2) + "\n");
+  });
 
   return {
     configPath,
     managedReposRoot: resolvedManagedReposRoot,
+    repoCatalogPath,
     repoCount: repos.length
   };
 }
@@ -90,24 +115,17 @@ export async function appendReposToConfig({
     throw new Error('appendReposToConfig requires a "repos" array.');
   }
 
-  const configPath = getConfigPath(env);
-  const raw = await readConfigFile(configPath);
-  const parsed = parseConfigJson(configPath, raw);
-
-  if (!Array.isArray(parsed.repos)) {
-    throw new Error(`Invalid Archa config at ${configPath}: "repos" must be an array.`);
-  }
-
-  const normalizedExistingRepos = normalizeRepoDefinitions(parsed.repos, configPath);
-  const normalizedNewRepos = normalizeRepoDefinitions(repos, configPath);
+  const context = await loadConfigMutationContext(env);
+  const normalizedExistingRepos = normalizeRepoDefinitions(context.repos, context.repoSourcePath);
+  const normalizedNewRepos = normalizeRepoDefinitions(repos, context.repoSourcePath);
   const nextRepos = [...normalizedExistingRepos, ...normalizedNewRepos];
-  validateUniqueRepoIdentifiers(nextRepos, configPath);
 
-  parsed.repos = nextRepos;
-  await fs.writeFile(configPath, JSON.stringify(parsed, null, 2) + "\n");
+  validateUniqueRepoIdentifiers(nextRepos, context.repoSourcePath);
+  await persistRepoCatalog(context, nextRepos);
 
   return {
-    configPath,
+    configPath: context.configPath,
+    repoCatalogPath: context.repoCatalogPath,
     addedCount: normalizedNewRepos.length,
     totalCount: nextRepos.length
   };
@@ -130,24 +148,17 @@ export async function applyGithubDiscoveryToConfig({
     throw new Error('applyGithubDiscoveryToConfig requires a "reposToOverride" array.');
   }
 
-  const configPath = getConfigPath(env);
-  const raw = await readConfigFile(configPath);
-  const parsed = parseConfigJson(configPath, raw);
-
-  if (!Array.isArray(parsed.repos)) {
-    throw new Error(`Invalid Archa config at ${configPath}: "repos" must be an array.`);
-  }
-
-  const normalizedExistingRepos = normalizeRepoDefinitions(parsed.repos, configPath);
-  const normalizedAdditions = normalizeRepoDefinitions(reposToAdd, configPath);
-  const normalizedOverrides = normalizeRepoDefinitions(reposToOverride, configPath);
+  const context = await loadConfigMutationContext(env);
+  const normalizedExistingRepos = normalizeRepoDefinitions(context.repos, context.repoSourcePath);
+  const normalizedAdditions = normalizeRepoDefinitions(reposToAdd, context.repoSourcePath);
+  const normalizedOverrides = normalizeRepoDefinitions(reposToOverride, context.repoSourcePath);
   const overridesByName = new Map(
     normalizedOverrides.map(repo => [repo.name.toLowerCase(), repo])
   );
 
   for (const repoToOverride of normalizedOverrides) {
     if (!normalizedExistingRepos.some(existingRepo => existingRepo.name.toLowerCase() === repoToOverride.name.toLowerCase())) {
-      throw new Error(`Cannot override missing repo "${repoToOverride.name}" in ${configPath}.`);
+      throw new Error(`Cannot override missing repo "${repoToOverride.name}" in ${context.repoSourcePath}.`);
     }
   }
 
@@ -163,17 +174,144 @@ export async function applyGithubDiscoveryToConfig({
 
   nextRepos.push(...normalizedAdditions);
 
-  validateUniqueRepoIdentifiers(nextRepos, configPath);
-
-  parsed.repos = nextRepos;
-  await fs.writeFile(configPath, JSON.stringify(parsed, null, 2) + "\n");
+  validateUniqueRepoIdentifiers(nextRepos, context.repoSourcePath);
+  await persistRepoCatalog(context, nextRepos);
 
   return {
-    configPath,
+    configPath: context.configPath,
+    repoCatalogPath: context.repoCatalogPath,
     addedCount: normalizedAdditions.length,
     overriddenCount: normalizedOverrides.length,
     totalCount: nextRepos.length
   };
+}
+
+async function loadConfigMutationContext(env: Environment): Promise<{
+  configPath: string;
+  managedReposRoot: string;
+  repoCatalogPath: string;
+  repoSourcePath: string;
+  repos: unknown[];
+}> {
+  const configPath = getConfigPath(env);
+  const rawControl = await readConfigFile(configPath);
+  const parsedControl = parseConfigJson<RawControlConfig>(configPath, rawControl);
+  const repoCatalog = await resolveRepoCatalog({
+    env,
+    configPath,
+    parsedControl
+  });
+
+  return {
+    configPath,
+    managedReposRoot: repoCatalog.managedReposRoot,
+    repoCatalogPath: repoCatalog.repoCatalogPath,
+    repoSourcePath: repoCatalog.repoSourcePath,
+    repos: repoCatalog.repos
+  };
+}
+
+async function persistRepoCatalog(
+  context: {
+    configPath: string;
+    managedReposRoot: string;
+    repoCatalogPath: string;
+  },
+  repos: ManagedRepoDefinition[]
+): Promise<void> {
+  await writeConfigControlFile(context.configPath, context.repoCatalogPath);
+  await writeRepoCatalogFile(context.repoCatalogPath, {
+    managedReposRoot: context.managedReposRoot,
+    repos
+  });
+}
+
+async function resolveRepoCatalog({
+  env,
+  configPath,
+  parsedControl
+}: {
+  env: Environment;
+  configPath: string;
+  parsedControl: RawControlConfig;
+}): Promise<ResolvedRepoCatalog> {
+  if (hasInlineRepoCatalog(parsedControl)) {
+    const managedReposRoot = resolveManagedReposRoot(parsedControl.managedReposRoot, env);
+
+    return {
+      managedReposRoot,
+      repoCatalogPath: resolveRepoCatalogPath(parsedControl.repoCatalogPath, env, managedReposRoot),
+      repoSourcePath: configPath,
+      repos: expectReposArray(parsedControl.repos, configPath, "Invalid Archa config")
+    };
+  }
+
+  const repoCatalogPath = resolveRepoCatalogPath(parsedControl.repoCatalogPath, env);
+  const rawRepoCatalog = await readRepoCatalogFile(repoCatalogPath);
+  const parsedRepoCatalog = parseConfigJson<RawRepoCatalog>(repoCatalogPath, rawRepoCatalog);
+
+  return {
+    managedReposRoot: resolveManagedReposRoot(parsedRepoCatalog.managedReposRoot, env),
+    repoCatalogPath,
+    repoSourcePath: repoCatalogPath,
+    repos: expectReposArray(parsedRepoCatalog.repos, repoCatalogPath, "Invalid Archa repo catalog")
+  };
+}
+
+function hasInlineRepoCatalog(value: RawControlConfig): boolean {
+  return "repos" in value || value.managedReposRoot != null;
+}
+
+function resolveManagedReposRoot(value: unknown, env: Environment): string {
+  return typeof value === "string" && value.trim() !== ""
+    ? value
+    : getDefaultManagedReposRoot(env);
+}
+
+function resolveRepoCatalogPath(
+  value: unknown,
+  env: Environment,
+  managedReposRoot: string = getDefaultManagedReposRoot(env)
+): string {
+  return typeof value === "string" && value.trim() !== ""
+    ? value
+    : getDefaultRepoCatalogPath(env, managedReposRoot);
+}
+
+function expectReposArray(
+  value: unknown,
+  sourcePath: string,
+  label: string
+): unknown[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} at ${sourcePath}: "repos" must be an array.`);
+  }
+
+  return value;
+}
+
+async function writeConfigControlFile(configPath: string, repoCatalogPath: string): Promise<void> {
+  await fs.mkdir(path.dirname(configPath), { recursive: true });
+  await fs.writeFile(configPath, JSON.stringify({
+    repoCatalogPath
+  }, null, 2) + "\n");
+}
+
+async function writeRepoCatalogFile(
+  repoCatalogPath: string,
+  {
+    managedReposRoot,
+    repos
+  }: {
+    managedReposRoot: string;
+    repos: ManagedRepoDefinition[];
+  }
+): Promise<void> {
+  await fs.mkdir(path.dirname(repoCatalogPath), { recursive: true });
+  await fs.writeFile(repoCatalogPath, JSON.stringify({
+    managedReposRoot,
+    repos
+  }, null, 2) + "\n");
 }
 
 async function readConfigFile(configPath: string): Promise<string> {
@@ -187,17 +325,28 @@ async function readConfigFile(configPath: string): Promise<string> {
   }
 }
 
-function parseConfigJson(configPath: string, raw: string): RawConfig {
+async function readRepoCatalogFile(repoCatalogPath: string): Promise<string> {
   try {
-    return JSON.parse(raw) as RawConfig;
+    return await fs.readFile(repoCatalogPath, "utf8");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      throw new Error(`Archa repo catalog not found at ${repoCatalogPath}. Run "archa config init" to recreate it.`);
+    }
+    throw error;
+  }
+}
+
+function parseConfigJson<T>(configPath: string, raw: string): T {
+  try {
+    return JSON.parse(raw) as T;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Invalid Archa config at ${configPath}: ${message}`);
   }
 }
 
-function normalizeRepo(repo: unknown, index: number, managedReposRoot: string, configPath: string): ManagedRepo {
-  const normalizedRepo = normalizeRepoDefinition(repo, index, configPath);
+function normalizeRepo(repo: unknown, index: number, managedReposRoot: string, sourcePath: string): ManagedRepo {
+  const normalizedRepo = normalizeRepoDefinition(repo, index, sourcePath);
 
   return {
     ...normalizedRepo,
@@ -350,13 +499,8 @@ function mergeDiscoveredRepo(
 
 async function importCatalog(catalogPath: string): Promise<ManagedRepoDefinition[]> {
   const raw = await fs.readFile(catalogPath, "utf8");
-  const parsed = parseConfigJson(catalogPath, raw);
-
-  if (!Array.isArray(parsed.repos)) {
-    throw new Error(`Invalid catalog at ${catalogPath}: "repos" must be an array.`);
-  }
-
-  const repos = parsed.repos.map((repo, index) => {
+  const parsed = parseConfigJson<RawRepoCatalog>(catalogPath, raw);
+  const repos = expectReposArray(parsed.repos, catalogPath, "Invalid catalog").map((repo, index) => {
     const normalizedRepo = normalizeRepoDefinition(repo, index, catalogPath);
 
     return {

@@ -7,7 +7,6 @@ import type {
   ConfigDiscoverGithubCommandOptions,
   ConfigInitCommandOptions,
   Environment,
-  RepoSelectionStrategy,
   ReposListCommandOptions,
   ReposSyncCommandOptions
 } from "../core/types.js";
@@ -41,8 +40,6 @@ function parseAskCommand(argv: string[], env: Environment): AskCommandOptions {
   let reasoningEffort = env.ARCHA_DEFAULT_REASONING_EFFORT
     || env.ARCHA_REASONING_EFFORT
     || DEFAULT_CODEX_REASONING_EFFORT;
-  let selectionMode: RepoSelectionStrategy = "single";
-  let selectionShadowCompare = false;
   let noSync = false;
   let noSynthesis = false;
   let repoNames: string[] | null = null;
@@ -85,13 +82,6 @@ function parseAskCommand(argv: string[], env: Environment): AskCommandOptions {
         reasoningEffort = requireValue(arg, argv[index + 1]);
         index += 1;
         break;
-      case "--selection-mode":
-        selectionMode = parseSelectionMode(requireValue(arg, argv[index + 1]));
-        index += 1;
-        break;
-      case "--selection-shadow-compare":
-        selectionShadowCompare = true;
-        break;
       case "--no-sync":
         noSync = true;
         break;
@@ -125,8 +115,6 @@ function parseAskCommand(argv: string[], env: Environment): AskCommandOptions {
     audience,
     model,
     reasoningEffort,
-    selectionMode,
-    selectionShadowCompare,
     noSync,
     noSynthesis,
     repoNames
@@ -292,14 +280,6 @@ function parseAudience(value: string): AnswerAudience {
   return value;
 }
 
-function parseSelectionMode(value: string): RepoSelectionStrategy {
-  if (value === "single" || value === "cascade") {
-    return value;
-  }
-
-  throw new Error(`Unsupported selection mode: ${value}. Use one of: single, cascade.`);
-}
-
 function isHelpFlag(value: string): boolean {
   return value === "-h" || value === "--help";
 }
@@ -323,8 +303,6 @@ function helpText(): string {
     `  --audience <mode>             Answer audience (${SUPPORTED_ANSWER_AUDIENCES.join("|")})`,
     "  --model <name>                Codex model for synthesis",
     "  --reasoning-effort <level>    Codex reasoning effort",
-    "  --selection-mode <mode>       Repo selection mode: single = one medium pass, cascade = medium->high->xhigh",
-    "  --selection-shadow-compare    Benchmark alternate model/effort repo selection runs in the background",
     "  --no-sync                     Skip clone/pull before asking",
     "  --no-synthesis                Show selected repos and sync results only",
     "  --                            Stop parsing options for the question text",

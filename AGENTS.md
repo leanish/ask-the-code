@@ -6,7 +6,7 @@
 - It exposes the same repo-aware Q&A flow through:
   - a CLI: `archa`
   - an HTTP server: `archa-server`
-- The core workflow is: load config -> select repos -> sync repos -> run Codex -> render result.
+- The core workflow is: load config -> resolve repo scope -> sync repos -> run Codex -> render result.
 
 ## Code Map
 
@@ -15,7 +15,7 @@
 - `src/core/`: shared logic
   - `config/`: config loading and mutation
   - `answer/`: transport-agnostic ask flow
-  - `repos/`: repo selection, paths, sync, sync coordination
+  - `repos/`: repo filtering, paths, sync, sync coordination
   - `codex/`: local `codex exec` integration
   - `discovery/`: GitHub discovery, inspection, metadata curation
   - `jobs/`: in-memory async job manager
@@ -31,11 +31,11 @@
 
 ## Behavior To Preserve
 
-- Repo selection uses explicit repo names when provided; otherwise it uses heuristic scoring with `alwaysSelect` support and fallback to all repos.
+- Explicit repo names narrow scope; otherwise Archa keeps all configured repos in scope and lets Codex use the repo catalog as a hint index.
 - Question answering can run in retrieval-only mode without Codex synthesis.
 - HTTP jobs are in-memory, async, and stream status through SSE.
 - GitHub discovery is two-phase: cheap discovery first, deeper refinement only for selected repos.
-- Config lives in user space, not in this repository.
+- Config lives in user space, not in this repository, and the repo catalog is stored under the managed repos root.
 
 ## Commands
 
@@ -59,7 +59,7 @@
 - Server entry: `src/server/main.js`
 - Ask flow: `src/core/answer/question-answering.js`
 - HTTP API: `src/server/api/http-server.js`
-- Repo selection: `src/core/repos/repo-selection.js`
+- Repo scope filtering: `src/core/repos/repo-filter.js`
 - Repo sync: `src/core/repos/repo-sync.js`
 - Codex runner: `src/core/codex/codex-runner.js`
 - Discovery pipeline: `src/core/discovery/discovery-pipeline.js`

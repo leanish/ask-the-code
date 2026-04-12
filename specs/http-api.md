@@ -75,8 +75,6 @@ Request body:
   "audience": "general",
   "model": "gpt-5.4-mini",
   "reasoningEffort": "low",
-  "selectionMode": "single",
-  "selectionShadowCompare": false,
   "noSync": false,
   "noSynthesis": false
 }
@@ -92,11 +90,8 @@ Rules:
 - omitted `audience` defaults to `general`
 - `model` and `reasoningEffort` are optional strings
 - omitted `model` and `reasoningEffort` use the same execution defaults as the CLI: `gpt-5.4-mini` and `low`
-- `selectionMode` is optional and must be one of `single` or `cascade`
-- omitted `selectionMode` defaults to `single`
-- `selectionShadowCompare` is an optional boolean; when `true`, the server keeps background alternate repo-selector model/effort runs for comparison diagnostics while the main ask continues
 - `noSync` and `noSynthesis` are optional booleans
-- when `repoNames` is omitted, automatic repo selection must return a usable Codex-selected repo set; otherwise the job fails instead of falling back locally
+- when `repoNames` is omitted, the server keeps all configured repos in scope
 
 Response:
 
@@ -110,8 +105,6 @@ Response:
     "audience": "general",
     "model": null,
     "reasoningEffort": null,
-    "selectionMode": "single",
-    "selectionShadowCompare": false,
     "noSync": false,
     "noSynthesis": false
   },
@@ -145,8 +138,6 @@ Returns the latest full job snapshot, including:
 - terminal result or error
 - optional Codex token usage under `result.synthesis.usage` for completed answer jobs when the local Codex CLI reports it
 
-When automatic repo selection runs, terminal ask results also include a `selection` summary describing the final selector source and any completed selector runs.
-
 Statuses:
 
 - `queued`
@@ -178,4 +169,4 @@ Event types:
 - completed jobs expire after a retention timeout
 - job execution concurrency is bounded per process and defaults to 3 concurrent jobs
 - repo sync coordination is per process and deduplicates overlapping syncs for the same repo directory
-- the built-in web UI loads repo choices from `GET /repos`, exposes audience/model/reasoning and repo-selection controls only in admin mode, and falls back to automatic repo selection if the repo catalog is unavailable
+- the built-in web UI loads repo choices from `GET /repos`, exposes audience/model/reasoning controls only in admin mode, and still uses the full configured repo set if the picker data is unavailable

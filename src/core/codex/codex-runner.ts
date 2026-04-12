@@ -53,6 +53,7 @@ export async function runCodexQuestion({
   reasoningEffort,
   selectedRepos,
   workspaceRoot,
+  repoCatalogPath,
   onStatus,
   timeoutMs = DEFAULT_CODEX_TIMEOUT_MS
 }: RunCodexQuestionInput): Promise<CodexSynthesis> {
@@ -60,7 +61,8 @@ export async function runCodexQuestion({
     question,
     ...(audience === undefined ? {} : { audience }),
     selectedRepos,
-    workspaceRoot
+    workspaceRoot,
+    ...(repoCatalogPath === undefined ? {} : { repoCatalogPath })
   });
   const resolvedModel = model || DEFAULT_CODEX_MODEL;
   const resolvedReasoningEffort = reasoningEffort || DEFAULT_CODEX_REASONING_EFFORT;
@@ -140,8 +142,9 @@ export function getCodexExecutionContext({
   question,
   audience,
   selectedRepos,
-  workspaceRoot
-}: Pick<RunCodexQuestionInput, "question" | "audience" | "selectedRepos" | "workspaceRoot">): {
+  workspaceRoot,
+  repoCatalogPath
+}: Pick<RunCodexQuestionInput, "question" | "audience" | "selectedRepos" | "workspaceRoot" | "repoCatalogPath">): {
   workingDirectory: string;
   prompt: string;
 } {
@@ -152,14 +155,26 @@ export function getCodexExecutionContext({
 
   return {
     workingDirectory,
-    prompt: buildPrompt(question, selectedRepos, audience)
+    prompt: buildPrompt(question, selectedRepos, audience, {
+      workingDirectory,
+      repoCatalogPath: isCatalogVisibleFromWorkingDirectory(workingDirectory, repoCatalogPath)
+        ? repoCatalogPath
+        : null
+    })
   };
 }
 
 function buildPrompt(
   question: string,
   selectedRepos: CodexScopeRepo[],
-  audience: AnswerAudience | null | undefined
+  audience: AnswerAudience | null | undefined,
+  {
+    workingDirectory,
+    repoCatalogPath
+  }: {
+    workingDirectory: string;
+    repoCatalogPath: string | null | undefined;
+  }
 ): string {
   const resolvedAudience = resolveAnswerAudience(audience);
   const repoNames = selectedRepos.map(repo => repo.name).join(", ");
@@ -168,13 +183,34 @@ function buildPrompt(
     "Answer using the code in the current workspace.",
     ...getAudiencePromptLines(resolvedAudience),
     `These repos are in scope for answering the question: ${repoNames}.`,
+    repoCatalogPath
+      ? `When you need a repo index, consult ${formatCatalogPathForPrompt(repoCatalogPath, workingDirectory)}. Treat it as advisory metadata and verify answers against the code in this workspace.`
+      : null,
     "Answer the question directly and stop. Do not offer follow-up help or ask whether you should rewrite the answer.",
     "",
     "I got the question:",
     '"""',
     question,
     '"""'
-  ].join("\n");
+  ].filter(line => line != null).join("\n");
+}
+
+function isCatalogVisibleFromWorkingDirectory(
+  workingDirectory: string,
+  repoCatalogPath: string | null | undefined
+): repoCatalogPath is string {
+  if (typeof repoCatalogPath !== "string" || repoCatalogPath.trim() === "") {
+    return false;
+  }
+
+  const relativePath = path.relative(workingDirectory, repoCatalogPath);
+  return relativePath === ""
+    || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
+}
+
+function formatCatalogPathForPrompt(repoCatalogPath: string, workingDirectory: string): string {
+  const relativePath = path.relative(workingDirectory, repoCatalogPath);
+  return relativePath === "" ? "." : relativePath;
 }
 
 function getAudiencePromptLines(audience: AnswerAudience): string[] {
