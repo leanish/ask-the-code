@@ -284,8 +284,6 @@ describe("answerQuestion", () => {
       timeoutMs: 12_345
     }));
     expect(statusReporter.info.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
-      "Resolving repo scope...",
-      "All repos in 5s: sqs-codec",
       "Skip repo sync: no",
       "Updating sqs-codec (main)...",
       "Waiting for sqs-codec (main) sync already in progress...",
@@ -296,10 +294,6 @@ describe("answerQuestion", () => {
 
   it("reports explicitly requested repos through the status reporter", async () => {
     const statusReporter = { info: vi.fn() };
-    const nowFn = vi.fn()
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0);
-
     await answerQuestion({
       question: "How does x-codec-meta work?",
       model: "gpt-5.4",
@@ -314,13 +308,11 @@ describe("answerQuestion", () => {
       syncReposFn: mocks.syncRepos,
       existsSyncFn: mocks.existsSync,
       getCodexTimeoutMsFn: mocks.getCodexTimeoutMs,
-      runCodexQuestionFn: mocks.runCodexQuestion,
-      nowFn
+      runCodexQuestionFn: mocks.runCodexQuestion
     });
 
     expect(statusReporter.info.mock.calls.map(([message]) => message)).toEqual([
-      "Resolving repo scope...",
-      "Requested repos in 0s: sqs-codec",
+      "Requested repos: sqs-codec -> sqs-codec",
       "Skip repo sync: yes"
     ]);
   });
@@ -339,9 +331,6 @@ describe("answerQuestion", () => {
       ]
     });
     const statusReporter = { info: vi.fn() };
-    const nowFn = vi.fn()
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(2_500);
 
     mocks.loadConfig.mockResolvedValue(allReposConfig);
 
@@ -359,11 +348,10 @@ describe("answerQuestion", () => {
       syncReposFn: mocks.syncRepos,
       existsSyncFn: mocks.existsSync,
       getCodexTimeoutMsFn: mocks.getCodexTimeoutMs,
-      runCodexQuestionFn: mocks.runCodexQuestion,
-      nowFn
+      runCodexQuestionFn: mocks.runCodexQuestion
     });
 
-    expect(statusReporter.info).toHaveBeenCalledWith("All repos in 2s: sqs-codec, archa");
+    expect(statusReporter.info).not.toHaveBeenCalledWith(expect.stringContaining("All repos"));
     expect(statusReporter.info).toHaveBeenCalledWith("Skip repo sync: yes");
   });
 
@@ -390,6 +378,7 @@ describe("answerQuestion", () => {
     }
 
     expect(mocks.loadConfig).toHaveBeenCalledWith(process.env);
-    expect(statusReporter.info).toHaveBeenCalledWith("All repos in 0s: sqs-codec");
+    expect(statusReporter.info).not.toHaveBeenCalledWith(expect.stringContaining("repos"));
+    expect(statusReporter.info).toHaveBeenCalledWith("Skip repo sync: yes");
   });
 });

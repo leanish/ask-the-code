@@ -5,7 +5,6 @@ import { loadConfig } from "../config/config.js";
 import { getCodexTimeoutMs, runCodexQuestion } from "../codex/codex-runner.js";
 import { resolveManagedRepos } from "../repos/repo-filter.js";
 import { syncRepos } from "../repos/repo-sync.js";
-import { formatDuration } from "../time/duration-format.js";
 import type {
   AnswerQuestionFn,
   AskRequest,
@@ -25,20 +24,17 @@ export const answerQuestion: AnswerQuestionFn = async (
   const execution = normalizeExecutionOptions(envOrExecution, legacyStatusReporter);
   const config = await execution.loadConfigFn(execution.env);
   const audience = resolveAnswerAudience(options.audience);
-
-  execution.statusReporter?.info("Resolving repo scope...");
-
-  const scopeStartedAt = execution.nowFn();
   const selectedRepos = resolveManagedRepos(config, options.repoNames);
-  const scopeElapsedMs = execution.nowFn() - scopeStartedAt;
 
   if (selectedRepos.length === 0) {
     throw new Error('No managed repos are configured. Run "archa config discover-github" or add repos to the repo catalog.');
   }
 
-  execution.statusReporter?.info(
-    formatRepoScopeStatus(options.repoNames, selectedRepos, scopeElapsedMs)
-  );
+  if (options.repoNames && options.repoNames.length > 0) {
+    execution.statusReporter?.info(
+      formatRequestedRepoScopeStatus(options.repoNames, selectedRepos)
+    );
+  }
   execution.statusReporter?.info(formatRepoSyncModeStatus(options.noSync));
 
   const syncReport: SyncReportItem[] = options.noSync
@@ -112,17 +108,12 @@ function formatSyncFailures(failedSyncs: SyncReportItem[]): string {
     .join(", ");
 }
 
-function formatRepoScopeStatus(
-  requestedRepoNames: string[] | null,
-  selectedRepos: ManagedRepo[],
-  elapsedMs: number
+function formatRequestedRepoScopeStatus(
+  requestedRepoNames: string[],
+  selectedRepos: ManagedRepo[]
 ): string {
   const repoNames = selectedRepos.map(repo => repo.name).join(", ");
-  const label = requestedRepoNames && requestedRepoNames.length > 0
-    ? "Requested repos"
-    : "All repos";
-
-  return `${label} in ${formatDuration(elapsedMs)}: ${repoNames}`;
+  return `Requested repos: ${requestedRepoNames.join(", ")} -> ${repoNames}`;
 }
 
 function formatRepoSyncModeStatus(noSync: boolean): string {
