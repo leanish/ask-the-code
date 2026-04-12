@@ -297,7 +297,7 @@ button[type="submit"]:disabled {
             <div id="repo-options" class="repo-options" role="listbox" aria-multiselectable="true" hidden></div>
           </div>
           <div id="repo-help" class="field-hint">
-            Leave it empty to use automatic repo selection, or search to narrow the scope explicitly.
+            Leave it empty to keep all configured repos in scope, or search to narrow the scope explicitly.
           </div>
         </div>
         <div class="field">
@@ -326,19 +326,6 @@ button[type="submit"]:disabled {
             <option value="xhigh">xhigh</option>
           </select>
         </div>
-        <div class="field">
-          <label for="selection-mode">Repo selection</label>
-          <select id="selection-mode" name="selectionMode">
-            <option value="single" selected>single</option>
-            <option value="cascade">cascade</option>
-          </select>
-          <div class="field-hint">Single runs one gpt-5.4-mini medium selector pass. Cascade escalates from medium through higher efforts using confidence thresholds.</div>
-        </div>
-        <label class="checkbox-field">
-          <input type="checkbox" id="selection-shadow-compare" name="selectionShadowCompare">
-          Benchmark alternate model and effort repo selection runs in the background
-        </label>
-        <div class="field-hint">Diagnostic only. This adds 8 extra selector calls and can add local model contention.</div>
         <label class="checkbox-field">
           <input type="checkbox" id="no-sync" name="noSync"> Skip repo sync
         </label>
@@ -520,13 +507,9 @@ button[type="submit"]:disabled {
       const audience = document.getElementById("audience").value.trim() || null;
       const model = document.getElementById("model").value.trim() || null;
       const reasoningEffort = document.getElementById("reasoning-effort").value.trim() || null;
-      const selectionMode = document.getElementById("selection-mode").value.trim() || null;
-      const selectionShadowCompare = document.getElementById("selection-shadow-compare").checked;
       if (audience) payload.audience = audience;
       if (model) payload.model = model;
       if (reasoningEffort) payload.reasoningEffort = reasoningEffort;
-      if (selectionMode) payload.selectionMode = selectionMode;
-      if (selectionShadowCompare) payload.selectionShadowCompare = true;
       if (noSync) payload.noSync = true;
     }
     return payload;
@@ -568,13 +551,13 @@ button[type="submit"]:disabled {
       repoState.ready = true;
       repoFilter.disabled = false;
       repoFilter.placeholder = "Search configured repos";
-      repoHelp.textContent = "Leave it empty to use automatic repo selection, or search to narrow to specific repos.";
+      repoHelp.textContent = "Leave it empty to keep all configured repos in scope, or search to narrow to specific repos.";
       setSetupHint("");
       renderRepoPicker();
     } catch (error) {
       repoFilter.disabled = true;
       repoFilter.placeholder = "Configured repos unavailable";
-      repoHelp.textContent = "Configured repo list unavailable. The server will still use automatic repo selection.";
+      repoHelp.textContent = "Configured repo list unavailable. The server will still use all configured repos.";
       setSetupHint("");
       renderRepoPicker();
     }

@@ -249,7 +249,7 @@ describe("cli-bootstrap", () => {
       overrideRepoNames: []
     });
     expect(output.write).toHaveBeenCalledWith(
-      "Initialized config at /tmp/archa-config.json\nManaged repos root: /workspace/repos\nRepos imported: 0\n"
+      "Initialized config at /tmp/archa-config.json\nRepo catalog: /workspace/repos/config.json\nManaged repos root: /workspace/repos\nRepos imported: 0\n"
     );
   });
 

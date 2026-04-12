@@ -328,8 +328,6 @@ function normalizeRequest(request: AskJobCreateRequest): AskRequest {
     audience: request.audience ?? DEFAULT_ANSWER_AUDIENCE,
     model: request.model || null,
     reasoningEffort: request.reasoningEffort || null,
-    selectionMode: request.selectionMode || null,
-    selectionShadowCompare: Boolean(request.selectionShadowCompare),
     noSync: Boolean(request.noSync),
     noSynthesis: Boolean(request.noSynthesis)
   };

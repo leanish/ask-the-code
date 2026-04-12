@@ -15,11 +15,6 @@ export const REPO_CLASSIFICATIONS = [
 
 export type RepoClassification = typeof REPO_CLASSIFICATIONS[number];
 
-export type RepoSelectionStrategy = "single" | "cascade";
-export type RepoSelectionCodexEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
-export type RepoSelectionSource = "requested" | "codex";
-export type RepoSelectionRunStatus = "ok" | "invalid" | "failed" | "timed_out";
-
 export interface RepoIdentityFields {
   name: string;
   url: string;
@@ -85,17 +80,20 @@ export interface ManagedRepo extends ManagedRepoDefinition {
 export interface LoadedConfig {
   configPath: string;
   managedReposRoot: string;
+  repoCatalogPath: string;
   repos: ManagedRepo[];
 }
 
 export interface InitializeConfigResult {
   configPath: string;
   managedReposRoot: string;
+  repoCatalogPath: string;
   repoCount: number;
 }
 
 export interface ConfigMutationResult {
   configPath: string;
+  repoCatalogPath: string;
   addedCount: number;
   overriddenCount?: number;
   totalCount: number;
@@ -107,8 +105,6 @@ export interface AskRequest {
   audience?: AnswerAudience | null;
   model: string | null;
   reasoningEffort: string | null;
-  selectionMode?: RepoSelectionStrategy | null;
-  selectionShadowCompare?: boolean;
   noSync: boolean;
   noSynthesis: boolean;
 }
@@ -217,6 +213,7 @@ export interface RunCodexQuestionInput {
   reasoningEffort: string | null;
   selectedRepos: CodexScopeRepo[];
   workspaceRoot: string;
+  repoCatalogPath?: string | null;
   timeoutMs?: number;
   onStatus?: (message: string) => void;
 }
@@ -225,32 +222,10 @@ export interface SelectedRepoSummary {
   name: string;
 }
 
-export interface RepoSelectionRunDiagnostic {
-  model: string;
-  effort: RepoSelectionCodexEffort;
-  repoNames: string[];
-  latencyMs: number;
-  confidence: number | null;
-  usage?: CodexUsage | null;
-  status?: RepoSelectionRunStatus;
-  usedForFinal: boolean;
-}
-
-export interface RepoSelectionSummary {
-  mode: RepoSelectionStrategy;
-  shadowCompare: boolean;
-  source: RepoSelectionSource;
-  finalModel: string | null;
-  finalEffort: RepoSelectionCodexEffort | null;
-  finalRepoNames: string[];
-  runs: RepoSelectionRunDiagnostic[];
-}
-
 export interface RetrievalOnlyResult {
   mode: "retrieval-only";
   question: string;
   selectedRepos: SelectedRepoSummary[];
-  selection?: RepoSelectionSummary | null;
   syncReport: SyncReportItem[];
 }
 
@@ -258,35 +233,16 @@ export interface AnswerResult {
   mode: "answer";
   question: string;
   selectedRepos: SelectedRepoSummary[];
-  selection?: RepoSelectionSummary | null;
   syncReport: SyncReportItem[];
   synthesis: CodexSynthesis;
 }
 
 export type AskResult = RetrievalOnlyResult | AnswerResult;
 
-export type RepoSelectionMode = "requested" | "resolved" | "all";
-
-export interface RepoSelectionResult {
-  repos: ManagedRepo[];
-  mode: RepoSelectionMode;
-  selection: RepoSelectionSummary | null;
-  selectionPromise?: Promise<RepoSelectionSummary | null>;
-}
-
 export interface QuestionExecutionOptions {
   env: Environment;
   statusReporter: StatusReporter | null;
   loadConfigFn: (env: Environment) => Promise<LoadedConfig>;
-  selectReposFn: (
-    config: LoadedConfig,
-    question: string,
-    requestedRepoNames: string[] | null,
-    options: {
-      selectionMode: RepoSelectionStrategy | null;
-      selectionShadowCompare: boolean;
-    }
-  ) => Promise<RepoSelectionResult>;
   syncReposFn: (repos: RepoSyncTarget[], callbacks?: RepoSyncCallbacks) => Promise<SyncReportItem[]>;
   existsSyncFn: (targetPath: string) => boolean;
   getCodexTimeoutMsFn: (env: Environment) => number;
@@ -335,7 +291,7 @@ export interface GithubDiscoveryPipelineResult {
   plan: GithubDiscoveryPlan;
   appliedEntries: GithubDiscoveryPlanEntry[];
   selectedCount: number;
-  configPath: string | null;
+  repoCatalogPath: string | null;
   addedCount: number;
   overriddenCount: number;
 }

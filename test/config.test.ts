@@ -51,13 +51,16 @@ describe("config", () => {
 
     expect(result.configPath).toBe(path.join(tempRoot, "config", "archa", "config.json"));
     expect(result.managedReposRoot).toBe(path.join(tempRoot, "data", "archa", "repos"));
+    expect(result.repoCatalogPath).toBe(path.join(tempRoot, "data", "archa", "repos", "config.json"));
     expect(result.repoCount).toBe(0);
     expect(loaded.managedReposRoot).toBe(path.join(tempRoot, "data", "archa", "repos"));
+    expect(loaded.repoCatalogPath).toBe(path.join(tempRoot, "data", "archa", "repos", "config.json"));
     expect(loaded.repos).toEqual([]);
   });
 
   it("imports repo definitions from a catalog file", async () => {
     const catalogPath = path.join(tempRoot, "catalog.json");
+    const managedReposRoot = path.join(tempRoot, "workspace", "managed-repos");
     await fs.writeFile(catalogPath, JSON.stringify({
       repos: [
         {
@@ -74,12 +77,13 @@ describe("config", () => {
     await initializeConfig({
       env,
       catalogPath,
-      managedReposRoot: "/workspace/managed-repos"
+      managedReposRoot
     });
 
     const loaded = await loadConfig(env);
 
-    expect(loaded.managedReposRoot).toBe("/workspace/managed-repos");
+    expect(loaded.managedReposRoot).toBe(managedReposRoot);
+    expect(loaded.repoCatalogPath).toBe(path.join(managedReposRoot, "config.json"));
     expect(loaded.repos).toEqual([
       expect.objectContaining({
         name: "sqs-codec",
@@ -97,7 +101,7 @@ describe("config", () => {
         }),
         aliases: ["codec"],
         alwaysSelect: false,
-        directory: "/workspace/managed-repos/leanish/sqs-codec"
+        directory: path.join(managedReposRoot, "leanish", "sqs-codec")
       })
     ]);
   });
@@ -250,14 +254,16 @@ describe("config", () => {
 
   it("allows overwriting an existing config with force", async () => {
     await initializeConfig({ env });
+    const managedReposRoot = path.join(tempRoot, "workspace", "override");
 
     const result = await initializeConfig({
       env,
       force: true,
-      managedReposRoot: "/workspace/override"
+      managedReposRoot
     });
 
-    expect(result.managedReposRoot).toBe("/workspace/override");
+    expect(result.managedReposRoot).toBe(managedReposRoot);
+    expect(result.repoCatalogPath).toBe(path.join(managedReposRoot, "config.json"));
   });
 
   it("rejects imported catalogs whose repos field is not an array", async () => {
@@ -481,9 +487,11 @@ describe("config", () => {
   });
 
   it("appends discovered repos to an existing config", async () => {
+    const managedReposRoot = path.join(tempRoot, "workspace", "repos");
+
     await initializeConfig({
       env,
-      managedReposRoot: "/workspace/repos"
+      managedReposRoot
     });
 
     const result = await appendReposToConfig({
@@ -506,11 +514,13 @@ describe("config", () => {
 
     expect(result).toEqual({
       configPath: path.join(tempRoot, "config", "archa", "config.json"),
+      repoCatalogPath: path.join(managedReposRoot, "config.json"),
       addedCount: 1,
       totalCount: 1
     });
     await expect(loadConfig(env)).resolves.toMatchObject({
-      managedReposRoot: "/workspace/repos",
+      managedReposRoot,
+      repoCatalogPath: path.join(managedReposRoot, "config.json"),
       repos: [
         {
           name: "archa",
@@ -529,9 +539,11 @@ describe("config", () => {
 
   it("normalizes existing repo definitions when appending discovered repos", async () => {
     const configPath = getConfigPath(env);
+    const managedReposRoot = path.join(tempRoot, "workspace", "repos");
+    const repoCatalogPath = path.join(managedReposRoot, "config.json");
     await fs.mkdir(path.dirname(configPath), { recursive: true });
     await fs.writeFile(configPath, JSON.stringify({
-      managedReposRoot: "/workspace/repos",
+      managedReposRoot,
       repos: [
         {
           name: "legacy-repo",
@@ -560,7 +572,10 @@ describe("config", () => {
     });
 
     expect(JSON.parse(await fs.readFile(configPath, "utf8"))).toEqual({
-      managedReposRoot: "/workspace/repos",
+      repoCatalogPath
+    });
+    expect(JSON.parse(await fs.readFile(repoCatalogPath, "utf8"))).toEqual({
+      managedReposRoot,
       repos: [
         {
           name: "legacy-repo",
@@ -590,9 +605,11 @@ describe("config", () => {
   });
 
   it("applies selected GitHub discovery additions and overrides", async () => {
+    const managedReposRoot = path.join(tempRoot, "workspace", "repos");
+
     await initializeConfig({
       env,
-      managedReposRoot: "/workspace/repos"
+      managedReposRoot
     });
 
     await appendReposToConfig({
@@ -647,11 +664,14 @@ describe("config", () => {
 
     expect(result).toEqual({
       configPath: path.join(tempRoot, "config", "archa", "config.json"),
+      repoCatalogPath: path.join(managedReposRoot, "config.json"),
       addedCount: 1,
       overriddenCount: 1,
       totalCount: 2
     });
     await expect(loadConfig(env)).resolves.toMatchObject({
+      managedReposRoot,
+      repoCatalogPath: path.join(managedReposRoot, "config.json"),
       repos: [
         {
           name: "foundation",
@@ -681,9 +701,11 @@ describe("config", () => {
 
   it("normalizes untouched repo definitions when applying GitHub discovery changes", async () => {
     const configPath = getConfigPath(env);
+    const managedReposRoot = path.join(tempRoot, "workspace", "repos");
+    const repoCatalogPath = path.join(managedReposRoot, "config.json");
     await fs.mkdir(path.dirname(configPath), { recursive: true });
     await fs.writeFile(configPath, JSON.stringify({
-      managedReposRoot: "/workspace/repos",
+      managedReposRoot,
       repos: [
         {
           name: "legacy-repo",
@@ -719,7 +741,10 @@ describe("config", () => {
     });
 
     expect(JSON.parse(await fs.readFile(configPath, "utf8"))).toEqual({
-      managedReposRoot: "/workspace/repos",
+      repoCatalogPath
+    });
+    expect(JSON.parse(await fs.readFile(repoCatalogPath, "utf8"))).toEqual({
+      managedReposRoot,
       repos: [
         {
           name: "legacy-repo",

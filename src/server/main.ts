@@ -83,7 +83,7 @@ async function runServerGithubDiscovery(
       ...result.plan,
       appliedEntries: result.appliedEntries,
       selectedCount: result.selectedCount,
-      configPath: result.configPath,
+      repoCatalogPath: result.repoCatalogPath,
       addedCount: result.addedCount,
       overriddenCount: result.overriddenCount
     })}\n`);

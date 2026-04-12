@@ -58,6 +58,7 @@ export function createLoadedConfig(overrides: Partial<LoadedConfig> = {}): Loade
   return {
     configPath: overrides.configPath ?? "/tmp/archa-config.json",
     managedReposRoot: overrides.managedReposRoot ?? "/workspace/repos",
+    repoCatalogPath: overrides.repoCatalogPath ?? "/workspace/repos/config.json",
     repos: overrides.repos ?? []
   };
 }
@@ -66,6 +67,7 @@ export function createInitializeConfigResult(overrides: Partial<InitializeConfig
   return {
     configPath: overrides.configPath ?? "/tmp/archa-config.json",
     managedReposRoot: overrides.managedReposRoot ?? "/workspace/repos",
+    repoCatalogPath: overrides.repoCatalogPath ?? "/workspace/repos/config.json",
     repoCount: overrides.repoCount ?? 0
   };
 }
@@ -84,7 +86,6 @@ export function createAnswerResult(overrides: Partial<AnswerResult> = {}): Answe
     mode: "answer",
     question: overrides.question ?? "question",
     selectedRepos: overrides.selectedRepos ?? [],
-    selection: overrides.selection ?? null,
     syncReport: overrides.syncReport ?? [],
     synthesis: overrides.synthesis ?? { text: "answer" }
   };
@@ -95,7 +96,6 @@ export function createRetrievalOnlyResult(overrides: Partial<RetrievalOnlyResult
     mode: "retrieval-only",
     question: overrides.question ?? "question",
     selectedRepos: overrides.selectedRepos ?? [],
-    selection: overrides.selection ?? null,
     syncReport: overrides.syncReport ?? []
   };
 }

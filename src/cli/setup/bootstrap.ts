@@ -212,6 +212,7 @@ export function renderConfigInit(result: InitializeConfigResult, {
 } = {}): string {
   const lines = [
     `Initialized config at ${result.configPath}`,
+    `Repo catalog: ${result.repoCatalogPath}`,
     `Managed repos root: ${result.managedReposRoot}`,
     `Repos imported: ${result.repoCount}`
   ];
@@ -219,7 +220,7 @@ export function renderConfigInit(result: InitializeConfigResult, {
   if (includeNextStepSuggestion && result.repoCount === 0) {
     lines.push("");
     lines.push("Next step: archa config discover-github");
-    lines.push("That imports GitHub metadata plus curated descriptions and routing cards into your config.");
+    lines.push("That imports GitHub metadata plus curated descriptions and routing cards into your repo catalog.");
   }
 
   return lines.join("\n");

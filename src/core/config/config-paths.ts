@@ -16,3 +16,10 @@ export function getDefaultManagedReposRoot(env: Environment = process.env): stri
   const dataHome = env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share");
   return path.join(dataHome, "archa", "repos");
 }
+
+export function getDefaultRepoCatalogPath(
+  env: Environment = process.env,
+  managedReposRoot: string = getDefaultManagedReposRoot(env)
+): string {
+  return path.join(managedReposRoot, "config.json");
+}

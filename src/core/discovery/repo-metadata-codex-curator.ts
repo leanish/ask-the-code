@@ -70,15 +70,15 @@ function buildRepoMetadataCurationPrompt({
   repo,
   sourceRepo,
   inferredMetadata
-}: RepoMetadataPromptInput): string {
+  }: RepoMetadataPromptInput): string {
   return [
-    "Curate repository discovery metadata for automatic repo selection.",
+    "Curate repository discovery metadata for Archa's repo catalog.",
     "Inspect the current workspace and refine the draft metadata below into a compact routing card.",
     "Prefer precision over recall. Remove weak claims instead of keeping them.",
     "Select repos by ownership and exposed surfaces, not by generic keyword overlap.",
     "Treat consumed technologies as weaker evidence than owned behavior.",
-    "This metadata is used later for automatic repo selection across many repos.",
-    "Compact selection mostly sees description, routing.role, routing.reach, routing.owns, routing.exposes, routing.selectWhen, and routing.boundaries.",
+    "This metadata is used later as a hint index when Codex needs to navigate many repos.",
+    "Archa relies most on description, routing.role, routing.reach, routing.owns, routing.exposes, routing.selectWhen, and routing.boundaries.",
     "Optimize those compact-mode fields first and put the most distinctive signals first within each list.",
     "Return JSON only with exactly these keys: description, routing.",
     `description: one sentence, <= ${MAX_DESCRIPTION_LENGTH} characters, concrete and neutral, naming the primary owned surface rather than the implementation stack.`,

@@ -17,6 +17,7 @@ import { createGithubDiscoveryProgressReporter } from "./setup/discovery-progres
 import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "./setup/discovery-selection.js";
 import { parseArgs } from "./parse-args.js";
 import { answerQuestion } from "../core/answer/question-answering.js";
+import { resolveManagedRepos } from "../core/repos/repo-filter.js";
 import {
   renderAnswer,
   renderGithubDiscovery,
@@ -31,7 +32,6 @@ import type {
   CliCommandOptions,
   ConfigDiscoverGithubCommandOptions,
   LoadedConfig,
-  ManagedRepo,
   SyncReportItem
 } from "../core/types.js";
 
@@ -76,7 +76,7 @@ export async function main(argv: string[]): Promise<void> {
     }
     case "repos-sync": {
       const config = await loadConfig(process.env);
-      const repos = filterRepos(config.repos, options.repoNames);
+      const repos = resolveManagedRepos(config, options.repoNames);
       const report = await syncRepos(repos);
       failOnSyncFailures(report);
       process.stdout.write(`${renderSyncReport(report)}\n`);
@@ -115,38 +115,6 @@ function commandRequiresCodex(options: CliCommandOptions): boolean {
 function commandRequiresGit(options: CliCommandOptions): boolean {
   return options.command === "repos-sync"
     || (options.command === "ask" && !options.noSync);
-}
-
-function filterRepos(repos: ManagedRepo[], requestedNames: string[]): ManagedRepo[] {
-  if (!requestedNames || requestedNames.length === 0) {
-    return repos;
-  }
-
-  const names = new Set(requestedNames.map(name => name.toLowerCase()));
-  const selectedRepos = repos.filter(repo => matchesRequestedRepo(repo, names));
-  const missingNames = requestedNames.filter(name => !selectedRepos.some(repo => repoMatchesName(repo, name)));
-
-  if (missingNames.length > 0) {
-    throw new Error(`Unknown managed repo(s): ${missingNames.join(", ")}`);
-  }
-
-  return selectedRepos;
-}
-
-function matchesRequestedRepo(repo: ManagedRepo, requestedNames: Set<string>): boolean {
-  return repoMatchesAnyName(repo, requestedNames);
-}
-
-function repoMatchesName(repo: ManagedRepo, name: string): boolean {
-  return repoMatchesAnyName(repo, new Set([name.toLowerCase()]));
-}
-
-function repoMatchesAnyName(repo: ManagedRepo, requestedNames: Set<string>): boolean {
-  if (requestedNames.has(repo.name.toLowerCase())) {
-    return true;
-  }
-
-  return repo.aliases.some(alias => requestedNames.has(alias.toLowerCase()));
 }
 
 async function resolveAskOptions(options: AskCommandOptions): Promise<AskCommandOptions> {
@@ -234,7 +202,7 @@ async function runGithubDiscovery(
       ...result.plan,
       appliedEntries: result.appliedEntries,
       selectedCount: result.selectedCount,
-      configPath: result.configPath,
+      repoCatalogPath: result.repoCatalogPath,
       addedCount: result.addedCount,
       overriddenCount: result.overriddenCount
     })}\n`);

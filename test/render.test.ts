@@ -135,14 +135,14 @@ describe("render", () => {
         })
       ],
       selectedCount: 1,
-      configPath: "/tmp/archa-config.json",
+      repoCatalogPath: "/workspace/repos/config.json",
       addedCount: 1,
       overriddenCount: 2
     });
 
     expect(applied).toContain("archa [new]");
     expect(applied).toContain("Repos selected: 1");
-    expect(applied).toContain("Config updated: /tmp/archa-config.json");
+    expect(applied).toContain("Repo catalog updated: /workspace/repos/config.json");
     expect(applied).toContain("Repos overridden: 2");
   });
 
@@ -161,7 +161,7 @@ describe("render", () => {
         })
       ],
       selectedCount: 1,
-      configPath: "/tmp/archa-config.json",
+      repoCatalogPath: "/workspace/repos/config.json",
       addedCount: 1,
       overriddenCount: 0
     });
@@ -206,7 +206,7 @@ describe("render", () => {
         })
       ],
       selectedCount: 2,
-      configPath: "/tmp/archa-config.json",
+      repoCatalogPath: "/workspace/repos/config.json",
       addedCount: 2,
       overriddenCount: 0
     });
@@ -214,7 +214,7 @@ describe("render", () => {
     expect(summary).toContain("GitHub repo discovery for leanish + orgs (Accessible):");
     expect(summary).toContain("leanish:\n- archa [new]");
     expect(summary).toContain("OtherCo:\n- dtv [new]");
-    expect(summary).toContain("Config updated: /tmp/archa-config.json");
+    expect(summary).toContain("Repo catalog updated: /workspace/repos/config.json");
   });
 
   it("falls back to owner-qualified labels inside grouped summaries when names collide", () => {
@@ -247,7 +247,7 @@ describe("render", () => {
         })
       ],
       selectedCount: 2,
-      configPath: "/tmp/archa-config.json",
+      repoCatalogPath: "/workspace/repos/config.json",
       addedCount: 2,
       overriddenCount: 0
     });
@@ -286,7 +286,7 @@ describe("render", () => {
         })
       ],
       selectedCount: 2,
-      configPath: "/tmp/archa-config.json",
+      repoCatalogPath: "/workspace/repos/config.json",
       addedCount: 1,
       overriddenCount: 1
     });

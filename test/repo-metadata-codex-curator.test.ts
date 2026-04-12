@@ -48,7 +48,7 @@ describe("repo-metadata-codex-curator", () => {
     }));
     expect(runCodexPromptFn).toHaveBeenCalledWith(expect.objectContaining({
       prompt: expect.stringContaining(
-        "Compact selection mostly sees description, routing.role, routing.reach, routing.owns, routing.exposes, routing.selectWhen, and routing.boundaries."
+        "Archa relies most on description, routing.role, routing.reach, routing.owns, routing.exposes, routing.selectWhen, and routing.boundaries."
       )
     }));
     expect(runCodexPromptFn).toHaveBeenCalledWith(expect.objectContaining({

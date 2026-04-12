@@ -64,7 +64,7 @@ export async function runGithubDiscoveryPipeline({
 
   const selection = await resolveSelectionFn(plan);
   const selectedRepoNames = collectSelectedRepoNames(selection);
-  let configPath = config.configPath;
+  let repoCatalogPath = config.repoCatalogPath;
   let addedCount = 0;
   let overriddenCount = 0;
   let appliedEntries = buildAppliedGithubDiscoveryEntriesFn(plan, selection);
@@ -103,7 +103,7 @@ export async function runGithubDiscoveryPipeline({
       reposToAdd,
       reposToOverride
     });
-    configPath = applyResult.configPath;
+    repoCatalogPath = applyResult.repoCatalogPath;
     addedCount = applyResult.addedCount;
     overriddenCount = applyResult.overriddenCount ?? 0;
   }
@@ -112,7 +112,7 @@ export async function runGithubDiscoveryPipeline({
     plan,
     appliedEntries,
     selectedCount: selectedRepoNames.length,
-    configPath,
+    repoCatalogPath,
     addedCount,
     overriddenCount
   };

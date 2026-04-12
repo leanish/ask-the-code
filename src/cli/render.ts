@@ -22,7 +22,7 @@ type GithubDiscoveryRenderResult = {
   ownerType: string;
   appliedEntries?: GithubDiscoveryPlanEntry[];
   selectedCount?: number;
-  configPath: string | null;
+  repoCatalogPath: string | null;
   addedCount: number;
   overriddenCount?: number;
 };
@@ -123,7 +123,7 @@ export function renderGithubDiscovery(result: GithubDiscoveryRenderResult): stri
     lines.push(`Repos selected: ${result.selectedCount}`);
   }
   const hasChanges = result.addedCount > 0 || (result.overriddenCount || 0) > 0;
-  lines.push(`${hasChanges ? "Config updated" : "Config unchanged"}: ${result.configPath}`);
+  lines.push(`${hasChanges ? "Repo catalog updated" : "Repo catalog unchanged"}: ${result.repoCatalogPath}`);
   lines.push(`Repos added: ${result.addedCount}`);
   lines.push(`Repos overridden: ${result.overriddenCount || 0}`);
 

@@ -423,8 +423,6 @@ function normalizeAskRequest(body: unknown): AskRequest {
     ...(audience === undefined ? {} : { audience }),
     model: normalizeOptionalString(requestBody.model, "model"),
     reasoningEffort: normalizeOptionalString(requestBody.reasoningEffort, "reasoningEffort"),
-    selectionMode: normalizeSelectionMode(requestBody.selectionMode),
-    selectionShadowCompare: normalizeOptionalBoolean(requestBody.selectionShadowCompare, "selectionShadowCompare"),
     noSync: normalizeOptionalBoolean(requestBody.noSync, "noSync"),
     noSynthesis: normalizeOptionalBoolean(requestBody.noSynthesis, "noSynthesis")
   };
@@ -490,18 +488,6 @@ function normalizeOptionalBoolean(value: unknown, label: string): boolean {
   }
 
   return value;
-}
-
-function normalizeSelectionMode(value: unknown): "single" | "cascade" | null {
-  if (value == null) {
-    return "single";
-  }
-
-  if (value === "single" || value === "cascade") {
-    return value;
-  }
-
-  throw new HttpError(400, '"selectionMode" must be one of: single, cascade.');
 }
 
 function matchJobPath(pathname: string, suffix = ""): string | null {

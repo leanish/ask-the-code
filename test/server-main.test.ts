@@ -139,6 +139,7 @@ describe("server-main", () => {
     });
     mocks.applyGithubDiscoveryToConfig.mockResolvedValue({
       configPath: "/tmp/archa-config.json",
+      repoCatalogPath: "/workspace/repos/config.json",
       addedCount: 0,
       overriddenCount: 0
     });
@@ -361,10 +362,10 @@ describe("server-main", () => {
       topics: ["cli"],
       classifications: ["cli"]
     };
-    const initialConfig = {
+    const initialConfig = createLoadedConfig({
       configPath: "/tmp/archa-config.json",
       repos: []
-    };
+    });
 
     mocks.loadConfig
       .mockReset()
