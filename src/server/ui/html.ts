@@ -332,13 +332,13 @@ button[type="submit"]:disabled {
             <option value="single" selected>single</option>
             <option value="cascade">cascade</option>
           </select>
-          <div class="field-hint">Single uses one mini selector pass. Cascade escalates from none through higher efforts when confidence is weak.</div>
+          <div class="field-hint">Single runs one gpt-5.4-mini medium selector pass. Cascade escalates from medium through higher efforts using confidence thresholds.</div>
         </div>
         <label class="checkbox-field">
           <input type="checkbox" id="selection-shadow-compare" name="selectionShadowCompare">
-          Benchmark none, low, and high repo selection in the background
+          Benchmark alternate model and effort repo selection runs in the background
         </label>
-        <div class="field-hint">Diagnostic only. This runs 3 parallel selector calls and can add local model contention.</div>
+        <div class="field-hint">Diagnostic only. This adds 8 extra selector calls and can add local model contention.</div>
         <label class="checkbox-field">
           <input type="checkbox" id="no-sync" name="noSync"> Skip repo sync
         </label>

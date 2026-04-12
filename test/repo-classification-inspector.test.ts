@@ -107,8 +107,7 @@ describe("repo-classification-inspector", () => {
     );
     expect(metadata.routing.role).toBe("shared-library");
     expect(metadata.routing.reach).toEqual(["shared-library"]);
-    expect(metadata.routing.owns).toContain("java");
-    expect(metadata.routing.owns).toContain("shutdown");
+    expect(metadata.routing.owns).toEqual([]);
     expect(metadata.routing.boundaries).toContain("Do not select only because another repo depends on this library.");
   });
 
@@ -190,9 +189,134 @@ describe("repo-classification-inspector", () => {
     expect(metadata.routing.exposes).toContain("GET /api/ping");
     expect(metadata.routing.exposes).toContain("POST /order/track");
     expect(metadata.routing.exposes).toContain("GET /admin/overview");
-    expect(metadata.routing.consumes).toContain("MongoDB");
+    expect(metadata.routing.consumes).toContain("order data DB");
     expect(metadata.routing.consumes).not.toContain("GraphQL");
     expect(metadata.routing.consumes).not.toContain("Play");
+  });
+
+  it("makes consumes more specific when a single data domain is clear", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "search-api");
+    await fs.mkdir(path.join(repoDirectory, "conf"), { recursive: true });
+    await fs.writeFile(path.join(repoDirectory, "conf", "routes"), [
+      "GET /search controllers.SearchController.index()"
+    ].join("\n"));
+    await fs.writeFile(
+      path.join(repoDirectory, "README.md"),
+      "Search API that queries Elasticsearch and caches results in Redis."
+    );
+    await fs.writeFile(
+      path.join(repoDirectory, "build.gradle"),
+      "implementation 'org.elasticsearch:elasticsearch:8.0.0'\nimplementation 'redis.clients:jedis:5.0.0'\n"
+    );
+
+    const metadata = await inspectRepoMetadata({
+      repo: {
+        name: "search-api",
+        url: "https://github.com/leanish/search-api.git",
+        defaultBranch: "main",
+        description: "Search API",
+        topics: []
+      },
+      env,
+      curateMetadataFn
+    });
+
+    expect(metadata.routing.consumes).toContain("search index");
+    expect(metadata.routing.consumes).toContain("search cache");
+  });
+
+  it("drops generic infrastructure consumes when no clear domain is inferable", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "worker");
+    await fs.mkdir(repoDirectory, { recursive: true });
+    await fs.writeFile(
+      path.join(repoDirectory, "README.md"),
+      "Background worker that uses Redis, Postgres, and S3."
+    );
+    await fs.writeFile(
+      path.join(repoDirectory, "build.gradle"),
+      "implementation 'org.postgresql:postgresql:42.0.0'\nimplementation 'redis.clients:jedis:5.0.0'\n"
+    );
+
+    const metadata = await inspectRepoMetadata({
+      repo: {
+        name: "worker",
+        url: "https://github.com/leanish/worker.git",
+        defaultBranch: "main",
+        description: "Background worker",
+        topics: []
+      },
+      env,
+      curateMetadataFn
+    });
+
+    expect(metadata.routing.consumes).toEqual([]);
+  });
+
+  it("ignores badge-heavy readme intros and falls back to the repo description", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "search");
+    await fs.mkdir(repoDirectory, { recursive: true });
+    await fs.writeFile(
+      path.join(repoDirectory, "README.md"),
+      "[![scala](https://www.scala-lang.org)](https://www.scala-lang.org) [![gradle](https://gradle.org)](https://gradle.org)\n"
+    );
+
+    const metadata = await inspectRepoMetadata({
+      repo: {
+        name: "search",
+        url: "https://github.com/leanish/search.git",
+        defaultBranch: "main",
+        description: "Search indexing and query application monorepo.",
+        topics: []
+      },
+      env,
+      curateMetadataFn
+    });
+
+    expect(metadata.description).toBe("Search indexing and query application monorepo.");
+    expect(metadata.routing.exposes).not.toContain("www.scala-lang.org");
+    expect(metadata.routing.exposes).not.toContain("gradle.org");
+  });
+
+  it("extracts package surfaces from package manifests and simple /* workspace packages", async () => {
+    const repoDirectory = path.join(tempRoot, "data", "archa", "repos", "leanish", "search-templates");
+    await fs.mkdir(path.join(repoDirectory, "packages", "preact"), { recursive: true });
+    await fs.mkdir(path.join(repoDirectory, "packages", "api"), { recursive: true });
+    await fs.writeFile(path.join(repoDirectory, "package.json"), JSON.stringify({
+      workspaces: ["packages/*"]
+    }));
+    await fs.writeFile(path.join(repoDirectory, "packages", "preact", "package.json"), JSON.stringify({
+      name: "@leanish/preact-search",
+      exports: {
+        ".": "./dist/index.js",
+        "./hooks": "./dist/hooks.js"
+      },
+      dependencies: {
+        preact: "^10.0.0"
+      }
+    }));
+    await fs.writeFile(path.join(repoDirectory, "packages", "api", "package.json"), JSON.stringify({
+      name: "@leanish/search-api",
+      exports: {
+        ".": "./dist/index.js"
+      }
+    }));
+
+    const metadata = await inspectRepoMetadata({
+      repo: {
+        name: "search-templates",
+        url: "https://github.com/leanish/search-templates.git",
+        defaultBranch: "main",
+        description: "",
+        topics: []
+      },
+      env,
+      curateMetadataFn
+    });
+
+    expect(metadata.routing.exposes).toContain("@leanish/preact-search");
+    expect(metadata.routing.exposes).toContain("@leanish/preact-search/hooks");
+    expect(metadata.routing.exposes).toContain("@leanish/search-api");
+    expect(metadata.routing.owns).toContain("@leanish/preact-search");
   });
 
   it("falls back to heuristic routing when Codex curation fails", async () => {

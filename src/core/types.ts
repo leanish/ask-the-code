@@ -16,8 +16,9 @@ export const REPO_CLASSIFICATIONS = [
 export type RepoClassification = typeof REPO_CLASSIFICATIONS[number];
 
 export type RepoSelectionStrategy = "single" | "cascade";
-export type RepoSelectionCodexEffort = "none" | "minimal" | "low" | "medium" | "high";
-export type RepoSelectionSource = "requested" | "codex" | "heuristic";
+export type RepoSelectionCodexEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type RepoSelectionSource = "requested" | "codex";
+export type RepoSelectionRunStatus = "ok" | "invalid" | "failed" | "timed_out";
 
 export interface RepoIdentityFields {
   name: string;
@@ -190,8 +191,15 @@ export interface StatusReporter {
   flush?(): void;
 }
 
+export interface CodexUsage {
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+}
+
 export interface CodexSynthesis {
   text: string;
+  usage?: CodexUsage | null;
 }
 
 export interface CodexScopeRepo {
@@ -218,10 +226,13 @@ export interface SelectedRepoSummary {
 }
 
 export interface RepoSelectionRunDiagnostic {
+  model: string;
   effort: RepoSelectionCodexEffort;
   repoNames: string[];
   latencyMs: number;
   confidence: number | null;
+  usage?: CodexUsage | null;
+  status?: RepoSelectionRunStatus;
   usedForFinal: boolean;
 }
 
@@ -229,6 +240,7 @@ export interface RepoSelectionSummary {
   mode: RepoSelectionStrategy;
   shadowCompare: boolean;
   source: RepoSelectionSource;
+  finalModel: string | null;
   finalEffort: RepoSelectionCodexEffort | null;
   finalRepoNames: string[];
   runs: RepoSelectionRunDiagnostic[];

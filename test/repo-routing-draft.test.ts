@@ -38,6 +38,14 @@ describe("repo-routing-draft", () => {
     }).workflows).toEqual([]);
   });
 
+  it("does not promote inferred topics into ownership claims", () => {
+    expect(buildRepoRoutingDraft({
+      repoName: "search-service",
+      description: "Hosted search service",
+      topics: ["search", "graphql", "commerce"]
+    }).owns).toEqual([]);
+  });
+
   it("still derives workflow hints from concrete route and cli signals", () => {
     expect(buildRepoRoutingDraft({
       repoName: "archa",
@@ -47,6 +55,46 @@ describe("repo-routing-draft", () => {
     }).workflows).toEqual([
       "Handles admin-facing workflows.",
       "Handles command execution workflows."
+    ]);
+  });
+
+  it("derives ownership hints from concrete route surfaces", () => {
+    expect(buildRepoRoutingDraft({
+      repoName: "merchant-platform",
+      description: "Merchant application",
+      routeEndpoints: [
+        "GET /admin/jobs",
+        "POST /api/v1/graphql",
+        "POST /auth/login",
+        "POST /cron/run"
+      ]
+    }).owns).toEqual([
+      "GraphQL routes",
+      "admin routes",
+      "scheduled job routes",
+      "authentication routes",
+      "HTTP routes"
+    ]);
+  });
+
+  it("includes package surfaces for library-style routing drafts", () => {
+    const routing = buildRepoRoutingDraft({
+      repoName: "search-kit",
+      description: "Search JS package",
+      classifications: ["library"],
+      packageSurfaceNames: [
+        "@leanish/search-kit",
+        "@leanish/search-kit/preact/autocomplete"
+      ]
+    });
+
+    expect(routing.owns).toEqual([
+      "@leanish/search-kit",
+      "@leanish/search-kit/preact/autocomplete"
+    ]);
+    expect(routing.exposes).toEqual([
+      "@leanish/search-kit",
+      "@leanish/search-kit/preact/autocomplete"
     ]);
   });
 });

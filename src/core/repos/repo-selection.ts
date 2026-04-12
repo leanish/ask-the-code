@@ -4,9 +4,11 @@ import { runCodexPrompt } from "../codex/codex-runner.js";
 import { DEFAULT_CODEX_MODEL } from "../codex/codex-defaults.js";
 import { filterRepoRoutingConsumes } from "./repo-routing.js";
 import type {
+  CodexUsage,
   LoadedConfig,
   ManagedRepo,
   RepoSelectionCodexEffort,
+  RepoSelectionRunStatus,
   RepoSelectionResult,
   RepoSelectionStrategy,
   RepoSelectionSummary
@@ -14,10 +16,24 @@ import type {
 
 const MAX_AUTOMATIC_REPOS = 4;
 const DEFAULT_REPO_SELECTION_CODEX_TIMEOUT_MS = 60_000;
+const REPO_SELECTION_DIAGNOSTIC_COLLECTION_TIMEOUT_MS = 85_000;
+const REPO_SELECTION_MAX_ATTEMPTS = 2;
 const REPO_SELECTION_CODEX_MODEL = DEFAULT_CODEX_MODEL;
-const REPO_SELECTION_SINGLE_EFFORT: RepoSelectionCodexEffort = "none";
-const REPO_SELECTION_CASCADE_EFFORTS: RepoSelectionCodexEffort[] = ["none", "minimal", "low", "medium", "high"];
-const REPO_SELECTION_SHADOW_COMPARE_EFFORTS: RepoSelectionCodexEffort[] = ["none", "low", "high"];
+const REPO_SELECTION_ALT_CODEX_MODEL = "gpt-5.4";
+const REPO_SELECTION_CASCADE_RUNS = (["medium", "high", "xhigh"] as const).map(effort => ({
+  model: REPO_SELECTION_CODEX_MODEL,
+  effort
+}));
+const REPO_SELECTION_SHADOW_COMPARE_RUNS = [
+  ...(["none", "low", "medium", "high", "xhigh"] as const).map(effort => ({
+    model: REPO_SELECTION_CODEX_MODEL,
+    effort
+  })),
+  ...(["none", "low", "medium", "high"] as const).map(effort => ({
+    model: REPO_SELECTION_ALT_CODEX_MODEL,
+    effort
+  }))
+];
 const REPO_SELECTION_PROMPT_COMPACT_REPO_THRESHOLD = 16;
 const REPO_SELECTION_PROMPT_LIMITS = {
   aliases: 4,
@@ -36,7 +52,8 @@ const REPO_SELECTION_CONFIDENCE_THRESHOLDS: Record<RepoSelectionCodexEffort, num
   minimal: 0.74,
   low: 0.68,
   medium: 0.58,
-  high: 0
+  high: 0,
+  xhigh: 0
 };
 
 type RepoSelectionDependencies = {
@@ -48,12 +65,20 @@ type RepoSelectionOptions = {
   selectionShadowCompare?: boolean;
 };
 
+type RepoSelectionRunConfig = {
+  model: string;
+  effort: RepoSelectionCodexEffort;
+};
+
 type RepoSelectionRunResult = {
+  model: string;
   effort: RepoSelectionCodexEffort;
   repoNames: string[];
   repos: ManagedRepo[] | null;
   confidence: number | null;
   latencyMs: number;
+  usage?: CodexUsage | null;
+  status: RepoSelectionRunStatus;
 };
 
 export async function selectRepos(
@@ -80,6 +105,7 @@ export async function selectRepos(
         mode: resolvedSelectionMode,
         shadowCompare: selectionShadowCompare,
         source: "requested",
+        finalModel: null,
         finalEffort: null,
         finalRepoNames: repos.map(repo => repo.name),
         runs: []
@@ -98,61 +124,7 @@ export async function selectRepos(
     return automaticSelection;
   }
 
-  const heuristicSelection = selectReposHeuristically(config, question, requestedRepoNames);
-  return {
-    ...heuristicSelection,
-    selection: {
-      mode: resolvedSelectionMode,
-      shadowCompare: selectionShadowCompare,
-      source: "heuristic",
-      finalEffort: null,
-      finalRepoNames: heuristicSelection.repos.map(repo => repo.name),
-      runs: []
-    }
-  };
-}
-
-export function selectReposHeuristically(
-  config: LoadedConfig,
-  question: string,
-  requestedRepoNames: string[] | null
-): RepoSelectionResult {
-  if (requestedRepoNames && requestedRepoNames.length > 0) {
-    const repos = selectRequestedRepos(config, requestedRepoNames);
-    return {
-      repos,
-      mode: "requested",
-      selection: null
-    };
-  }
-
-  const questionTokens = tokenize(question);
-  const alwaysSelectedRepos = config.repos.filter(repo => repo.alwaysSelect);
-  const scoredRepos = config.repos
-    .map((repo, index) => ({
-      repo,
-      index,
-      score: scoreRepo(repo, questionTokens)
-    }))
-    .filter(entry => entry.score > 0 && !entry.repo.alwaysSelect)
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .slice(0, MAX_AUTOMATIC_REPOS)
-    .map(entry => entry.repo);
-
-  if (scoredRepos.length === 0) {
-    return {
-      repos: [...config.repos],
-      mode: "all",
-      selection: null
-    };
-  }
-
-  const repos = mergeRepos(alwaysSelectedRepos, scoredRepos);
-  return {
-    repos,
-    mode: repos.length === config.repos.length ? "all" : "resolved",
-    selection: null
-  };
+  throw createAutomaticRepoSelectionError(resolvedSelectionMode);
 }
 
 async function selectAutomaticRepos(
@@ -171,49 +143,61 @@ async function selectAutomaticRepos(
   }
 ): Promise<RepoSelectionResult | null> {
   const alwaysSelectedRepos = config.repos.filter(repo => repo.alwaysSelect);
-  const runPromises = new Map<RepoSelectionCodexEffort, Promise<RepoSelectionRunResult>>();
-  const getRun = (effort: RepoSelectionCodexEffort): Promise<RepoSelectionRunResult> => {
-    const existingRun = runPromises.get(effort);
+  const selectionPathRuns = selectionMode === "single"
+    ? [REPO_SELECTION_CASCADE_RUNS[0]!]
+    : REPO_SELECTION_CASCADE_RUNS;
+  const runPromises = new Map<string, Promise<RepoSelectionRunResult>>();
+  const getRun = ({ model, effort }: RepoSelectionRunConfig): Promise<RepoSelectionRunResult> => {
+    const runKey = getRunKey(model, effort);
+    const existingRun = runPromises.get(runKey);
     if (existingRun) {
       return existingRun;
     }
 
     const startedAt = nowFn();
-    const runPromise = runCodexPromptFn({
-      prompt: buildRepoSelectionPrompt(config, question),
-      model: REPO_SELECTION_CODEX_MODEL,
-      reasoningEffort: effort,
-      workingDirectory: path.dirname(config.configPath),
-      timeoutMs: DEFAULT_REPO_SELECTION_CODEX_TIMEOUT_MS
-    }).then(result => parseRepoSelectionRunResult(result.text, config, effort, nowFn() - startedAt))
-      .catch(() => ({
-        effort,
-        repoNames: [],
-        repos: null,
-        confidence: null,
-        latencyMs: nowFn() - startedAt
-      }));
+    const runPromise = runRepoSelectionPromptWithRetry({
+      config,
+      question,
+      model,
+      effort,
+      runCodexPromptFn,
+      nowFn,
+      workingDirectory: path.dirname(config.configPath)
+    });
 
-    runPromises.set(effort, runPromise);
+    runPromises.set(runKey, runPromise);
     return runPromise;
   };
 
+  const primaryRun = getRun(selectionPathRuns[0]!);
+
   if (selectionShadowCompare) {
-    for (const effort of REPO_SELECTION_SHADOW_COMPARE_EFFORTS) {
-      void getRun(effort);
+    for (const runConfig of REPO_SELECTION_SHADOW_COMPARE_RUNS) {
+      void getRun(runConfig);
     }
   }
 
   let selectedRun: RepoSelectionRunResult | null = null;
   if (selectionMode === "single") {
-    const singleRun = await getRun(REPO_SELECTION_SINGLE_EFFORT);
-    if (isUsableCodexRun(singleRun, alwaysSelectedRepos.length, REPO_SELECTION_SINGLE_EFFORT)) {
-      selectedRun = singleRun;
+    const firstRun = await primaryRun;
+    if (hasUsableSingleModeRun(firstRun, alwaysSelectedRepos)) {
+      selectedRun = firstRun;
     }
   } else {
-    for (const effort of REPO_SELECTION_CASCADE_EFFORTS) {
-      const run = await getRun(effort);
-      if (isUsableCodexRun(run, alwaysSelectedRepos.length, effort)) {
+    const firstRunConfig = REPO_SELECTION_CASCADE_RUNS[0]!;
+    const remainingRunConfigs = REPO_SELECTION_CASCADE_RUNS.slice(1);
+    const firstRun = await primaryRun;
+    if (isUsableCascadeRun(firstRun, firstRunConfig.effort, alwaysSelectedRepos)) {
+      selectedRun = firstRun;
+    }
+
+    for (const runConfig of remainingRunConfigs) {
+      if (selectedRun) {
+        break;
+      }
+
+      const run = await getRun(runConfig);
+      if (isUsableCascadeRun(run, runConfig.effort, alwaysSelectedRepos)) {
         selectedRun = run;
         break;
       }
@@ -233,22 +217,22 @@ async function selectAutomaticRepos(
     mode: selectionMode,
     shadowCompare: selectionShadowCompare,
     source: "codex" as const,
+    finalModel: selectedRun.model,
     finalEffort: selectedRun.effort,
     finalRepoNames: repos.map(repo => repo.name)
   };
-  const completedRuns = await collectCompletedRuns(runPromises, selectedRun.effort);
+  const orderedRunConfigs = buildOrderedRunConfigs(selectionPathRuns, selectionShadowCompare);
+  const completedRuns = await collectCompletedRuns(runPromises, selectionPathRuns, selectedRun);
   const immediateSelection = {
     ...baseSelection,
-    runs: buildSelectionRuns(completedRuns, selectedRun.effort)
+    runs: buildSelectionRuns(completedRuns, selectedRun)
   };
-  const hasAdditionalBackgroundRuns = Array.from(runPromises.keys()).some(
-    effort => !completedRuns.some(run => run.effort === effort)
-  );
+  const hasAdditionalBackgroundRuns = runPromises.size > completedRuns.length;
 
   const selectionPromise = hasAdditionalBackgroundRuns
-    ? collectAllRuns(runPromises).then(allRuns => ({
+    ? collectRunsWithinTimeout(runPromises, orderedRunConfigs, REPO_SELECTION_DIAGNOSTIC_COLLECTION_TIMEOUT_MS).then(allRuns => ({
         ...baseSelection,
-        runs: buildSelectionRuns(allRuns, selectedRun?.effort ?? null)
+        runs: buildSelectionRuns(orderRunsForDisplay(allRuns, orderedRunConfigs), selectedRun)
       }))
     : null;
 
@@ -268,7 +252,15 @@ async function selectAutomaticRepos(
   };
 }
 
-export function buildRepoSelectionPrompt(config: LoadedConfig, question: string): string {
+export function buildRepoSelectionPrompt(
+  config: LoadedConfig,
+  question: string,
+  {
+    attempt = 1
+  }: {
+    attempt?: number;
+  } = {}
+): string {
   const useCompactSummaries = config.repos.length > REPO_SELECTION_PROMPT_COMPACT_REPO_THRESHOLD;
   const repoSummaries = config.repos.map(repo => summarizeRepoForSelectionPrompt(repo, {
     compact: useCompactSummaries
@@ -276,26 +268,40 @@ export function buildRepoSelectionPrompt(config: LoadedConfig, question: string)
   const alwaysSelectedRepoNames = config.repos
     .filter(repo => repo.alwaysSelect)
     .map(repo => repo.name);
+  const strongEvidenceLine = useCompactSummaries
+    ? "Strong evidence: description, routing.role, routing.reach, routing.owns, routing.exposes, routing.selectWhen, routing.boundaries, and aliases."
+    : "Strong evidence: description, routing.role, routing.reach, routing.responsibilities, routing.owns, routing.exposes, routing.workflows, routing.selectWhen, and aliases.";
+  const weakerEvidenceLine = useCompactSummaries
+    ? null
+    : "Weaker evidence: routing.consumes and generic ecosystem overlap.";
+  const negativeEvidenceLine = useCompactSummaries
+    ? "Use routing.boundaries as negative evidence when they clearly rule a repo out."
+    : "Negative evidence: routing.boundaries and routing.selectWithOtherReposWhen when the question does not cross repo boundaries.";
+  const summaryModeLine = useCompactSummaries
+    ? "Large repo set detected; using compact routing summaries with description, role, reach, owns, exposes, selectWhen, boundaries, and aliases only."
+    : "Using full routing summaries for the configured repos.";
 
   return [
     "Select the configured repositories that should be searched to answer the user question.",
     "Select repos by ownership and exposed surfaces, not by generic keyword overlap.",
-    "Strong evidence: description, routing.role, routing.reach, routing.responsibilities, routing.owns, routing.exposes, routing.workflows, routing.selectWhen, and aliases.",
-    "Weaker evidence: routing.consumes and generic ecosystem overlap.",
-    "Negative evidence: routing.boundaries and routing.selectWithOtherReposWhen when the question does not cross repo boundaries.",
+    strongEvidenceLine,
+    weakerEvidenceLine,
+    negativeEvidenceLine,
     "Prefer precision over recall. Only choose repos that are likely to contain the answer.",
-    "Return at most 4 configured repos.",
-    "Return JSON only with exactly this shape: {\"selectedRepoNames\":[\"repo-a\",\"repo-b\"],\"confidence\":0.0}.",
+    "Return between 0 and 4 configured repos.",
+    "If no configured repo is relevant, return an empty array.",
+    "Return raw JSON only with exactly this shape: {\"selectedRepoNames\":[\"repo-a\",\"repo-b\"],\"confidence\":0.0}.",
+    "Do not wrap the JSON in markdown fences. Do not add explanation, commentary, or any extra text.",
     "Confidence must be a number from 0.0 to 1.0 for how confident you are that the selected set is sufficient.",
-    "Use configured repo names exactly as provided.",
-    "Return an empty array when no extra repos are clearly relevant.",
+    "Use configured repo names exactly as provided. Unknown repo names will be rejected.",
+    attempt > 1
+      ? "Previous output was invalid or did not follow the schema. Reply again with valid raw JSON only."
+      : null,
     alwaysSelectedRepoNames.length > 0
       ? `Repos marked alwaysSelect are already included automatically: ${alwaysSelectedRepoNames.join(", ")}.`
       : "There are no alwaysSelect repos.",
     "",
-    useCompactSummaries
-      ? "Large repo set detected; omitting lower-signal routing fields to control prompt size."
-      : "Using full routing summaries for the configured repos.",
+    summaryModeLine,
     `Configured repositories from ${config.configPath} (one JSON object per line):`,
     ...repoSummaries.map(summary => JSON.stringify(summary)),
     "",
@@ -303,7 +309,7 @@ export function buildRepoSelectionPrompt(config: LoadedConfig, question: string)
     '"""',
     question,
     '"""'
-  ].join("\n");
+  ].filter(line => line != null).join("\n");
 }
 
 function summarizeRepoForSelectionPrompt(
@@ -402,72 +408,46 @@ export function parseRepoSelectionRunResult(
   text: string,
   config: LoadedConfig,
   effort: RepoSelectionCodexEffort,
-  latencyMs: number
+  latencyMs: number,
+  model: string = REPO_SELECTION_CODEX_MODEL
 ): RepoSelectionRunResult {
   if (typeof text !== "string" || text.trim() === "") {
-    return {
-      effort,
-      repoNames: [],
-      repos: null,
-      confidence: null,
-      latencyMs
-    };
+    return createInvalidRunResult(model, effort, latencyMs);
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return {
-      effort,
-      repoNames: [],
-      repos: null,
-      confidence: null,
-      latencyMs
-    };
+  const parsedObject = parseRepoSelectionResponseObject(text);
+  if (!parsedObject) {
+    return createInvalidRunResult(model, effort, latencyMs);
   }
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return {
-      effort,
-      repoNames: [],
-      repos: null,
-      confidence: null,
-      latencyMs
-    };
-  }
-
-  const parsedObject = parsed as Record<string, unknown>;
   const selectedRepoNames = extractSelectedRepoNames(parsedObject.selectedRepoNames);
   if (!selectedRepoNames) {
-    return {
-      effort,
-      repoNames: [],
-      repos: null,
-      confidence: null,
-      latencyMs
-    };
+    return createInvalidRunResult(model, effort, latencyMs);
   }
 
   if (selectedRepoNames.length > MAX_AUTOMATIC_REPOS) {
     return {
+      model,
       effort,
       repoNames: selectedRepoNames,
       repos: null,
       confidence: normalizeConfidence(parsedObject.confidence),
-      latencyMs
+      latencyMs,
+      status: "invalid"
     };
   }
 
   const requestedNames = new Set(selectedRepoNames.map(name => name.toLowerCase()));
   const selectedRepos = config.repos.filter(repo => repoMatchesAnyName(repo, requestedNames));
+  const hasEmptySelection = selectedRepoNames.length === 0;
 
   return {
+    model,
     effort,
     repoNames: selectedRepoNames,
-    repos: selectedRepoNames.length === 0 || selectedRepos.length > 0 ? selectedRepos : null,
+    repos: hasEmptySelection ? [] : selectedRepos.length > 0 ? selectedRepos : null,
     confidence: normalizeConfidence(parsedObject.confidence),
-    latencyMs
+    latencyMs,
+    status: hasEmptySelection || selectedRepos.length > 0 ? "ok" : "invalid"
   };
 }
 
@@ -497,14 +477,9 @@ function normalizeConfidence(value: unknown): number | null {
 
 export function isUsableCodexRun(
   run: RepoSelectionRunResult,
-  alwaysSelectedRepoCount: number,
   effort: RepoSelectionCodexEffort
 ): boolean {
-  if (!run.repos) {
-    return false;
-  }
-
-  if (run.repos.length === 0 && alwaysSelectedRepoCount === 0) {
+  if (!hasResolvedRepoSelection(run)) {
     return false;
   }
 
@@ -516,35 +491,118 @@ export function isUsableCodexRun(
   return confidence >= REPO_SELECTION_CONFIDENCE_THRESHOLDS[effort];
 }
 
-async function collectCompletedRuns(
-  runPromises: Map<RepoSelectionCodexEffort, Promise<RepoSelectionRunResult>>,
-  finalEffort: RepoSelectionCodexEffort
-): Promise<RepoSelectionRunResult[]> {
-  const efforts = Array.from(runPromises.keys());
-  const finalIndex = efforts.indexOf(finalEffort);
-  const completedEfforts = finalIndex >= 0 ? efforts.slice(0, finalIndex + 1) : efforts;
+function hasResolvedRepoSelection(run: RepoSelectionRunResult): boolean {
+  return run.repos != null && run.repos.length > 0;
+}
 
-  return Promise.all(completedEfforts.map(effort => runPromises.get(effort) as Promise<RepoSelectionRunResult>));
+function hasValidRepoSelectionResponse(run: RepoSelectionRunResult): boolean {
+  return run.status === "ok" && run.repos != null;
+}
+
+function hasUsableSingleModeRun(run: RepoSelectionRunResult, alwaysSelectedRepos: ManagedRepo[]): boolean {
+  const selectedRepos = run.repos;
+  if (!hasValidRepoSelectionResponse(run) || selectedRepos == null) {
+    return false;
+  }
+
+  return mergeRepos(alwaysSelectedRepos, selectedRepos).length > 0;
+}
+
+function isUsableCascadeRun(
+  run: RepoSelectionRunResult,
+  effort: RepoSelectionCodexEffort,
+  alwaysSelectedRepos: ManagedRepo[]
+): boolean {
+  const selectedRepos = run.repos;
+  if (!hasValidRepoSelectionResponse(run) || selectedRepos == null) {
+    return false;
+  }
+
+  const mergedRepos = mergeRepos(alwaysSelectedRepos, selectedRepos);
+  if (mergedRepos.length === 0) {
+    return false;
+  }
+
+  if (selectedRepos.length === 0) {
+    return true;
+  }
+
+  return isUsableCodexRun(run, effort);
+}
+
+async function collectCompletedRuns(
+  runPromises: Map<string, Promise<RepoSelectionRunResult>>,
+  selectionPathRuns: RepoSelectionRunConfig[],
+  finalRun: RepoSelectionRunConfig
+): Promise<RepoSelectionRunResult[]> {
+  const finalIndex = selectionPathRuns.findIndex(runConfig => isSameRunConfig(runConfig, finalRun));
+  const completedRunConfigs = finalIndex >= 0 ? selectionPathRuns.slice(0, finalIndex + 1) : selectionPathRuns;
+
+  return Promise.all(
+    completedRunConfigs.map(runConfig => runPromises.get(getRunKey(runConfig.model, runConfig.effort)) as Promise<RepoSelectionRunResult>)
+  );
 }
 
 async function collectAllRuns(
-  runPromises: Map<RepoSelectionCodexEffort, Promise<RepoSelectionRunResult>>
+  runPromises: Map<string, Promise<RepoSelectionRunResult>>
 ): Promise<RepoSelectionRunResult[]> {
-  const orderedEfforts = Array.from(runPromises.keys());
-  return Promise.all(orderedEfforts.map(effort => runPromises.get(effort) as Promise<RepoSelectionRunResult>));
+  return Promise.all(Array.from(runPromises.values()));
+}
+
+async function collectRunsWithinTimeout(
+  runPromises: Map<string, Promise<RepoSelectionRunResult>>,
+  orderedRunConfigs: RepoSelectionRunConfig[],
+  timeoutMs: number
+): Promise<RepoSelectionRunResult[]> {
+  const timeoutResult = Symbol("repo-selection-collection-timeout");
+  let timeoutHandle: NodeJS.Timeout | null = null;
+
+  try {
+    const timeoutPromise = new Promise<typeof timeoutResult>(resolve => {
+      timeoutHandle = setTimeout(() => resolve(timeoutResult), timeoutMs);
+    });
+
+    const settledRuns = await Promise.all(
+      orderedRunConfigs.map(async runConfig => {
+        const runPromise = runPromises.get(getRunKey(runConfig.model, runConfig.effort));
+        if (!runPromise) {
+          return null;
+        }
+
+        const result = await Promise.race<RepoSelectionRunResult | typeof timeoutResult>([
+          runPromise,
+          timeoutPromise
+        ]);
+
+        return result === timeoutResult
+          ? createInvalidRunResult(runConfig.model, runConfig.effort, timeoutMs, "timed_out")
+          : result;
+      })
+    );
+
+    return settledRuns.filter((run): run is RepoSelectionRunResult => run !== null);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 }
 
 function buildSelectionRuns(
   runs: RepoSelectionRunResult[],
-  finalEffort: RepoSelectionCodexEffort | null
+  finalRun: RepoSelectionRunConfig | null
 ): RepoSelectionSummary["runs"] {
-  return runs.map(run => ({
-    effort: run.effort,
-    repoNames: run.repoNames,
-    latencyMs: run.latencyMs,
-    confidence: run.confidence,
-    usedForFinal: finalEffort === run.effort
-  }));
+  return runs
+    .map(run => ({
+      model: run.model,
+      effort: run.effort,
+      repoNames: run.repoNames,
+      latencyMs: run.latencyMs,
+      confidence: run.confidence,
+      usage: run.usage ?? null,
+      status: run.status,
+      usedForFinal: finalRun ? isSameRunConfig(run, finalRun) : false
+    }));
 }
 
 function selectRequestedRepos(config: LoadedConfig, requestedRepoNames: string[]): ManagedRepo[] {
@@ -557,43 +615,6 @@ function selectRequestedRepos(config: LoadedConfig, requestedRepoNames: string[]
   }
 
   return selectedRepos;
-}
-
-function scoreRepo(repo: ManagedRepo, questionTokens: string[]): number {
-  const weights = [
-    { values: tokenizeRepoName(repo.name), weight: 7 },
-    { values: repo.aliases.flatMap(alias => tokenize(alias)), weight: 6 },
-    { values: tokenize(repo.description), weight: 4 },
-    { values: tokenize(repo.routing.role), weight: 5 },
-    { values: repo.routing.reach.flatMap(value => tokenize(value)), weight: 5 },
-    { values: repo.routing.responsibilities.flatMap(value => tokenize(value)), weight: 5 },
-    { values: repo.routing.owns.flatMap(value => tokenize(value)), weight: 6 },
-    { values: repo.routing.exposes.flatMap(value => tokenize(value)), weight: 6 },
-    { values: repo.routing.workflows.flatMap(value => tokenize(value)), weight: 4 },
-    { values: filterRepoRoutingConsumes(repo.routing.consumes).flatMap(value => tokenize(value)), weight: 2 }
-  ];
-
-  let score = 0;
-  for (const { values, weight } of weights) {
-    const evidence = new Set(values);
-    for (const token of questionTokens) {
-      if (evidence.has(token)) {
-        score += weight;
-      }
-    }
-  }
-
-  return score;
-}
-
-function tokenize(text: string): string[] {
-  return (text.toLowerCase().match(/[a-z0-9-]+/g) || []).filter(token => token.length >= 3);
-}
-
-function tokenizeRepoName(name: string): string[] {
-  return Array.from(new Set(
-    tokenize(name).flatMap(token => token.includes("-") ? [token, ...token.split("-")] : [token])
-  ));
 }
 
 function repoMatchesName(repo: ManagedRepo, name: string): boolean {
@@ -628,4 +649,175 @@ function mergeRepos(primaryRepos: ManagedRepo[], secondaryRepos: ManagedRepo[]):
   }
 
   return repos;
+}
+
+function getRunKey(model: string, effort: RepoSelectionCodexEffort): string {
+  return `${model}\u0000${effort}`;
+}
+
+function isSameRunConfig(left: RepoSelectionRunConfig, right: RepoSelectionRunConfig): boolean {
+  return left.model === right.model && left.effort === right.effort;
+}
+
+function buildOrderedRunConfigs(
+  selectionPathRuns: RepoSelectionRunConfig[],
+  selectionShadowCompare: boolean
+): RepoSelectionRunConfig[] {
+  const orderedConfigs = [
+    ...selectionPathRuns,
+    ...(selectionShadowCompare ? REPO_SELECTION_SHADOW_COMPARE_RUNS : [])
+  ];
+  const seenRunKeys = new Set<string>();
+
+  return orderedConfigs.filter(runConfig => {
+    const runKey = getRunKey(runConfig.model, runConfig.effort);
+    if (seenRunKeys.has(runKey)) {
+      return false;
+    }
+
+    seenRunKeys.add(runKey);
+    return true;
+  });
+}
+
+function orderRunsForDisplay(
+  runs: RepoSelectionRunResult[],
+  orderedRunConfigs: RepoSelectionRunConfig[]
+): RepoSelectionRunResult[] {
+  const orderByRunKey = new Map(
+    orderedRunConfigs.map((runConfig, index) => [getRunKey(runConfig.model, runConfig.effort), index])
+  );
+
+  return [...runs].sort((left, right) => {
+    const leftIndex = orderByRunKey.get(getRunKey(left.model, left.effort)) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = orderByRunKey.get(getRunKey(right.model, right.effort)) ?? Number.MAX_SAFE_INTEGER;
+    return leftIndex - rightIndex;
+  });
+}
+
+async function runRepoSelectionPromptWithRetry({
+  config,
+  question,
+  model,
+  effort,
+  runCodexPromptFn,
+  nowFn,
+  workingDirectory
+}: {
+  config: LoadedConfig;
+  question: string;
+  model: string;
+  effort: RepoSelectionCodexEffort;
+  runCodexPromptFn: typeof runCodexPrompt;
+  nowFn: () => number;
+  workingDirectory: string;
+}): Promise<RepoSelectionRunResult> {
+  let totalLatencyMs = 0;
+  let lastRun = createInvalidRunResult(model, effort, 0);
+
+  for (let attempt = 1; attempt <= REPO_SELECTION_MAX_ATTEMPTS; attempt += 1) {
+    const attemptStartedAt = nowFn();
+
+    try {
+      const result = await runCodexPromptFn({
+        prompt: buildRepoSelectionPrompt(config, question, {
+          attempt
+        }),
+        model,
+        reasoningEffort: effort,
+        workingDirectory,
+        timeoutMs: DEFAULT_REPO_SELECTION_CODEX_TIMEOUT_MS
+      });
+      const attemptRun = parseRepoSelectionRunResult(result.text, config, effort, nowFn() - attemptStartedAt, model);
+      totalLatencyMs += attemptRun.latencyMs;
+      lastRun = {
+        ...attemptRun,
+        usage: result.usage ?? null,
+        latencyMs: totalLatencyMs
+      };
+    } catch (error) {
+      totalLatencyMs += nowFn() - attemptStartedAt;
+      const failureStatus = error instanceof Error && /\btimed out\b/i.test(error.message)
+        ? "timed_out"
+        : "failed";
+      lastRun = createInvalidRunResult(model, effort, totalLatencyMs, failureStatus);
+    }
+
+    if (!shouldRetryRepoSelectionRun(lastRun) || attempt === REPO_SELECTION_MAX_ATTEMPTS) {
+      return lastRun;
+    }
+  }
+
+  return lastRun;
+}
+
+function shouldRetryRepoSelectionRun(run: RepoSelectionRunResult): boolean {
+  return run.status !== "ok" || run.confidence == null;
+}
+
+function createInvalidRunResult(
+  model: string,
+  effort: RepoSelectionCodexEffort,
+  latencyMs: number,
+  status: RepoSelectionRunStatus = "invalid"
+): RepoSelectionRunResult {
+  return {
+    model,
+    effort,
+    repoNames: [],
+    repos: null,
+    confidence: null,
+    latencyMs,
+    status
+  };
+}
+
+function parseRepoSelectionResponseObject(text: string): Record<string, unknown> | null {
+  const trimmedText = text.trim();
+  const candidateTexts = [
+    trimmedText,
+    extractFencedJson(trimmedText),
+    extractWrappedJsonObject(trimmedText)
+  ].filter((candidate): candidate is string => typeof candidate === "string" && candidate !== "");
+
+  for (const candidateText of candidateTexts) {
+    try {
+      const parsed = JSON.parse(candidateText);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+function extractFencedJson(text: string): string | null {
+  const fencedMatch = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/iu);
+  return fencedMatch?.[1]?.trim() || null;
+}
+
+function extractWrappedJsonObject(text: string): string | null {
+  const firstBraceIndex = text.indexOf("{");
+  const lastBraceIndex = text.lastIndexOf("}");
+
+  if (firstBraceIndex === -1 || lastBraceIndex <= firstBraceIndex) {
+    return null;
+  }
+
+  return text.slice(firstBraceIndex, lastBraceIndex + 1).trim();
+}
+
+function createAutomaticRepoSelectionError(selectionMode: RepoSelectionStrategy): Error {
+  if (selectionMode === "single") {
+    return new Error(
+      "Automatic repo selection failed. Codex did not return a usable repo set. Retry, use --repo <name>, or try --selection-mode cascade."
+    );
+  }
+
+  return new Error(
+    "Automatic repo selection failed. Codex did not return a usable repo set. Retry or use --repo <name>."
+  );
 }

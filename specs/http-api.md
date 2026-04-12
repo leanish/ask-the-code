@@ -94,8 +94,9 @@ Rules:
 - omitted `model` and `reasoningEffort` use the same execution defaults as the CLI: `gpt-5.4-mini` and `low`
 - `selectionMode` is optional and must be one of `single` or `cascade`
 - omitted `selectionMode` defaults to `single`
-- `selectionShadowCompare` is an optional boolean; when `true`, the server keeps background `none`, `low`, and `high` repo-selector runs for comparison diagnostics while the main ask continues
+- `selectionShadowCompare` is an optional boolean; when `true`, the server keeps background alternate repo-selector model/effort runs for comparison diagnostics while the main ask continues
 - `noSync` and `noSynthesis` are optional booleans
+- when `repoNames` is omitted, automatic repo selection must return a usable Codex-selected repo set; otherwise the job fails instead of falling back locally
 
 Response:
 
@@ -142,6 +143,7 @@ Returns the latest full job snapshot, including:
 - original request
 - event history
 - terminal result or error
+- optional Codex token usage under `result.synthesis.usage` for completed answer jobs when the local Codex CLI reports it
 
 When automatic repo selection runs, terminal ask results also include a `selection` summary describing the final selector source and any completed selector runs.
 

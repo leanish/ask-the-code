@@ -41,9 +41,40 @@ describe("repo-metadata-codex-curator", () => {
     });
 
     expect(runCodexPromptFn).toHaveBeenCalledWith(expect.objectContaining({
+      model: "gpt-5.4",
       workingDirectory: "/workspace/repos/java-conventions",
-      reasoningEffort: "none",
-      timeoutMs: 60_000
+      reasoningEffort: "medium",
+      timeoutMs: 120_000
+    }));
+    expect(runCodexPromptFn).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining(
+        "Compact selection mostly sees description, routing.role, routing.reach, routing.owns, routing.exposes, routing.selectWhen, and routing.boundaries."
+      )
+    }));
+    expect(runCodexPromptFn).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining(
+        "description: one sentence, <= 180 characters, concrete and neutral, naming the primary owned surface rather than the implementation stack."
+      )
+    }));
+    expect(runCodexPromptFn).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining(
+        "Do not use frameworks, languages, runtimes, or build tools as routing signals unless they are part of a real exposed surface."
+      )
+    }));
+    expect(runCodexPromptFn).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining(
+        "List the most distinctive package names, domains, endpoints, and concrete API surfaces before broader summaries in routing.owns, routing.exposes, routing.selectWhen, and routing.boundaries."
+      )
+    }));
+    expect(runCodexPromptFn).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining(
+        "Prefer examples like `product data DB`, `search index`, `search cache`, or `bulk export queue` over bare `MongoDB`, `Elasticsearch`, `Redis`, or `SQS`."
+      )
+    }));
+    expect(runCodexPromptFn).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining(
+        "Keep product or vendor names in routing.consumes only when the external system itself is a meaningful surface users may ask about, such as `Shopify Admin API` or `Klaviyo`."
+      )
     }));
     expect(metadata).toEqual({
       description: "Shared Gradle plugin conventions for JDK-based projects.",
@@ -93,6 +124,50 @@ describe("repo-metadata-codex-curator", () => {
     });
 
     expect(metadata).toEqual(inferredMetadata);
+  });
+
+  it("replaces weak curated descriptions and prioritizes concrete routing surfaces", async () => {
+    const metadata = await curateRepoMetadataWithCodex({
+      directory: "/workspace/repos/merchant-platform",
+      repo: {
+        name: "merchant-platform",
+        url: "https://github.com/leanish/merchant-platform.git",
+        defaultBranch: "main"
+      },
+      inferredMetadata: {
+        description: "Play framework based commerce service",
+        routing: createEmptyRepoRouting()
+      },
+      runCodexPromptFn: vi.fn(async () => ({
+        text: JSON.stringify({
+          description: "Play framework based commerce service",
+          routing: {
+            role: "platform-application",
+            reach: ["merchant admin UI", "merchant GraphQL and REST APIs", "cron job endpoints"],
+            owns: ["merchant admin UI", "POST /api/v1/graphql"],
+            exposes: ["admin.example.com", "POST /api/v1/graphql", "/cron/*"],
+            boundaries: [
+              "Do not select only because it consumes shared infrastructure or external services.",
+              "Do not select for scheduler ownership outside /cron/* handlers."
+            ],
+            selectWhen: [
+              "Select when the task mentions admin.example.com behavior.",
+              "Select when the task touches /api/v1/graphql."
+            ]
+          }
+        })
+      }))
+    });
+
+    expect(metadata.description).toBe(
+      "Owns merchant admin UI, merchant GraphQL and REST APIs, and cron job endpoints."
+    );
+    expect(metadata.routing.exposes).toEqual([
+      "POST /api/v1/graphql",
+      "/cron/*",
+      "admin.example.com"
+    ]);
+    expect(metadata.routing.selectWhen[0]).toBe("Select when the task mentions admin.example.com behavior.");
   });
 
   it("falls back immediately when no Codex runner is available", async () => {

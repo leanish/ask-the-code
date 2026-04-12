@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { resolveAnswerAudience } from "./answer-audience.js";
 import { loadConfig } from "../config/config.js";
 import { getCodexTimeoutMs, runCodexQuestion } from "../codex/codex-runner.js";
+import { formatEstimatedCodexUsd } from "../codex/codex-pricing.js";
 import { selectRepos } from "../repos/repo-selection.js";
 import { syncRepos } from "../repos/repo-sync.js";
 import { formatDuration } from "../time/duration-format.js";
@@ -19,7 +20,8 @@ import type {
   SyncReportItem
 } from "../types.js";
 
-const REPO_SELECTION_COMPARISON_TIMEOUT_MS = 30_000;
+const REPO_SELECTION_COMPARISON_TIMEOUT_MS = 90_000;
+const TOKEN_COUNT_FORMATTER = new Intl.NumberFormat("en-US");
 
 export const answerQuestion: AnswerQuestionFn = async (
   options: AskRequest,
@@ -198,14 +200,117 @@ function shouldReportSelectionComparison(selection: RepoSelectionSummary): boole
 }
 
 function formatSelectionComparisonStatus(selection: RepoSelectionSummary): string {
-  const parts = selection.runs.map(run => {
-    const confidence = run.confidence == null ? "?" : run.confidence.toFixed(2);
-    const repoNames = run.repoNames.length > 0 ? run.repoNames.join(", ") : "(none)";
-    const suffix = run.usedForFinal ? " final" : "";
-    return `${run.effort}=${repoNames} confidence=${confidence}${suffix}`;
-  });
+  const effortOrder: Record<string, number> = {
+    none: 0,
+    minimal: 1,
+    low: 2,
+    medium: 3,
+    high: 4,
+    xhigh: 5
+  };
+  const getModelFamilyOrder = (model: string): number => {
+    if (model.includes("-mini")) {
+      return 0;
+    }
 
-  return `Repo selection comparison: ${parts.join(" | ")}`;
+    return 1;
+  };
+  const rows = selection.runs
+    .map(run => ({
+      model: run.model,
+      effort: run.effort,
+      status: run.status ?? "ok",
+      selector: `${run.model}/${run.effort}`,
+      confidence: run.confidence == null ? "?" : run.confidence.toFixed(2),
+      time: formatDuration(run.latencyMs),
+      timeMs: run.latencyMs,
+      final: run.usedForFinal ? "yes" : "no",
+      input: formatTokenCount(run.usage?.inputTokens),
+      output: formatTokenCount(run.usage?.outputTokens),
+      usd: formatEstimatedCodexUsd(run.model, run.usage),
+      repos: run.repoNames.length > 0
+        ? run.repoNames.join(", ")
+        : `(${formatRunStatus(run.status)})`
+    }))
+    .sort((left, right) =>
+      getModelFamilyOrder(left.model) - getModelFamilyOrder(right.model)
+      || left.model.localeCompare(right.model)
+      || (effortOrder[left.effort] ?? Number.MAX_SAFE_INTEGER) - (effortOrder[right.effort] ?? Number.MAX_SAFE_INTEGER)
+      || left.timeMs - right.timeMs
+    );
+  const selectorWidth = Math.max("selector".length, ...rows.map(row => row.selector.length));
+  const confidenceWidth = Math.max("conf".length, ...rows.map(row => row.confidence.length));
+  const timeWidth = Math.max("time".length, ...rows.map(row => row.time.length));
+  const finalWidth = Math.max("final".length, ...rows.map(row => row.final.length));
+  const inputWidth = Math.max("input".length, ...rows.map(row => row.input.length));
+  const outputWidth = Math.max("output".length, ...rows.map(row => row.output.length));
+  const usdWidth = Math.max("usd".length, ...rows.map(row => formatUsdDisplay(row.usd).length));
+  const formatRow = (row: {
+    selector: string;
+    confidence: string;
+    time: string;
+    final: string;
+    input: string;
+    output: string;
+    usd?: string | null;
+    repos: string;
+  }): string => [
+    row.selector.padEnd(selectorWidth),
+    row.confidence.padEnd(confidenceWidth),
+    row.time.padEnd(timeWidth),
+    row.final.padEnd(finalWidth),
+    row.input.padEnd(inputWidth),
+    row.output.padEnd(outputWidth),
+    formatUsdDisplay(row.usd).padEnd(usdWidth),
+    row.repos
+  ].join("  ");
+
+  return [
+    "Repo selection comparison:",
+    formatRow({
+      selector: "selector",
+      confidence: "conf",
+      time: "time",
+      final: "final",
+      input: "input",
+      output: "output",
+      usd: "usd",
+      repos: "repos"
+    }),
+    ...rows.map(formatRow)
+  ].join("\n");
+}
+
+function formatTokenCount(value: number | null | undefined): string {
+  if (value == null) {
+    return "?";
+  }
+
+  return TOKEN_COUNT_FORMATTER.format(value);
+}
+
+function formatUsdDisplay(value: string | null | undefined): string {
+  if (!value) {
+    return "?";
+  }
+
+  return value;
+}
+
+function formatRunStatus(status: string | null | undefined): string {
+  if (status === "failed") {
+    return "failed";
+  }
+
+  if (status === "timed_out") {
+    return "timed out";
+  }
+
+  if (status === "invalid") {
+    return "invalid";
+  }
+
+  return "ok";
 }
 
 function normalizeExecutionOptions(

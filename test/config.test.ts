@@ -87,7 +87,13 @@ describe("config", () => {
         defaultBranch: "main",
         description: "SQS execution interceptor with compression and checksum metadata",
         routing: expect.objectContaining({
-          owns: ["aws", "sqs"]
+          responsibilities: [
+            "SQS execution interceptor with compression and checksum metadata"
+          ],
+          selectWhen: [
+            "The question matches responsibilities such as SQS execution interceptor with compression and checksum metadata."
+          ],
+          owns: []
         }),
         aliases: ["codec"],
         alwaysSelect: false,
@@ -119,7 +125,7 @@ describe("config", () => {
           routing: {
             role: "shared-library",
             reach: ["shared-library", "internal-surface"],
-            owns: ["gradle", "java"],
+            owns: [],
             boundaries: ["Do not select only because another repo depends on this library."]
           }
         }

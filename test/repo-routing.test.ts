@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  chooseRepoRoutingDescription,
   createEmptyRepoRouting,
   filterRepoRoutingConsumes,
   getRepoRoutingSelectionEvidence,
   hasRepoRoutingContent,
   normalizeRepoRouting,
+  prioritizeRepoRouting,
   summarizeRepoRouting
 } from "../src/core/repos/repo-routing.js";
 
@@ -117,13 +119,66 @@ describe("repo-routing", () => {
       "Git",
       "MongoDB",
       "Redis",
+      "DB",
+      "queue",
       "Shopify APIs",
-      "GitHub API"
+      "GitHub API",
+      "product data DB",
+      "bulk export queue"
     ])).toEqual([
-      "MongoDB",
-      "Redis",
       "Shopify APIs",
-      "GitHub API"
+      "GitHub API",
+      "product data DB",
+      "bulk export queue"
     ]);
+  });
+
+  it("prioritizes the most specific routing entries first", () => {
+    const prioritized = prioritizeRepoRouting({
+      role: "platform-application",
+      reach: [],
+      responsibilities: [],
+      owns: ["merchant admin UI", "POST /api/v1/graphql", "cron handlers"],
+      exposes: ["admin.example.com", "POST /api/v1/graphql", "/cron/*"],
+      consumes: [],
+      workflows: [],
+      boundaries: [
+        "Do not select only because it consumes shared infrastructure or external services.",
+        "Do not select for scheduler ownership outside /cron/* handlers."
+      ],
+      selectWhen: [
+        "Select when the task mentions admin.example.com behavior.",
+        "Select when the task touches /api/v1/graphql."
+      ],
+      selectWithOtherReposWhen: []
+    });
+
+    expect(prioritized.owns).toEqual([
+      "POST /api/v1/graphql",
+      "merchant admin UI",
+      "cron handlers"
+    ]);
+    expect(prioritized.exposes).toEqual([
+      "POST /api/v1/graphql",
+      "/cron/*",
+      "admin.example.com"
+    ]);
+    expect(prioritized.boundaries[0]).toBe("Do not select for scheduler ownership outside /cron/* handlers.");
+    expect(prioritized.selectWhen[0]).toBe("Select when the task mentions admin.example.com behavior.");
+  });
+
+  it("replaces weak implementation-stack descriptions with owned surfaces", () => {
+    expect(chooseRepoRoutingDescription("Play framework based commerce service", {
+      role: "platform-application",
+      reach: ["merchant admin UI", "merchant GraphQL and REST APIs", "cron job endpoints"],
+      responsibilities: [],
+      owns: [],
+      exposes: [],
+      consumes: [],
+      workflows: [],
+      boundaries: [],
+      selectWhen: [],
+      selectWithOtherReposWhen: []
+    })).toBe("Owns merchant admin UI, merchant GraphQL and REST APIs, and cron job endpoints.");
   });
 });
