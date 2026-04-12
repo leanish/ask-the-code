@@ -38,7 +38,7 @@ flowchart LR
 3. Discovery commands check that GitHub access is available via `GH_TOKEN` / `GITHUB_TOKEN` or, if those env vars are unset, via a usable `gh` login before continuing.
 4. Commands that require Codex check that the local `codex` CLI is installed and `codex login status` reports a logged-in session before continuing.
 5. Config is loaded from the user config path.
-6. Repo selection honors explicit repo names when provided; otherwise it asks Codex to choose from the configured repo metadata with minimal reasoning, keeps any pinned repos in scope, falls back to heuristic scoring if that selector pass fails or returns unusable output, and finally falls back to all configured repos when nothing scores positively.
+6. Repo selection honors explicit repo names when provided; otherwise it asks Codex to choose from the configured repo metadata using `gpt-5.4-mini` at `medium` reasoning effort, keeps any pinned repos in scope, retries once when selector output is malformed, allows a valid empty selector result when no configured repo looks relevant, and in `cascade` mode escalates to `high` then `xhigh` until the selector returns a confidence-qualified usable repo set.
 7. Repo sync clones missing selected repos, unshallows any shallow managed checkout, and then fast-forwards it to the configured tracked branch tip.
 8. Codex runs against either the single selected repo or the managed repos root.
 9. The adapter renders the result:
@@ -111,7 +111,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/core/answer/question-answering.ts`
   Implements the transport-agnostic ask flow and accepts injectable adapters such as status reporters and sync functions.
 - `src/core/repos/repo-selection.ts`
-  Resolves explicit repo names and aliases, or asks Codex to choose from configured repo metadata with a routing-aware heuristic fallback that scores likely repos from repo-name tokens, descriptions, and routing evidence while keeping repos marked `alwaysSelect` in scope, optionally cascading selector reasoning effort, and falling back to all configured repos when nothing scores positively.
+  Resolves explicit repo names and aliases, or asks Codex to choose from configured repo metadata while keeping repos marked `alwaysSelect` in scope, optionally cascading selector reasoning effort, and failing explicitly when selector output is unusable.
 - `src/core/repos/repo-sync.ts`
   Clones missing repos and fast-forwards existing repos to the latest remote configured tracked branch tip, first unshallowing any shallow managed checkout.
 - `src/core/git/git-installation.ts`
@@ -119,7 +119,7 @@ Within one `archa-server` process, concurrent jobs share repo sync work by repo 
 - `src/core/repos/repo-sync-coordinator.ts`
   Deduplicates concurrent syncs for the same repo within a single server process.
 - `src/core/codex/codex-runner.ts`
-  Wraps `codex exec`, manages the audience-aware prompt, heartbeats, execution timeout, and final-message capture.
+  Wraps `codex exec`, manages the audience-aware prompt, heartbeats, execution timeout, final-message capture, and token-usage capture from the JSON event stream when Codex reports it.
 - `src/core/codex/codex-installation.ts`
   Checks whether the local `codex` CLI is installed and logged in, and formats user-facing installation/login guidance when it is not ready.
 - `src/core/jobs/ask-job-manager.ts`
@@ -147,7 +147,7 @@ Repo definitions include:
 - `defaultBranch`
 - `description`
 - `routing`
-  A structured routing card with `role`, `reach`, `responsibilities`, `owns`, `exposes`, `consumes`, `workflows`, `boundaries`, `selectWhen`, and `selectWithOtherReposWhen`.
+  A structured routing card with `role`, `reach`, `responsibilities`, `owns`, `exposes`, `consumes`, `workflows`, `boundaries`, `selectWhen`, and `selectWithOtherReposWhen`. `consumes` should stay sparse and prefer purpose-qualified resource labels such as `search index` or `product data DB` over vendor names for generic infrastructure.
 - optional `aliases`
 - optional `alwaysSelect`
 

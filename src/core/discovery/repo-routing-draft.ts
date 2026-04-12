@@ -1,4 +1,4 @@
-import { createEmptyRepoRouting } from "../repos/repo-routing.js";
+import { createEmptyRepoRouting, prioritizeRepoRouting } from "../repos/repo-routing.js";
 import type { RepoClassification, RepoRoutingMetadata } from "../types.js";
 
 type BuildRepoRoutingDraftOptions = {
@@ -8,6 +8,7 @@ type BuildRepoRoutingDraftOptions = {
   classifications?: RepoClassification[];
   routeEndpoints?: string[];
   consumedTechnologies?: string[];
+  packageSurfaceNames?: string[];
   readmeLeadText?: string;
   readmeDomains?: string[];
 };
@@ -17,26 +18,33 @@ const MAX_ROUTING_ITEMS = 8;
 export function buildRepoRoutingDraft({
   repoName,
   description,
-  topics = [],
+  topics: _topics = [],
   classifications = [],
   routeEndpoints = [],
   consumedTechnologies = [],
+  packageSurfaceNames = [],
   readmeLeadText = "",
   readmeDomains = []
 }: BuildRepoRoutingDraftOptions): RepoRoutingMetadata {
   const role = inferRepoRole(classifications);
   const reach = inferRepoReach(classifications, routeEndpoints);
-  const normalizedTopics = dedupeEntries(topics, MAX_ROUTING_ITEMS);
   const normalizedEndpoints = dedupeEntries(routeEndpoints, MAX_ROUTING_ITEMS);
   const normalizedConsumes = dedupeEntries(consumedTechnologies, MAX_ROUTING_ITEMS);
+  const normalizedPackageSurfaces = dedupeEntries(packageSurfaceNames, MAX_ROUTING_ITEMS);
   const normalizedDomains = dedupeEntries(readmeDomains, MAX_ROUTING_ITEMS);
   const responsibilities = dedupeEntries([
     description,
     readmeLeadText,
     ...describeResponsibilities(classifications, normalizedEndpoints)
   ], 5);
-  const owns = normalizedTopics;
+  const owns = dedupeEntries([
+    ...(classifications.includes("library") ? normalizedPackageSurfaces : []),
+    ...extractNamedOwnedSurfaces(description),
+    ...extractNamedOwnedSurfaces(readmeLeadText),
+    ...describeOwnedRouteSurfaces(normalizedEndpoints)
+  ], MAX_ROUTING_ITEMS);
   const exposes = dedupeEntries([
+    ...normalizedPackageSurfaces,
     ...normalizedDomains,
     ...normalizedEndpoints
   ], MAX_ROUTING_ITEMS);
@@ -51,7 +59,7 @@ export function buildRepoRoutingDraft({
     ...describeSelectWithOtherReposWhen(normalizedConsumes)
   ], 4);
 
-  return {
+  return prioritizeRepoRouting({
     ...createEmptyRepoRouting(),
     role,
     reach,
@@ -63,7 +71,38 @@ export function buildRepoRoutingDraft({
     boundaries,
     selectWhen,
     selectWithOtherReposWhen
-  };
+  });
+}
+
+function extractNamedOwnedSurfaces(text: string): string[] {
+  const matches = new Set<string>();
+
+  for (const match of text.matchAll(/`([^`\n]+)`/gu)) {
+    addNamedOwnedSurface(matches, match[1]);
+  }
+
+  for (const match of text.match(/@[a-z0-9._-]+\/[a-z0-9._/-]+/giu) || []) {
+    addNamedOwnedSurface(matches, match);
+  }
+
+  return [...matches];
+}
+
+function addNamedOwnedSurface(target: Set<string>, value: string | undefined): void {
+  if (typeof value !== "string") {
+    return;
+  }
+
+  const normalized = value.replace(/\s+/gu, " ").trim();
+  if (normalized === "") {
+    return;
+  }
+
+  if (!/[/.@-]/u.test(normalized)) {
+    return;
+  }
+
+  target.add(normalized);
 }
 
 export function inferRepoRole(classifications: RepoClassification[]): string {
@@ -197,6 +236,32 @@ function describeWorkflows(routeEndpoints: string[], classifications: RepoClassi
   }
 
   return workflows;
+}
+
+function describeOwnedRouteSurfaces(routeEndpoints: string[]): string[] {
+  const owns: string[] = [];
+
+  if (routeEndpoints.some(endpoint => endpoint.includes("/graphql"))) {
+    owns.push("GraphQL routes");
+  }
+
+  if (routeEndpoints.some(endpoint => endpoint.includes("/admin/"))) {
+    owns.push("admin routes");
+  }
+
+  if (routeEndpoints.some(endpoint => endpoint.includes("/cron/"))) {
+    owns.push("scheduled job routes");
+  }
+
+  if (routeEndpoints.some(endpoint => /\/(?:auth|oauth|openid)\b/u.test(endpoint))) {
+    owns.push("authentication routes");
+  }
+
+  if (routeEndpoints.some(endpoint => hasHttpRouteSurface(endpoint))) {
+    owns.push("HTTP routes");
+  }
+
+  return owns;
 }
 
 function describeBoundaries(

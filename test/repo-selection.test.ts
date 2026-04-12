@@ -12,8 +12,7 @@ import {
   buildRepoSelectionPrompt,
   isUsableCodexRun,
   parseRepoSelectionRunResult,
-  selectRepos,
-  selectReposHeuristically
+  selectRepos
 } from "../src/core/repos/repo-selection.js";
 import { createLoadedConfig, createManagedRepo } from "./test-helpers.js";
 
@@ -87,6 +86,7 @@ describe("selectRepos", () => {
         mode: "single",
         shadowCompare: false,
         source: "requested",
+        finalModel: null,
         finalEffort: null,
         finalRepoNames: ["archa"],
         runs: []
@@ -100,7 +100,12 @@ describe("selectRepos", () => {
       text: JSON.stringify({
         selectedRepoNames: ["java-conventions"],
         confidence: 0.93
-      })
+      }),
+      usage: {
+        inputTokens: 1_250,
+        cachedInputTokens: 320,
+        outputTokens: 14
+      }
     });
 
     const result = await selectRepos(config, "How do the conventions work?", null);
@@ -110,14 +115,21 @@ describe("selectRepos", () => {
     expect(result.selection).toMatchObject({
       mode: "single",
       source: "codex",
-      finalEffort: "none",
+      finalModel: "gpt-5.4-mini",
+      finalEffort: "medium",
       finalRepoNames: ["java-conventions"]
     });
     expect(result.selection?.runs).toEqual([
       expect.objectContaining({
-        effort: "none",
+        model: "gpt-5.4-mini",
+        effort: "medium",
         repoNames: ["java-conventions"],
         confidence: 0.93,
+        usage: {
+          inputTokens: 1_250,
+          cachedInputTokens: 320,
+          outputTokens: 14
+        },
         usedForFinal: true
       })
     ]);
@@ -148,24 +160,142 @@ describe("selectRepos", () => {
     expect(result.selection?.finalRepoNames).toEqual(["foundation", "java-conventions"]);
   });
 
-  it("falls back to heuristic selection when codex returns invalid JSON", async () => {
+  it("keeps alwaysSelect repos when single-mode selection returns a valid empty repo set", async () => {
+    mocks.runCodexPrompt.mockResolvedValue({
+      text: JSON.stringify({
+        selectedRepoNames: [],
+        confidence: 0.93
+      })
+    });
+
+    const result = await selectRepos(createLoadedConfig({
+      ...config,
+      repos: [
+        createManagedRepo({
+          name: "foundation",
+          description: "Cross-cutting shared base functionality",
+          alwaysSelect: true
+        }),
+        ...config.repos
+      ]
+    }), "How do the conventions work?", null);
+
+    expect(result.repos.map(repo => repo.name)).toEqual(["foundation"]);
+    expect(result.selection).toMatchObject({
+      mode: "single",
+      finalModel: "gpt-5.4-mini",
+      finalEffort: "medium",
+      finalRepoNames: ["foundation"]
+    });
+    expect(mocks.runCodexPrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps alwaysSelect repos when cascade-mode selection returns a valid empty repo set", async () => {
+    mocks.runCodexPrompt.mockResolvedValue({
+      text: JSON.stringify({
+        selectedRepoNames: [],
+        confidence: 0.35
+      })
+    });
+
+    const result = await selectRepos(createLoadedConfig({
+      ...config,
+      repos: [
+        createManagedRepo({
+          name: "foundation",
+          description: "Cross-cutting shared base functionality",
+          alwaysSelect: true
+        }),
+        ...config.repos
+      ]
+    }), "How do the conventions work?", null, {
+      selectionMode: "cascade"
+    });
+
+    expect(result.repos.map(repo => repo.name)).toEqual(["foundation"]);
+    expect(result.selection).toMatchObject({
+      mode: "cascade",
+      finalModel: "gpt-5.4-mini",
+      finalEffort: "medium",
+      finalRepoNames: ["foundation"]
+    });
+    expect(mocks.runCodexPrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails when codex returns unusable selector output", async () => {
     mocks.runCodexPrompt.mockResolvedValue({
       text: "not json"
     });
 
+    await expect(selectRepos(config, "How does SQS compression metadata work?", null)).rejects.toThrow(
+      "Automatic repo selection failed. Codex did not return a usable repo set. Retry, use --repo <name>, or try --selection-mode cascade."
+    );
+    expect(mocks.runCodexPrompt).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries once when the first selector reply is malformed", async () => {
+    mocks.runCodexPrompt
+      .mockResolvedValueOnce({
+        text: "not json"
+      })
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          selectedRepoNames: ["sqs-codec"],
+          confidence: 0.91
+        })
+      });
+
     const result = await selectRepos(config, "How does SQS compression metadata work?", null);
 
-    expect(result.repos.map(repo => repo.name)).toEqual(["sqs-codec"]);
-    expect(result.mode).toBe("resolved");
+    expect(result.repos).toEqual([config.repos[0]]);
     expect(result.selection).toMatchObject({
-      source: "heuristic",
       finalRepoNames: ["sqs-codec"]
     });
+    expect(mocks.runCodexPrompt).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts a non-empty single-mode selection even when confidence is low", async () => {
+    mocks.runCodexPrompt.mockResolvedValue({
+      text: JSON.stringify({
+        selectedRepoNames: ["archa"],
+        confidence: 0.21
+      })
+    });
+
+    const result = await selectRepos(config, "How does repo selection work?", null);
+
+    expect(result.repos).toEqual([config.repos[1]]);
+    expect(result.selection).toMatchObject({
+      finalModel: "gpt-5.4-mini",
+      finalEffort: "medium",
+      finalRepoNames: ["archa"]
+    });
+    expect(mocks.runCodexPrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails single-mode selection immediately when the selector returns an empty repo set", async () => {
+    mocks.runCodexPrompt.mockImplementation(async ({ reasoningEffort }) => {
+      if (reasoningEffort === "medium") {
+        return {
+          text: JSON.stringify({
+            selectedRepoNames: [],
+            confidence: 0.9
+          })
+        };
+      }
+
+      throw new Error(`Unexpected effort: ${reasoningEffort}`);
+    });
+
+    await expect(selectRepos(config, "How do the conventions work?", null)).rejects.toThrow(
+      "Automatic repo selection failed. Codex did not return a usable repo set. Retry, use --repo <name>, or try --selection-mode cascade."
+    );
+    expect(mocks.runCodexPrompt).toHaveBeenCalledTimes(1);
   });
 
   it("cascades to higher efforts when confidence is too low", async () => {
     mocks.runCodexPrompt.mockImplementation(async ({ reasoningEffort }) => {
-      if (reasoningEffort === "none") {
+      if (reasoningEffort === "medium") {
         return {
           text: JSON.stringify({
             selectedRepoNames: ["archa"],
@@ -174,16 +304,16 @@ describe("selectRepos", () => {
         };
       }
 
-      if (reasoningEffort === "minimal") {
+      if (reasoningEffort === "high") {
         return {
           text: JSON.stringify({
-            selectedRepoNames: ["archa"],
+            selectedRepoNames: [],
             confidence: 0.35
           })
         };
       }
 
-      if (reasoningEffort === "low") {
+      if (reasoningEffort === "xhigh") {
         return {
           text: JSON.stringify({
             selectedRepoNames: ["java-conventions"],
@@ -204,20 +334,40 @@ describe("selectRepos", () => {
     expect(result.selection).toMatchObject({
       mode: "cascade",
       source: "codex",
-      finalEffort: "low",
+      finalModel: "gpt-5.4-mini",
+      finalEffort: "xhigh",
       finalRepoNames: ["java-conventions"]
     });
-    expect(result.selection?.runs.map(run => run.effort)).toEqual(["none", "minimal", "low"]);
+    expect(result.selection?.runs.map(run => `${run.model}:${run.effort}`)).toEqual([
+      "gpt-5.4-mini:medium",
+      "gpt-5.4-mini:high",
+      "gpt-5.4-mini:xhigh"
+    ]);
     expect(mocks.runCodexPrompt).toHaveBeenCalledTimes(3);
   });
 
   it("keeps background comparison runs available through selectionPromise", async () => {
-    mocks.runCodexPrompt.mockImplementation(async ({ reasoningEffort }) => ({
-      text: JSON.stringify({
-        selectedRepoNames: reasoningEffort === "high" ? ["java-conventions"] : ["archa"],
-        confidence: reasoningEffort === "none" ? 0.92 : reasoningEffort === "low" ? 0.74 : 0.61
-      })
-    }));
+    mocks.runCodexPrompt.mockImplementation(async ({ model, reasoningEffort }) => {
+      const runKey = `${model}:${reasoningEffort}`;
+      const selectedRepoNames = runKey === "gpt-5.4-mini:xhigh" ? ["java-conventions"] : ["archa"];
+      const confidenceByRunKey: Record<string, number> = {
+        "gpt-5.4:low": 0.72,
+        "gpt-5.4:medium": 0.69,
+        "gpt-5.4:high": 0.73,
+        "gpt-5.4:none": 0.71,
+        "gpt-5.4-mini:low": 0.78,
+        "gpt-5.4-mini:high": 0.61,
+        "gpt-5.4-mini:medium": 0.92,
+        "gpt-5.4-mini:none": 0.74
+      };
+
+      return {
+        text: JSON.stringify({
+          selectedRepoNames,
+          confidence: confidenceByRunKey[runKey] ?? 0.5
+        })
+      };
+    });
 
     const result = await selectRepos(config, "How does repo selection work?", null, {
       selectionMode: "single",
@@ -227,9 +377,53 @@ describe("selectRepos", () => {
 
     expect(result.repos).toEqual([config.repos[1]]);
     expect(result.selection).toMatchObject({
-      finalEffort: "none"
+      finalModel: "gpt-5.4-mini",
+      finalEffort: "medium"
     });
-    expect(finalizedSelection?.runs.map(run => run.effort)).toEqual(["none", "low", "high"]);
+    expect(finalizedSelection?.runs.map(run => `${run.model}:${run.effort}`)).toEqual([
+      "gpt-5.4-mini:medium",
+      "gpt-5.4-mini:none",
+      "gpt-5.4-mini:low",
+      "gpt-5.4-mini:high",
+      "gpt-5.4-mini:xhigh",
+      "gpt-5.4:none",
+      "gpt-5.4:low",
+      "gpt-5.4:medium",
+      "gpt-5.4:high"
+    ]);
+  });
+
+  it("keeps failed background comparison runs in the diagnostics", async () => {
+    mocks.runCodexPrompt.mockImplementation(async ({ model, reasoningEffort }) => {
+      const runKey = `${model}:${reasoningEffort}`;
+      if (runKey === "gpt-5.4-mini:xhigh") {
+        throw new Error("selector crashed");
+      }
+
+      return {
+        text: JSON.stringify({
+          selectedRepoNames: ["archa"],
+          confidence: 0.8
+        })
+      };
+    });
+
+    const result = await selectRepos(config, "How does repo selection work?", null, {
+      selectionMode: "single",
+      selectionShadowCompare: true
+    });
+    const finalizedSelection = await result.selectionPromise;
+
+    expect(finalizedSelection?.runs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          model: "gpt-5.4-mini",
+          effort: "xhigh",
+          status: "failed",
+          repoNames: []
+        })
+      ])
+    );
   });
 });
 
@@ -262,11 +456,12 @@ describe("buildRepoSelectionPrompt", () => {
       Weaker evidence: routing.consumes and generic ecosystem overlap.
       Negative evidence: routing.boundaries and routing.selectWithOtherReposWhen when the question does not cross repo boundaries.
       Prefer precision over recall. Only choose repos that are likely to contain the answer.
-      Return at most 4 configured repos.
-      Return JSON only with exactly this shape: {"selectedRepoNames":["repo-a","repo-b"],"confidence":0.0}.
+      Return between 0 and 4 configured repos.
+      If no configured repo is relevant, return an empty array.
+      Return raw JSON only with exactly this shape: {"selectedRepoNames":["repo-a","repo-b"],"confidence":0.0}.
+      Do not wrap the JSON in markdown fences. Do not add explanation, commentary, or any extra text.
       Confidence must be a number from 0.0 to 1.0 for how confident you are that the selected set is sufficient.
-      Use configured repo names exactly as provided.
-      Return an empty array when no extra repos are clearly relevant.
+      Use configured repo names exactly as provided. Unknown repo names will be rejected.
       There are no alwaysSelect repos.
 
       Using full routing summaries for the configured repos.
@@ -303,7 +498,16 @@ describe("buildRepoSelectionPrompt", () => {
 
     const prompt = buildRepoSelectionPrompt(largeConfig, "Which repo owns domain-1?");
 
-    expect(prompt).toContain("Large repo set detected; omitting lower-signal routing fields to control prompt size.");
+    expect(prompt).toContain(
+      "Strong evidence: description, routing.role, routing.reach, routing.owns, routing.exposes, routing.selectWhen, routing.boundaries, and aliases."
+    );
+    expect(prompt).toContain(
+      "Large repo set detected; using compact routing summaries with description, role, reach, owns, exposes, selectWhen, boundaries, and aliases only."
+    );
+    expect(prompt).not.toContain("routing.responsibilities");
+    expect(prompt).not.toContain("routing.workflows");
+    expect(prompt).not.toContain("routing.consumes");
+    expect(prompt).not.toContain("routing.selectWithOtherReposWhen");
     expect(prompt).not.toContain("\"responsibilities\"");
     expect(prompt).not.toContain("\"workflows\"");
     expect(prompt).not.toContain("\"consumes\"");
@@ -318,18 +522,22 @@ describe("buildRepoSelectionPrompt", () => {
 describe("parseRepoSelectionRunResult", () => {
   it("treats empty or malformed selector output as unusable", () => {
     expect(parseRepoSelectionRunResult("", config, "none", 12)).toEqual({
+      model: "gpt-5.4-mini",
       effort: "none",
       repoNames: [],
       repos: null,
       confidence: null,
-      latencyMs: 12
+      latencyMs: 12,
+      status: "invalid"
     });
     expect(parseRepoSelectionRunResult("{", config, "none", 13)).toEqual({
+      model: "gpt-5.4-mini",
       effort: "none",
       repoNames: [],
       repos: null,
       confidence: null,
-      latencyMs: 13
+      latencyMs: 13,
+      status: "invalid"
     });
   });
 
@@ -337,11 +545,28 @@ describe("parseRepoSelectionRunResult", () => {
     expect(parseRepoSelectionRunResult(JSON.stringify({
       confidence: 0.9
     }), config, "low", 14)).toEqual({
+      model: "gpt-5.4-mini",
       effort: "low",
       repoNames: [],
       repos: null,
       confidence: null,
-      latencyMs: 14
+      latencyMs: 14,
+      status: "invalid"
+    });
+  });
+
+  it("accepts outputs that return an empty repo array", () => {
+    expect(parseRepoSelectionRunResult(JSON.stringify({
+      selectedRepoNames: [],
+      confidence: 0.9
+    }), config, "low", 14)).toEqual({
+      model: "gpt-5.4-mini",
+      effort: "low",
+      repoNames: [],
+      repos: [],
+      confidence: 0.9,
+      latencyMs: 14,
+      status: "ok"
     });
   });
 
@@ -350,11 +575,13 @@ describe("parseRepoSelectionRunResult", () => {
       selectedRepoNames: ["archa"],
       confidence: 1.2
     }), config, "low", 15)).toEqual({
+      model: "gpt-5.4-mini",
       effort: "low",
       repoNames: ["archa"],
       repos: [config.repos[1]],
       confidence: null,
-      latencyMs: 15
+      latencyMs: 15,
+      status: "ok"
     });
   });
 
@@ -363,22 +590,26 @@ describe("parseRepoSelectionRunResult", () => {
       selectedRepoNames: ["missing-repo"],
       confidence: 0.8
     }), config, "none", 16)).toEqual({
+      model: "gpt-5.4-mini",
       effort: "none",
       repoNames: ["missing-repo"],
       repos: null,
       confidence: 0.8,
-      latencyMs: 16
+      latencyMs: 16,
+      status: "invalid"
     });
 
     expect(parseRepoSelectionRunResult(JSON.stringify({
       selectedRepoNames: ["a", "b", "c", "d", "e"],
       confidence: 0.8
     }), config, "none", 17)).toEqual({
+      model: "gpt-5.4-mini",
       effort: "none",
       repoNames: ["a", "b", "c", "d", "e"],
       repos: null,
       confidence: 0.8,
-      latencyMs: 17
+      latencyMs: 17,
+      status: "invalid"
     });
   });
 });
@@ -386,158 +617,73 @@ describe("parseRepoSelectionRunResult", () => {
 describe("isUsableCodexRun", () => {
   it("applies the per-effort confidence thresholds", () => {
     const baseRun = {
+      model: "gpt-5.4-mini",
       repoNames: ["archa"],
       repos: [config.repos[1]!],
-      latencyMs: 10
+      latencyMs: 10,
+      status: "ok" as const
     };
 
     expect(isUsableCodexRun({
       ...baseRun,
       effort: "none",
       confidence: 0.77
-    }, 0, "none")).toBe(false);
+    }, "none")).toBe(false);
     expect(isUsableCodexRun({
       ...baseRun,
       effort: "none",
       confidence: 0.78
-    }, 0, "none")).toBe(true);
+    }, "none")).toBe(true);
     expect(isUsableCodexRun({
       ...baseRun,
       effort: "minimal",
       confidence: 0.73
-    }, 0, "minimal")).toBe(false);
+    }, "minimal")).toBe(false);
     expect(isUsableCodexRun({
       ...baseRun,
       effort: "minimal",
       confidence: 0.74
-    }, 0, "minimal")).toBe(true);
+    }, "minimal")).toBe(true);
     expect(isUsableCodexRun({
       ...baseRun,
       effort: "low",
       confidence: 0.67
-    }, 0, "low")).toBe(false);
+    }, "low")).toBe(false);
     expect(isUsableCodexRun({
       ...baseRun,
       effort: "low",
       confidence: 0.68
-    }, 0, "low")).toBe(true);
+    }, "low")).toBe(true);
     expect(isUsableCodexRun({
       ...baseRun,
       effort: "medium",
       confidence: 0.57
-    }, 0, "medium")).toBe(false);
+    }, "medium")).toBe(false);
     expect(isUsableCodexRun({
       ...baseRun,
       effort: "medium",
       confidence: 0.58
-    }, 0, "medium")).toBe(true);
+    }, "medium")).toBe(true);
   });
 
   it("allows high-effort runs without confidence and rejects empty repo sets", () => {
     expect(isUsableCodexRun({
+      model: "gpt-5.4-mini",
       effort: "high",
       repoNames: ["archa"],
       repos: [config.repos[1]!],
       confidence: null,
-      latencyMs: 20
-    }, 0, "high")).toBe(true);
+      latencyMs: 20,
+      status: "ok"
+    }, "high")).toBe(true);
     expect(isUsableCodexRun({
+      model: "gpt-5.4-mini",
       effort: "high",
       repoNames: [],
       repos: [],
       confidence: null,
-      latencyMs: 21
-    }, 0, "high")).toBe(false);
-  });
-});
-
-describe("selectReposHeuristically", () => {
-  it("prefers owned behavior and exposed surfaces", () => {
-    const result = selectReposHeuristically(config, "Which repo owns the archa CLI?", null);
-
-    expect(result.repos[0]?.name).toBe("archa");
-  });
-
-  it("honors explicit repo names", () => {
-    const result = selectReposHeuristically(config, "anything", ["archa"]);
-
-    expect(result.repos.map(repo => repo.name)).toEqual(["archa"]);
-    expect(result.mode).toBe("requested");
-  });
-
-  it("honors explicit repo aliases", () => {
-    const result = selectReposHeuristically(config, "anything", ["conventions"]);
-
-    expect(result.repos.map(repo => repo.name)).toEqual(["java-conventions"]);
-  });
-
-  it("throws for unknown explicit repos", () => {
-    expect(() => selectReposHeuristically(config, "anything", ["missing-repo"])).toThrow(/Unknown managed repo/);
-  });
-
-  it("falls back to all configured repos when nothing scores positively", () => {
-    const result = selectReposHeuristically(config, "zebra moonlight quartz", null);
-
-    expect(result.repos.map(repo => repo.name)).toEqual(["sqs-codec", "archa", "java-conventions"]);
-    expect(result.mode).toBe("all");
-  });
-
-  it("ignores generic consumes values during heuristic selection", () => {
-    const result = selectReposHeuristically(createLoadedConfig({
-      ...config,
-      repos: [
-        createManagedRepo({
-          name: "helper-kit",
-          description: "Wrapper scripts",
-          routing: {
-            role: "shared-library",
-            reach: [],
-            responsibilities: [],
-            owns: [],
-            exposes: [],
-            consumes: ["Gradle", "Node.js"],
-            workflows: [],
-            boundaries: [],
-            selectWhen: [],
-            selectWithOtherReposWhen: []
-          }
-        }),
-        createManagedRepo({
-          name: "payments",
-          description: "Payment flows",
-          routing: {
-            role: "service-application",
-            reach: [],
-            responsibilities: [],
-            owns: ["payments"],
-            exposes: [],
-            consumes: [],
-            workflows: [],
-            boundaries: [],
-            selectWhen: [],
-            selectWithOtherReposWhen: []
-          }
-        })
-      ]
-    }), "Which repo uses Gradle?", null);
-
-    expect(result.mode).toBe("all");
-  });
-
-  it("includes alwaysSelect repos during automatic selection even when they do not match the question", () => {
-    const result = selectReposHeuristically(createLoadedConfig({
-      ...config,
-      repos: [
-        createManagedRepo({
-          name: "foundation",
-          description: "Cross-cutting shared base functionality",
-          alwaysSelect: true
-        }),
-        ...config.repos
-      ]
-    }), "Which repo owns the archa CLI?", null);
-
-    expect(result.repos.map(repo => repo.name)).toContain("foundation");
-    expect(result.repos[1]?.name).toBe("archa");
+      latencyMs: 21,
+      status: "invalid"
+    }, "high")).toBe(false);
   });
 });

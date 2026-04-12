@@ -10,13 +10,15 @@ import {
 } from "../answer/answer-audience.js";
 import { normalizeCodexExecutionError } from "./codex-installation.js";
 import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "./codex-defaults.js";
+import { formatEstimatedCodexUsd } from "./codex-pricing.js";
 import { formatDuration } from "../time/duration-format.js";
-import type { CodexScopeRepo, CodexSynthesis, Environment, RunCodexQuestionInput } from "../types.js";
+import type { CodexScopeRepo, CodexSynthesis, CodexUsage, Environment, RunCodexQuestionInput } from "../types.js";
 
 const DEFAULT_CODEX_TIMEOUT_MS = 300_000;
 const FORCE_KILL_GRACE_PERIOD_MS = 5_000;
 const HEARTBEAT_INTERVAL_MS = 5_000;
 export const CODEX_COMPLETED_STATUS_PREFIX = "Running Codex... done in ";
+const TOKEN_COUNT_FORMATTER = new Intl.NumberFormat("en-US");
 
 type StatusCallback = ((message: string) => void) | null | undefined;
 
@@ -38,6 +40,10 @@ type RunCodexExecInput = {
   workingDirectory: string;
   onStatus?: StatusCallback;
   timeoutMs: number;
+};
+
+type RunCodexExecResult = {
+  usage: CodexUsage | null;
 };
 
 export async function runCodexQuestion({
@@ -86,7 +92,7 @@ export async function runCodexPrompt({
   const resolvedReasoningEffort = reasoningEffort || DEFAULT_CODEX_REASONING_EFFORT;
 
   try {
-    await runCodexExec({
+    const execResult = await runCodexExec({
       prompt,
       model: resolvedModel,
       reasoningEffort: resolvedReasoningEffort,
@@ -96,9 +102,10 @@ export async function runCodexPrompt({
       timeoutMs
     });
 
-    return {
-      text: (await fs.readFile(outputFile, "utf8")).trim() || emptyOutputText
-    };
+    const text = (await fs.readFile(outputFile, "utf8")).trim() || emptyOutputText;
+    return execResult.usage
+      ? { text, usage: execResult.usage }
+      : { text };
   } finally {
     await fs.rm(outputFile, { force: true });
   }
@@ -198,7 +205,7 @@ async function runCodexExec({
   workingDirectory,
   onStatus,
   timeoutMs
-}: RunCodexExecInput): Promise<void> {
+}: RunCodexExecInput): Promise<RunCodexExecResult> {
   const startedAt = Date.now();
   const args = [
     "-c",
@@ -211,6 +218,7 @@ async function runCodexExec({
     "--skip-git-repo-check",
     "--color",
     "never",
+    "--json",
     "--output-last-message",
     outputFile
   ];
@@ -222,12 +230,13 @@ async function runCodexExec({
   const stopHeartbeat = startCodexHeartbeat(onStatus, startedAt);
 
   try {
-    await new Promise<void>((resolve, reject) => {
+    return await new Promise<RunCodexExecResult>((resolve, reject) => {
       const child = spawn("codex", args, {
-        stdio: ["pipe", "ignore", "pipe"]
+        stdio: ["pipe", "pipe", "pipe"]
       });
 
       let stderr = "";
+      const jsonTracker = createCodexJsonTracker();
       let settled = false;
       let forceKillTimer: NodeJS.Timeout | undefined;
 
@@ -253,6 +262,9 @@ async function runCodexExec({
       child.stderr.on("data", (chunk: Buffer) => {
         stderr += chunk.toString();
       });
+      child.stdout!.on("data", (chunk: Buffer) => {
+        jsonTracker.onData(chunk);
+      });
       child.on("error", (error: Error) => {
         if (settled) {
           return;
@@ -273,8 +285,9 @@ async function runCodexExec({
 
         settled = true;
         if (code === 0) {
-          onStatus?.(formatCodexCompletedStatus(Date.now() - startedAt));
-          resolve();
+          const usage = jsonTracker.finish();
+          onStatus?.(formatCodexCompletedStatus(Date.now() - startedAt, usage, model));
+          resolve({ usage });
           return;
         }
         reject(new Error(formatCodexExecError(code, stderr)));
@@ -286,13 +299,20 @@ async function runCodexExec({
 }
 
 export function summarizeCodexStderr(stderr: string): string {
-  const lines = stderr
-    .split(/\r?\n/u)
-    .map(line => line.trim())
-    .filter(Boolean);
+  const lines = normalizeCodexStderrLines(stderr);
 
   if (lines.length === 0) {
     return "";
+  }
+
+  const usageLimitSummary = summarizeCodexUsageLimit(lines);
+  if (usageLimitSummary) {
+    return usageLimitSummary;
+  }
+
+  const relevantLines = dedupeCodexStderrLines(lines.filter(line => isRelevantExecLine(line)));
+  if (relevantLines.length > 0) {
+    return relevantLines.slice(-8).join("\n");
   }
 
   return lines.slice(-8).join("\n");
@@ -331,6 +351,7 @@ function formatCodexTimeoutError(timeoutMs: number, stderr: string): string {
 
 function cleanupTimedOutChild(child: ReturnType<typeof spawn>): void {
   child.stdin?.destroy();
+  child.stdout!.destroy();
   child.stderr?.destroy();
 }
 
@@ -344,6 +365,47 @@ function isRelevantTimeoutLine(line: string): boolean {
     /\boperation not permitted\b/i,
     /\bexception\b/i
   ].some(pattern => pattern.test(line));
+}
+
+function isRelevantExecLine(line: string): boolean {
+  return [
+    /^error:/i,
+    /\berror\b/i,
+    /^caused by:/i,
+    /\bfailed\b/i,
+    /\bexception\b/i,
+    /\busage limit\b/i,
+    /\brate limit\b/i,
+    /chatgpt\.com\/codex\/settings\/usage/i
+  ].some(pattern => pattern.test(line));
+}
+
+function normalizeCodexStderrLines(stderr: string): string[] {
+  return stderr
+    .split(/\r?\n/u)
+    .map(line => line.trim())
+    .filter(Boolean);
+}
+
+function dedupeCodexStderrLines(lines: string[]): string[] {
+  return Array.from(new Set(lines));
+}
+
+function summarizeCodexUsageLimit(lines: string[]): string | null {
+  const joined = lines.join("\n");
+  if (!/\busage limit\b/i.test(joined)) {
+    return null;
+  }
+
+  const usageUrl = joined.match(/https:\/\/chatgpt\.com\/codex\/settings\/usage/iu)?.[0]
+    ?? "https://chatgpt.com/codex/settings/usage";
+  const retryAt = joined.match(/\btry again at ([^.\n]+)/iu)?.[1]?.trim();
+
+  if (retryAt) {
+    return `Codex usage limit reached. Visit ${usageUrl} to purchase more credits, or try again at ${retryAt}.`;
+  }
+
+  return `Codex usage limit reached. Visit ${usageUrl} to purchase more credits or try again later.`;
 }
 
 function startCodexHeartbeat(onStatus: StatusCallback, startedAt: number): () => void {
@@ -370,6 +432,139 @@ function formatCodexElapsedStatus(elapsedMs: number): string {
   return `Running Codex... ${formatDuration(elapsedMs)} elapsed`;
 }
 
-function formatCodexCompletedStatus(elapsedMs: number): string {
-  return `${CODEX_COMPLETED_STATUS_PREFIX}${formatDuration(elapsedMs)}`;
+function formatCodexCompletedStatus(elapsedMs: number, usage: CodexUsage | null, model: string): string {
+  const duration = `${CODEX_COMPLETED_STATUS_PREFIX}${formatDuration(elapsedMs)}`;
+  if (!usage) {
+    return duration;
+  }
+
+  return `${duration} (${formatCodexUsageSummary(model, usage)})`;
+}
+
+function formatCodexUsageSummary(model: string, usage: CodexUsage): string {
+  const parts = [
+    `input=${formatTokenCount(usage.inputTokens)}`,
+    `output=${formatTokenCount(usage.outputTokens)}`
+  ];
+  const estimatedUsd = formatEstimatedCodexUsd(model, usage);
+  if (estimatedUsd) {
+    parts.push(`usd=${estimatedUsd}`);
+  }
+
+  return parts.join(" ");
+}
+
+function formatTokenCount(value: number): string {
+  return TOKEN_COUNT_FORMATTER.format(value);
+}
+
+function createCodexJsonTracker(): {
+  onData(chunk: Buffer): void;
+  finish(): CodexUsage | null;
+} {
+  let buffer = "";
+  let usage: CodexUsage | null = null;
+
+  return {
+    onData(chunk: Buffer) {
+      buffer += chunk.toString();
+      buffer = consumeCodexJsonBuffer(buffer, nextUsage => {
+        usage = nextUsage;
+      });
+    },
+    finish() {
+      if (buffer.trim()) {
+        updateUsageFromCodexJsonLine(buffer, nextUsage => {
+          usage = nextUsage;
+        });
+      }
+
+      return usage;
+    }
+  };
+}
+
+function consumeCodexJsonBuffer(
+  buffer: string,
+  onUsage: (usage: CodexUsage) => void
+): string {
+  let remainingBuffer = buffer;
+
+  while (true) {
+    const newlineIndex = remainingBuffer.indexOf("\n");
+    if (newlineIndex < 0) {
+      return remainingBuffer;
+    }
+
+    const line = remainingBuffer.slice(0, newlineIndex);
+    remainingBuffer = remainingBuffer.slice(newlineIndex + 1);
+    updateUsageFromCodexJsonLine(line, onUsage);
+  }
+}
+
+function updateUsageFromCodexJsonLine(line: string, onUsage: (usage: CodexUsage) => void): void {
+  const usage = extractCodexUsage(line);
+  if (!usage) {
+    return;
+  }
+
+  onUsage(usage);
+}
+
+function extractCodexUsage(line: string): CodexUsage | null {
+  const trimmedLine = line.trim();
+  if (!trimmedLine) {
+    return null;
+  }
+
+  let parsedLine: unknown;
+
+  try {
+    parsedLine = JSON.parse(trimmedLine);
+  } catch {
+    return null;
+  }
+
+  if (!isRecord(parsedLine) || parsedLine.type !== "turn.completed") {
+    return null;
+  }
+
+  return normalizeCodexUsage(parsedLine.usage);
+}
+
+function normalizeCodexUsage(value: unknown): CodexUsage | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const inputTokens = normalizeRequiredTokenCount(value.input_tokens);
+  const cachedInputTokens = normalizeOptionalTokenCount(value.cached_input_tokens, 0);
+  const outputTokens = normalizeRequiredTokenCount(value.output_tokens);
+  if (inputTokens == null || cachedInputTokens == null || outputTokens == null) {
+    return null;
+  }
+
+  return {
+    inputTokens,
+    cachedInputTokens,
+    outputTokens
+  };
+}
+
+function normalizeRequiredTokenCount(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.trunc(value)
+    : null;
+}
+
+function normalizeOptionalTokenCount(value: unknown, defaultValue: number): number | null {
+  if (value == null) {
+    return defaultValue;
+  }
+
+  return normalizeRequiredTokenCount(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

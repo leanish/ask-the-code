@@ -407,14 +407,21 @@ describe("answerQuestion", () => {
         mode: "single",
         shadowCompare: true,
         source: "codex",
-        finalEffort: "none",
+        finalModel: "gpt-5.4",
+        finalEffort: "low",
         finalRepoNames: ["sqs-codec"],
         runs: [
           {
-            effort: "none",
+            model: "gpt-5.4",
+            effort: "low",
             repoNames: ["sqs-codec"],
-            latencyMs: 5,
+            latencyMs: 9,
             confidence: 0.91,
+            usage: {
+              inputTokens: 1_250,
+              cachedInputTokens: 320,
+              outputTokens: 14
+            },
             usedForFinal: true
           }
         ]
@@ -423,21 +430,47 @@ describe("answerQuestion", () => {
         mode: "single",
         shadowCompare: true,
         source: "codex",
-        finalEffort: "none",
+        finalModel: "gpt-5.4",
+        finalEffort: "low",
         finalRepoNames: ["sqs-codec"],
         runs: [
           {
-            effort: "none",
+            model: "gpt-5.4",
+            effort: "low",
             repoNames: ["sqs-codec"],
-            latencyMs: 5,
+            latencyMs: 9,
             confidence: 0.91,
+            usage: {
+              inputTokens: 1_250,
+              cachedInputTokens: 320,
+              outputTokens: 14
+            },
             usedForFinal: true
           },
           {
-            effort: "low",
-            repoNames: [],
-            latencyMs: 9,
-            confidence: null,
+            model: "gpt-5.4",
+            effort: "none",
+            repoNames: ["archa"],
+            latencyMs: 5,
+            confidence: 0.84,
+            usage: {
+              inputTokens: 980,
+              cachedInputTokens: 120,
+              outputTokens: 9
+            },
+            usedForFinal: false
+          },
+          {
+            model: "gpt-5.4-mini",
+            effort: "none",
+            repoNames: ["search-kit"],
+            latencyMs: 4,
+            confidence: 0.79,
+            usage: {
+              inputTokens: 860,
+              cachedInputTokens: 0,
+              outputTokens: 11
+            },
             usedForFinal: false
           }
         ]
@@ -464,7 +497,13 @@ describe("answerQuestion", () => {
     });
 
     expect(statusReporter.info).toHaveBeenCalledWith(
-      "Repo selection comparison: none=sqs-codec confidence=0.91 final | low=(none) confidence=?"
+      [
+        "Repo selection comparison:",
+        "selector           conf  time  final  input  output  usd       repos",
+        "gpt-5.4-mini/none  0.79  4ms   no     860    11      0.000695  search-kit",
+        "gpt-5.4/none       0.84  5ms   no     980    9       0.002585  archa",
+        "gpt-5.4/low        0.91  9ms   yes    1,250  14      0.003335  sqs-codec"
+      ].join("\n")
     );
   });
 
@@ -475,11 +514,13 @@ describe("answerQuestion", () => {
       mode: "single" as const,
       shadowCompare: true,
       source: "codex" as const,
-      finalEffort: "none" as const,
+      finalModel: "gpt-5.4" as const,
+      finalEffort: "low" as const,
       finalRepoNames: ["sqs-codec"],
       runs: [
         {
-          effort: "none" as const,
+          model: "gpt-5.4" as const,
+          effort: "low" as const,
           repoNames: ["sqs-codec"],
           latencyMs: 5,
           confidence: 0.91,
@@ -515,7 +556,7 @@ describe("answerQuestion", () => {
         nowFn: () => 0
       });
 
-      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(90_000);
 
       await expect(resultPromise).resolves.toMatchObject({
         selection: immediateSelection

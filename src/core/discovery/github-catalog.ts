@@ -1045,7 +1045,7 @@ async function hydrateGithubRepoTopics({
         useCodexCleanup: curateWithCodex
       })
     : emptyInspectionMetadata();
-  const description = normalizedRepo.description || inspectedMetadata.description || "";
+  const description = inspectedMetadata.description || normalizedRepo.description || "";
   const repoWithDescription = {
     ...normalizedRepo,
     description

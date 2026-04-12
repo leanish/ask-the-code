@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type ChildResult = number | Error;
 type StderrHandler = (chunk: Buffer) => void;
+type StdoutHandler = (chunk: Buffer) => void;
 type CloseHandler = (code: number | null) => void;
 type ErrorHandler = (error: Error) => void;
 type ChildProcessDouble = {
@@ -12,6 +13,10 @@ type ChildProcessDouble = {
   };
   kill: ReturnType<typeof vi.fn>;
   unref: ReturnType<typeof vi.fn>;
+  stdout: {
+    destroy: ReturnType<typeof vi.fn>;
+    on: ReturnType<typeof vi.fn>;
+  };
   stderr: {
     destroy: ReturnType<typeof vi.fn>;
     on: ReturnType<typeof vi.fn>;
@@ -154,9 +159,16 @@ describe("codex-runner", () => {
         onStatus
       });
 
-      expect(result).toEqual({ text: "Final answer from Codex" });
+      expect(result).toEqual({
+        text: "Final answer from Codex",
+        usage: {
+          inputTokens: 24_490,
+          cachedInputTokens: 2_432,
+          outputTokens: 5
+        }
+      });
       expect(onStatus).toHaveBeenCalledWith("Running Codex...");
-      expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 0s");
+      expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 0s (input=24,490 output=5 usd=0.0613)");
       expect(child.stdin.write).toHaveBeenCalledWith(expect.stringContaining(
         "Write for an engineer who can inspect this workspace."
       ));
@@ -175,9 +187,10 @@ describe("codex-runner", () => {
           "--skip-git-repo-check",
           "--color",
           "never",
+          "--json",
           "--output-last-message"
         ]),
-        { stdio: ["pipe", "ignore", "pipe"] }
+        { stdio: ["pipe", "pipe", "pipe"] }
       );
       expect(mocks.readFile).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), "utf8");
       expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), { force: true });
@@ -196,17 +209,25 @@ describe("codex-runner", () => {
       workingDirectory: "/workspace/archa/repos/java-conventions"
     });
 
-    expect(result).toEqual({ text: "{\"topics\":[\"java\"]}" });
+    expect(result).toEqual({
+      text: "{\"topics\":[\"java\"]}",
+      usage: {
+        inputTokens: 24_490,
+        cachedInputTokens: 2_432,
+        outputTokens: 5
+      }
+    });
     expect(child.stdin.write).toHaveBeenCalledWith("Return JSON only.");
     expect(mocks.spawn).toHaveBeenCalledWith(
       "codex",
       expect.arrayContaining([
         "-C",
         "/workspace/archa/repos/java-conventions",
+        "--json",
         "--model",
         "gpt-5.4-mini"
       ]),
-      { stdio: ["pipe", "ignore", "pipe"] }
+      { stdio: ["pipe", "pipe", "pipe"] }
     );
   });
 
@@ -253,18 +274,26 @@ describe("codex-runner", () => {
         onStatus
       });
 
-      expect(result).toEqual({ text: "Codex did not produce a final answer." });
+      expect(result).toEqual({
+        text: "Codex did not produce a final answer.",
+        usage: {
+          inputTokens: 24_490,
+          cachedInputTokens: 2_432,
+          outputTokens: 5
+        }
+      });
       expect(onStatus).toHaveBeenCalledWith("Running Codex...");
-      expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 0s");
+      expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 0s (input=24,490 output=5 usd=0.01839)");
       expect(mocks.spawn).toHaveBeenCalledWith(
         "codex",
         expect.arrayContaining([
           "-c",
           'model_reasoning_effort="low"',
+          "--json",
           "--model",
           "gpt-5.4-mini"
         ]),
-        { stdio: ["pipe", "ignore", "pipe"] }
+        { stdio: ["pipe", "pipe", "pipe"] }
       );
     } finally {
       dateNowSpy.mockRestore();
@@ -308,8 +337,15 @@ describe("codex-runner", () => {
 
     child.close(0);
 
-    await expect(resultPromise).resolves.toEqual({ text: "Final answer" });
-    expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 1m 5s");
+    await expect(resultPromise).resolves.toEqual({
+      text: "Final answer",
+      usage: {
+        inputTokens: 24_490,
+        cachedInputTokens: 2_432,
+        outputTokens: 5
+      }
+    });
+    expect(onStatus).toHaveBeenCalledWith("Running Codex... done in 1m 5s (input=24,490 output=5 usd=0.0613)");
   });
 
   it("times out codex after the configured deadline", async () => {
@@ -340,6 +376,7 @@ describe("codex-runner", () => {
     await rejection;
     expect(child.kill).toHaveBeenCalledWith("SIGTERM");
     expect(child.stdin.destroy).toHaveBeenCalled();
+    expect(child.stdout.destroy).toHaveBeenCalled();
     expect(child.stderr.destroy).toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledWith("Codex timed out after 5m; stopping...");
     expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), { force: true });
@@ -377,6 +414,18 @@ describe("codex-runner", () => {
 
   it("returns an empty codex stderr summary when stderr is blank", () => {
     expect(summarizeCodexStderr("\n  \n")).toBe("");
+  });
+
+  it("normalizes codex usage limit stderr into a concise message", () => {
+    const stderr = [
+      "having a client that is really interested reg. cookies",
+      "\"\"\" ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 3:27 PM.",
+      "ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 3:27 PM."
+    ].join("\n");
+
+    expect(summarizeCodexStderr(stderr)).toBe(
+      "Codex usage limit reached. Visit https://chatgpt.com/codex/settings/usage to purchase more credits, or try again at 3:27 PM."
+    );
   });
 
   it("filters timeout stderr down to relevant warning and error lines", () => {
@@ -477,6 +526,33 @@ describe("codex-runner", () => {
     expect(mocks.readFile).not.toHaveBeenCalled();
   });
 
+  it("surfaces a concise usage-limit codex error without leaking prompt text", async () => {
+    mocks.spawn.mockReturnValue(createChildProcess({
+      code: 1,
+      stderrChunks: [
+        "having a client that is really interested reg. cookies\n",
+        "\"\"\" ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 3:27 PM.\n",
+        "ERROR: You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 3:27 PM.\n"
+      ]
+    }));
+
+    await expect(runCodexQuestion({
+      question: "When a client opts out of session tracking, what data is the platform still receiving?",
+      model: "gpt-5.4",
+      reasoningEffort: "low",
+      selectedRepos: [
+        {
+          name: "merchant-platform",
+          directory: "/workspace/archa/repos/merchant-platform",
+          defaultBranch: "main"
+        }
+      ],
+      workspaceRoot: "/workspace/archa/repos"
+    })).rejects.toThrow(
+      "codex exec failed with exit code 1: Codex usage limit reached. Visit https://chatgpt.com/codex/settings/usage to purchase more credits, or try again at 3:27 PM."
+    );
+  });
+
   it("surfaces a friendly install hint when codex is missing", async () => {
     mocks.spawn.mockReturnValue(createChildProcess({
       code: Object.assign(new Error("spawn codex ENOENT"), { code: "ENOENT" })
@@ -489,18 +565,47 @@ describe("codex-runner", () => {
       'Codex CLI is required but was not found on PATH. Install it with "brew install codex". If Codex is still not connected afterwards, complete the Codex connection/login flow and retry later.'
     );
   });
+
+  it("ignores malformed codex json telemetry without failing the run", async () => {
+    mocks.spawn.mockReturnValue(createChildProcess({
+      code: 0,
+      stdoutChunks: [
+        "{not json}\n",
+        "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":12,\"cached_input_tokens\":0,\"output_tokens\":3}}\n"
+      ]
+    }));
+
+    await expect(runCodexPrompt({
+      prompt: "Return JSON only.",
+      workingDirectory: "/workspace/archa/repos"
+    })).resolves.toEqual({
+      text: "Final answer",
+      usage: {
+        inputTokens: 12,
+        cachedInputTokens: 0,
+        outputTokens: 3
+      }
+    });
+  });
 });
 
 function createChildProcess({
   code = 0,
   stderrChunks = [],
+  stdoutChunks = [
+    "{\"type\":\"thread.started\",\"thread_id\":\"thread-1\"}\n",
+    "{\"type\":\"turn.started\"}\n",
+    "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":24490,\"cached_input_tokens\":2432,\"output_tokens\":5}}\n"
+  ],
   autoCloseOnEnd = true
 }: {
   code?: ChildResult;
   stderrChunks?: string[];
+  stdoutChunks?: string[];
   autoCloseOnEnd?: boolean;
 }): ChildProcessDouble {
   const stderrHandlers: StderrHandler[] = [];
+  const stdoutHandlers: StdoutHandler[] = [];
   const closeHandlers: CloseHandler[] = [];
   const errorHandlers: ErrorHandler[] = [];
 
@@ -517,6 +622,14 @@ function createChildProcess({
     },
     kill: vi.fn(),
     unref: vi.fn(),
+    stdout: {
+      destroy: vi.fn(),
+      on: vi.fn((event: "data", handler: StdoutHandler) => {
+        if (event === "data") {
+          stdoutHandlers.push(handler);
+        }
+      })
+    },
     stderr: {
       destroy: vi.fn(),
       on: vi.fn((event: "data", handler: StderrHandler) => {
@@ -542,6 +655,9 @@ function createChildProcess({
 
   function emitResult(resultCode: ChildResult): void {
     queueMicrotask(() => {
+      stdoutChunks.forEach(chunk => {
+        stdoutHandlers.forEach(handler => handler(Buffer.from(chunk)));
+      });
       stderrChunks.forEach(chunk => {
         stderrHandlers.forEach(handler => handler(Buffer.from(chunk)));
       });

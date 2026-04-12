@@ -1,9 +1,15 @@
 import { runCodexPrompt } from "../codex/codex-runner.js";
-import { createEmptyRepoRouting, filterRepoRoutingConsumes } from "../repos/repo-routing.js";
+import {
+  chooseRepoRoutingDescription,
+  createEmptyRepoRouting,
+  filterRepoRoutingConsumes,
+  prioritizeRepoRouting
+} from "../repos/repo-routing.js";
 import type { RepoRecord, RepoRoutingMetadata } from "../types.js";
 
-const DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS = 60_000;
-const DISCOVERY_CODEX_REASONING_EFFORT = "none";
+const DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS = 120_000;
+const DISCOVERY_CODEX_MODEL = "gpt-5.4";
+const DISCOVERY_CODEX_REASONING_EFFORT = "medium";
 const MAX_DESCRIPTION_LENGTH = 180;
 const ROUTING_LIMITS = {
   reach: 5,
@@ -51,6 +57,7 @@ export async function curateRepoMetadataWithCodex({
       sourceRepo,
       inferredMetadata
     }),
+    model: DISCOVERY_CODEX_MODEL,
     workingDirectory: directory,
     reasoningEffort: DISCOVERY_CODEX_REASONING_EFFORT,
     timeoutMs: DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS
@@ -70,8 +77,11 @@ function buildRepoMetadataCurationPrompt({
     "Prefer precision over recall. Remove weak claims instead of keeping them.",
     "Select repos by ownership and exposed surfaces, not by generic keyword overlap.",
     "Treat consumed technologies as weaker evidence than owned behavior.",
+    "This metadata is used later for automatic repo selection across many repos.",
+    "Compact selection mostly sees description, routing.role, routing.reach, routing.owns, routing.exposes, routing.selectWhen, and routing.boundaries.",
+    "Optimize those compact-mode fields first and put the most distinctive signals first within each list.",
     "Return JSON only with exactly these keys: description, routing.",
-    `description: one sentence, <= ${MAX_DESCRIPTION_LENGTH} characters, concrete and neutral.`,
+    `description: one sentence, <= ${MAX_DESCRIPTION_LENGTH} characters, concrete and neutral, naming the primary owned surface rather than the implementation stack.`,
     "routing.role: short architectural label such as shared-library, infra-stack, developer-cli, service-application, platform-application, microservice, frontend-application.",
     `routing.reach: 0-${ROUTING_LIMITS.reach} concise surface labels.`,
     `routing.responsibilities: 0-${ROUTING_LIMITS.responsibilities} concrete responsibility statements.`,
@@ -84,6 +94,14 @@ function buildRepoMetadataCurationPrompt({
     `routing.selectWithOtherReposWhen: 0-${ROUTING_LIMITS.selectWithOtherReposWhen} "use with..." statements for cross-repo flows.`,
     "Do not mention the repo name as a routing signal unless it is part of a real exposed surface.",
     "Do not add generic filler such as api, backend, service, platform, setup, tooling, or internal unless they are genuinely specific in context.",
+    "Do not use frameworks, languages, runtimes, or build tools as routing signals unless they are part of a real exposed surface.",
+    "List the most distinctive package names, domains, endpoints, and concrete API surfaces before broader summaries in routing.owns, routing.exposes, routing.selectWhen, and routing.boundaries.",
+    "For generic infrastructure like databases, queues, caches, indexes, and file storage, prefer purpose-qualified resource labels over vendor names.",
+    "Prefer examples like `product data DB`, `search index`, `search cache`, or `bulk export queue` over bare `MongoDB`, `Elasticsearch`, `Redis`, or `SQS`.",
+    "Keep product or vendor names in routing.consumes only when the external system itself is a meaningful surface users may ask about, such as `Shopify Admin API` or `Klaviyo`.",
+    "For shared libraries, prefer package exports, components, hooks, commands, or helpers over broad product-area claims.",
+    "For applications and services, prefer externally visible routes, APIs, UIs, jobs, or workflows over implementation technologies.",
+    "If a statement is correct but too broad to distinguish this repo from neighboring repos, narrow it or omit it.",
     "Do not put general libraries, runtimes, logging frameworks, build tools, test frameworks, or web frameworks into routing.consumes.",
     "Keep accurate draft values when they are already good. Improve them when the repo content shows a better answer.",
     "",
@@ -116,11 +134,15 @@ function parseCuratedMetadata(text: string, inferredMetadata: RepoMetadata): Rep
   }
 
   const parsedObject = parsed as Record<string, unknown>;
-  const description = normalizeDescription(parsedObject.description) || inferredMetadata.description;
+  const routing = prioritizeRepoRouting(normalizeRouting(parsedObject.routing, inferredMetadata.routing));
+  const description = chooseRepoRoutingDescription(
+    normalizeDescription(parsedObject.description) || inferredMetadata.description,
+    routing
+  );
 
   return {
     description,
-    routing: normalizeRouting(parsedObject.routing, inferredMetadata.routing)
+    routing
   };
 }
 

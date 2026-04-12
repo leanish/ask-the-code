@@ -138,7 +138,7 @@ describe("github-catalog", () => {
           description: "Repo-aware CLI for engineering Q&A with local Codex"
         }, {
           role: "developer-cli",
-          owns: ["cli", "codex", "qa"]
+          owns: []
         }),
         expectRepoRouting({
           name: "forked-repo",
@@ -147,7 +147,7 @@ describe("github-catalog", () => {
           description: ""
         }, {
           role: "",
-          owns: ["fork", "customized"]
+          owns: []
         })
       ],
       skippedForks: 0,
@@ -157,6 +157,64 @@ describe("github-catalog", () => {
       includeSourceMetadata: false,
       sourceOwnerFallback: "leanish"
     }));
+  });
+
+  it("prefers inspected descriptions over weaker GitHub descriptions during refinement", async () => {
+    const inspectRepoFn = vi.fn(async ({ repo }) => {
+      if (repo.name !== "merchant-platform") {
+        return [];
+      }
+
+      return {
+        description: "Owns merchant admin UI, merchant GraphQL and REST APIs, and cron job endpoints.",
+        routing: createEmptyRepoRouting()
+      };
+    });
+    const fetchFn = vi.fn(async url => {
+      if (url === "https://api.github.com/users/LeanishLabs") {
+        return createJsonResponse(200, {
+          login: "LeanishLabs",
+          type: "Organization"
+        });
+      }
+
+      if (url === "https://api.github.com/orgs/LeanishLabs/repos?per_page=100&page=1&sort=full_name&type=all") {
+        return createJsonResponse(200, [
+          {
+            name: "merchant-platform",
+            clone_url: "https://github.com/LeanishLabs/merchant-platform.git",
+            default_branch: "master",
+            description: "Play framework based commerce service",
+            topics: [],
+            size: 250000,
+            fork: false,
+            archived: false
+          }
+        ]);
+      }
+
+      if (url === "https://api.github.com/repos/LeanishLabs/merchant-platform/topics") {
+        return createJsonResponse(200, { names: [] });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await discoverGithubOwnerReposWithoutAuth({
+      owner: "LeanishLabs",
+      fetchFn,
+      inspectRepoFn,
+      inspectRepos: true
+    });
+
+    expect(result.repos).toEqual([
+      expectRepoRouting({
+        name: "merchant-platform",
+        url: "https://github.com/LeanishLabs/merchant-platform.git",
+        defaultBranch: "master",
+        description: "Owns merchant admin UI, merchant GraphQL and REST APIs, and cron job endpoints."
+      }, {})
+    ]);
   });
 
   it("filters disabled repos by default", async () => {
@@ -287,7 +345,7 @@ describe("github-catalog", () => {
       description: "Repo-aware CLI"
     }, {
       role: "developer-cli",
-      owns: ["cli"]
+      owns: []
     }));
   });
 
@@ -833,7 +891,7 @@ describe("github-catalog", () => {
         description: "Shared Gradle conventions for JDK-based projects"
       }, {
         role: "",
-        owns: ["gradle", "jdk"]
+        owns: []
       })
     ]);
     expect(inspectRepoFn).not.toHaveBeenCalled();
@@ -1113,7 +1171,7 @@ describe("github-catalog", () => {
       expectRepoRouting({
         name: "nullability"
       }, {
-        owns: ["null-safety"]
+        owns: []
       })
     ]);
     expect(fetchFn).toHaveBeenCalledTimes(1);
@@ -1165,13 +1223,13 @@ describe("github-catalog", () => {
         description: "Repo-aware CLI for engineering Q&A with local Codex"
       }, {
         role: "developer-cli",
-        owns: ["cli", "codex", "qa"]
+        owns: []
       })
     ]);
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
-  it("infers fallback topics from repo metadata when GitHub topics are empty", async () => {
+  it("does not promote fallback topics from repo metadata into ownership claims", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const fetchFn = vi.fn(async url => {
       if (url === "https://api.github.com/users/leanish") {
@@ -1218,12 +1276,12 @@ describe("github-catalog", () => {
         defaultBranch: "main",
         description: "Shared Gradle conventions for JDK-based projects"
       }, {
-        owns: ["gradle", "jdk"]
+        owns: []
       })
     ]);
   });
 
-  it("uses a larger fallback topic budget for massive repos and filters weak tokens", async () => {
+  it("does not promote broad fallback topics into ownership claims for massive repos", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const fetchFn = vi.fn(async url => {
       if (url === "https://api.github.com/users/otherco") {
@@ -1268,16 +1326,7 @@ describe("github-catalog", () => {
     const firstRepo = result.repos[0];
     expect(firstRepo).toBeDefined();
     expect(firstRepo?.routing).toBeDefined();
-    expect(firstRepo?.routing?.owns).toEqual([
-      "checkout",
-      "storefront",
-      "onboarding",
-      "pricing",
-      "personalization",
-      "recommendations",
-      "search",
-      "analytics"
-    ]);
+    expect(firstRepo?.routing?.owns).toEqual([]);
   });
 
   it("does not misclassify Gradle conventions repos as infra or microservice when inspection identifies a library", async () => {
@@ -1331,12 +1380,12 @@ describe("github-catalog", () => {
         defaultBranch: "main",
         description: "Shared Gradle conventions for JDK-based projects"
       }, {
-        owns: ["gradle", "jdk"]
+        owns: []
       })
     ]);
   });
 
-  it("uses fewer inferred topics for smaller repos", async () => {
+  it("does not promote fallback topic tokens into ownership claims for smaller repos", async () => {
     const inspectRepoFn = vi.fn(async () => []);
     const fetchFn = vi.fn(async url => {
       if (url === "https://api.github.com/users/leanish") {
@@ -1384,7 +1433,7 @@ describe("github-catalog", () => {
         description: "Tiny command line helper for demos"
       }, {
         role: "developer-cli",
-        owns: ["command", "line", "helper"]
+        owns: []
       })
     ]);
   });
@@ -1431,7 +1480,7 @@ describe("github-catalog", () => {
         description: "Storefront frontend"
       }, {
         role: "frontend-application",
-        owns: ["commerce", "storefront", "frontend"]
+        owns: []
       })
     ]);
     expect(inspectRepoFn).toHaveBeenCalledWith(expect.objectContaining({
@@ -1540,7 +1589,7 @@ describe("github-catalog", () => {
         description: "Billing microservice GraphQL API"
       }, {
         role: "microservice",
-        owns: ["payments", "microservice", "graphql", "api"]
+        owns: []
       })
     ]);
   });
@@ -1593,7 +1642,7 @@ describe("github-catalog", () => {
         description: "Billing GraphQL API"
       }, {
         role: "service-application",
-        owns: ["graphql", "api"],
+        owns: [],
         reach: ["service-api", "internal-surface"]
       })
     ]);
