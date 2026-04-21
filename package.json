@@ -21,11 +21,13 @@
     "cli": "node --import tsx src/bin/archa.ts",
     "server": "node --import tsx src/bin/archa-server.ts",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
     "@vitest/coverage-v8": "^4.1.2",
+    "husky": "^9.1.7",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.2"

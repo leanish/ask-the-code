@@ -65,10 +65,13 @@ This project follows a simple layout:
 For local development:
 
 ```bash
+npm install
 npm run typecheck
 npm test
 npm run build
 ```
+
+After `npm install`, Husky installs the repo Git hooks automatically. Commits run `npm run check`, which executes typechecking, the test suite, and the build before Git creates the commit.
 
 To run the server directly from TypeScript source during development, use:
 
