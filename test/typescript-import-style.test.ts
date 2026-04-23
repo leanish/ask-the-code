@@ -11,7 +11,7 @@ const tsRootFiles = ["vitest.config.ts"];
 
 describe("typescript import style", () => {
   it("does not use relative .js suffixes in TypeScript files", () => {
-    const offenders = collectTrackedTypeScriptFiles()
+    const offenders = collectTypeScriptSourceFiles()
       .flatMap((filePath) =>
         findRelativeJsImportSpecifiers(filePath).map(
           (specifier) => `${path.relative(fileURLToPath(repoRoot), filePath)}: ${specifier}`
@@ -22,7 +22,7 @@ describe("typescript import style", () => {
   });
 });
 
-function collectTrackedTypeScriptFiles(): string[] {
+function collectTypeScriptSourceFiles(): string[] {
   return [
     ...tsDirectories.flatMap((directory) =>
       collectTypeScriptFiles(path.join(fileURLToPath(repoRoot), directory))
