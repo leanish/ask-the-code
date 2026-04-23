@@ -1,17 +1,7 @@
+import { getGithubRepoIdentityFromUrl } from "../repos/repo-identifiers.js";
 import type { RepoRecord } from "../types.js";
 
-export function getGithubRepoIdentityFromUrl(url: string | undefined): string | null {
-  if (typeof url !== "string" || url.trim() === "") {
-    return null;
-  }
-
-  const match = url.trim().match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?$/i);
-  if (!match) {
-    return null;
-  }
-
-  return `${match[1]}/${match[2]}`;
-}
+export { getGithubRepoIdentityFromUrl };
 
 export function getGithubRepoDisplayIdentity(
   repo: Partial<Pick<RepoRecord, "sourceFullName" | "url">> | null | undefined

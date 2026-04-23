@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process";
 
+import { ACCESSIBLE_GITHUB_OWNER } from "./constants.js";
 import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.js";
 import { inspectRepoMetadata } from "./repo-classification-inspector.js";
 import { getGithubRepoDisplayIdentity } from "./repo-display-utils.js";
 import { buildRepoRoutingDraft } from "./repo-routing-draft.js";
 import { createEmptyRepoRouting, hasRepoRoutingContent } from "../repos/repo-routing.js";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.js";
 import type {
   Environment,
   GithubDiscoveryPlan,
@@ -19,7 +21,6 @@ import type {
 
 const GITHUB_API_URL = "https://api.github.com";
 const PAGE_SIZE = 100;
-const ACCESSIBLE_GITHUB_OWNER = "@accessible";
 type GithubFetchResponseLike = {
   ok: boolean;
   status: number;
@@ -991,7 +992,7 @@ function normalizeGithubRepo(repo: RepoRecord, {
     name: repo.name,
     defaultBranch: typeof repo.default_branch === "string" && repo.default_branch.trim() !== ""
       ? repo.default_branch
-      : "main",
+      : DEFAULT_REPO_TRUNK_BRANCH,
     description: typeof repo.description === "string" ? repo.description : "",
     routing: createEmptyRepoRouting()
   };
@@ -1451,10 +1452,6 @@ function pruneConflictingClassifications(classifications: RepoClassification[]):
   return classifications;
 }
 
-function mergeClassifications(primary: RepoClassification[], secondary: RepoClassification[]): RepoClassification[] {
-  return pruneConflictingClassifications(Array.from(new Set([...(primary || []), ...(secondary || [])])));
-}
-
 async function safeInspectMetadata(
   inspectRepoFn: RepoInspectorFn,
   context: SafeInspectMetadataContext
@@ -1512,7 +1509,7 @@ function buildRepoSuggestions(configuredRepo: LoadedConfig["repos"][number], git
     suggestions.push(`review url (${configuredRepo.url} -> ${githubRepo.url})`);
   }
 
-  const configuredBranch = configuredRepo.defaultBranch || configuredRepo.branch || "main";
+  const configuredBranch = configuredRepo.defaultBranch || configuredRepo.branch || DEFAULT_REPO_TRUNK_BRANCH;
   if (configuredBranch !== githubRepo.defaultBranch) {
     suggestions.push(`review defaultBranch (${configuredBranch} -> ${githubRepo.defaultBranch})`);
   }

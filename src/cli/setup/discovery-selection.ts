@@ -1,5 +1,6 @@
 import process from "node:process";
 
+import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/constants.js";
 import {
   getDiscoveryOwnerLabel,
   getDiscoveryRepoBaseName,
@@ -473,7 +474,7 @@ function getDefaultSourceOwner(plan: GithubDiscoverySelectionPlan): string | nul
     return primarySourceOwner;
   }
 
-  return typeof plan.owner === "string" && plan.owner !== "@accessible"
+  return typeof plan.owner === "string" && plan.owner !== ACCESSIBLE_GITHUB_OWNER
     ? plan.owner
     : null;
 }

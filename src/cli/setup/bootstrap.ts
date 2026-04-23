@@ -1,5 +1,6 @@
 import process from "node:process";
 
+import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/constants.js";
 import {
   canPromptInteractively,
   defaultCreateInterface,
@@ -86,7 +87,7 @@ export async function promptForGithubOwner({
   }
 
   if (answer.trim() === "") {
-    return "@accessible";
+    return ACCESSIBLE_GITHUB_OWNER;
   }
 
   return answer.trim();

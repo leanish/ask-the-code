@@ -34,7 +34,7 @@ describe("server-args", () => {
 
   it("rejects invalid ports", () => {
     expect(() => parseServerArgs(["--port", "wat"])).toThrow(
-      "Invalid --port: wat. Use a positive integer TCP port."
+      "Invalid --port: wat. Use a TCP port between 0 and 65535."
     );
   });
 

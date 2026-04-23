@@ -1,3 +1,6 @@
+import { CODEX_STATUS_PREFIX } from "../../core/codex/constants.js";
+import { SUPPORTED_SELECTION_STRATEGIES } from "../../core/repos/selection-strategies.js";
+
 export const HTML_UI = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -329,8 +332,7 @@ button[type="submit"]:disabled {
         <div class="field">
           <label for="selection-mode">Repo selection</label>
           <select id="selection-mode" name="selectionMode">
-            <option value="single" selected>single</option>
-            <option value="cascade">cascade</option>
+${SUPPORTED_SELECTION_STRATEGIES.map((strategy, index) => `            <option value="${strategy}"${index === 0 ? " selected" : ""}>${strategy}</option>`).join("\n")}
           </select>
           <div class="field-hint">Single uses one mini selector pass. Cascade escalates from none through higher efforts when confidence is weak.</div>
         </div>
@@ -387,7 +389,7 @@ button[type="submit"]:disabled {
   let copyFeedbackTimer = null;
 
   function isCodexStatus(message) {
-    return typeof message === "string" && message.startsWith("Running Codex");
+    return typeof message === "string" && message.startsWith(${JSON.stringify(CODEX_STATUS_PREFIX)});
   }
 
   revealAdvancedOptionsWhenAllowed();

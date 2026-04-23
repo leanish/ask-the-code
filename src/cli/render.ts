@@ -1,5 +1,3 @@
-import fs from "node:fs/promises";
-
 import {
   getDiscoveryOwnerLabel,
   getDiscoveryRepoBaseName,
@@ -7,6 +5,7 @@ import {
   getPrimarySourceOwner,
   groupDiscoveryItemsByOwner
 } from "../core/discovery/repo-display-utils.js";
+import { pathExists } from "../core/fs/path-exists.js";
 import { summarizeRepoRouting } from "../core/repos/repo-routing.js";
 import type {
   AnswerResult,
@@ -37,22 +36,13 @@ export async function renderRepoList(repos: ManagedRepo[]): Promise<string> {
   }
 
   for (const repo of repos) {
-    const status = await exists(repo.directory) ? "local" : "missing";
+    const status = await pathExists(repo.directory) ? "local" : "missing";
     const aliases = repo.aliases && repo.aliases.length > 0 ? ` aliases=${repo.aliases.join(",")}` : "";
     const trackedBranch = repo.defaultBranch || repo.branch || "?";
     lines.push(`- ${repo.name} [${status}] ${trackedBranch}${aliases} ${repo.description}`);
   }
 
   return lines.join("\n");
-}
-
-async function exists(targetPath: string): Promise<boolean> {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function renderSyncReport(report: SyncReportItem[]): string {

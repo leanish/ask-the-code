@@ -1,5 +1,7 @@
 import { DEFAULT_ANSWER_AUDIENCE, isSupportedAnswerAudience, SUPPORTED_ANSWER_AUDIENCES } from "../core/answer/answer-audience.js";
-import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "../core/codex/codex-defaults.js";
+import { HelpError } from "../core/cli/help-error.js";
+import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "../core/codex/constants.js";
+import { SUPPORTED_SELECTION_STRATEGIES, isSelectionStrategy } from "../core/repos/selection-strategies.js";
 import type { AnswerAudience } from "../core/answer/answer-audience.js";
 import type {
   AskCommandOptions,
@@ -12,7 +14,7 @@ import type {
   ReposSyncCommandOptions
 } from "../core/types.js";
 
-export class HelpError extends Error {}
+export { HelpError };
 
 function requireValue(flag: string, value: string | undefined): string {
   if (!value) {
@@ -293,11 +295,11 @@ function parseAudience(value: string): AnswerAudience {
 }
 
 function parseSelectionMode(value: string): RepoSelectionStrategy {
-  if (value === "single" || value === "cascade") {
+  if (isSelectionStrategy(value)) {
     return value;
   }
 
-  throw new Error(`Unsupported selection mode: ${value}. Use one of: single, cascade.`);
+  throw new Error(`Unsupported selection mode: ${value}. Use one of: ${SUPPORTED_SELECTION_STRATEGIES.join(", ")}.`);
 }
 
 function isHelpFlag(value: string): boolean {
@@ -323,7 +325,7 @@ function helpText(): string {
     `  --audience <mode>             Answer audience (${SUPPORTED_ANSWER_AUDIENCES.join("|")})`,
     "  --model <name>                Codex model for synthesis",
     "  --reasoning-effort <level>    Codex reasoning effort",
-    "  --selection-mode <mode>       Repo selection mode (single|cascade)",
+    `  --selection-mode <mode>       Repo selection mode (${SUPPORTED_SELECTION_STRATEGIES.join("|")})`,
     "  --selection-shadow-compare    Benchmark none/low/high repo selection in the background (3 parallel selector calls)",
     "  --no-sync                     Skip clone/pull before asking",
     "  --no-synthesis                Show selected repos and sync results only",

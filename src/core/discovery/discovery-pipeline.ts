@@ -30,6 +30,7 @@ type DiscoveryRunOptions = {
   buildAppliedGithubDiscoveryEntriesFn?: typeof buildAppliedGithubDiscoveryEntries;
   getGithubDiscoveryRepoKeyFn?: typeof getGithubDiscoveryRepoKey;
 };
+type SelectedGithubDiscoveryRepos = Pick<GithubDiscoverySelection, "reposToAdd" | "reposToOverride">;
 
 export async function runGithubDiscoveryPipeline({
   config,
@@ -64,57 +65,49 @@ export async function runGithubDiscoveryPipeline({
 
   const selection = await resolveSelectionFn(plan);
   const selectedRepoNames = collectSelectedRepoNames(selection);
-  let configPath = config.configPath;
-  let addedCount = 0;
-  let overriddenCount = 0;
-  let appliedEntries = buildAppliedGithubDiscoveryEntriesFn(plan, selection);
-  let reposToAdd = selection.reposToAdd;
-  let reposToOverride = selection.reposToOverride;
+  const selectedCount = selectedRepoNames.length;
+  const appliedEntries = buildAppliedGithubDiscoveryEntriesFn(plan, selection);
 
-  if (selectedRepoNames.length > 0) {
-    const refinedDiscovery = await refineDiscoveredGithubReposFn({
-      discovery,
-      env,
-      curateWithCodex: true,
-      inspectRepos: true,
-      selectedRepoNames,
-      onProgress: onProgress ?? null,
-      includeForks,
-      includeArchived
-    });
-    const refinedPlan = planGithubRepoDiscoveryFn(config, refinedDiscovery);
-    const refinedReposByKey = new Map(
-      refinedPlan.entries.map(entry => [getGithubDiscoveryRepoKeyFn(entry.repo), entry.repo])
-    );
-
-    reposToAdd = selection.reposToAdd.map(
-      repo => refinedReposByKey.get(getGithubDiscoveryRepoKeyFn(repo)) || repo
-    );
-    reposToOverride = selection.reposToOverride.map(
-      repo => refinedReposByKey.get(getGithubDiscoveryRepoKeyFn(repo)) || repo
-    );
-    appliedEntries = buildAppliedGithubDiscoveryEntriesFn(refinedPlan, {
-      reposToAdd,
-      reposToOverride
-    });
-
-    const applyResult = await applyGithubDiscoveryToConfigFn({
-      env,
-      reposToAdd,
-      reposToOverride
-    });
-    configPath = applyResult.configPath;
-    addedCount = applyResult.addedCount;
-    overriddenCount = applyResult.overriddenCount ?? 0;
+  if (selectedCount === 0) {
+    return {
+      plan,
+      appliedEntries,
+      selectedCount,
+      configPath: config.configPath,
+      addedCount: 0,
+      overriddenCount: 0
+    };
   }
+
+  const refinedDiscovery = await refineDiscoveredGithubReposFn({
+    discovery,
+    env,
+    curateWithCodex: true,
+    inspectRepos: true,
+    selectedRepoNames,
+    onProgress: onProgress ?? null,
+    includeForks,
+    includeArchived
+  });
+  const refinedPlan = planGithubRepoDiscoveryFn(config, refinedDiscovery);
+  const refinedSelection = refineGithubDiscoverySelection(
+    selection,
+    refinedPlan,
+    getGithubDiscoveryRepoKeyFn
+  );
+  const applyResult = await applyGithubDiscoveryToConfigFn({
+    env,
+    reposToAdd: refinedSelection.reposToAdd,
+    reposToOverride: refinedSelection.reposToOverride
+  });
 
   return {
     plan,
-    appliedEntries,
-    selectedCount: selectedRepoNames.length,
-    configPath,
-    addedCount,
-    overriddenCount
+    appliedEntries: buildAppliedGithubDiscoveryEntriesFn(refinedPlan, refinedSelection),
+    selectedCount,
+    configPath: applyResult.configPath,
+    addedCount: applyResult.addedCount,
+    overriddenCount: applyResult.overriddenCount ?? 0
   };
 }
 
@@ -123,4 +116,31 @@ export function collectSelectedRepoNames(selection: GithubDiscoverySelection): s
     ...selection.reposToAdd.map(repo => repo.sourceFullName || repo.name),
     ...selection.reposToOverride.map(repo => repo.sourceFullName || repo.name)
   ])];
+}
+
+function refineGithubDiscoverySelection(
+  selection: GithubDiscoverySelection,
+  refinedPlan: GithubDiscoveryPlan,
+  getGithubDiscoveryRepoKeyFn: typeof getGithubDiscoveryRepoKey
+): SelectedGithubDiscoveryRepos {
+  const refinedReposByKey = new Map(
+    refinedPlan.entries.map(entry => [getGithubDiscoveryRepoKeyFn(entry.repo), entry.repo])
+  );
+
+  return {
+    reposToAdd: replaceWithRefinedRepos(selection.reposToAdd, refinedReposByKey, getGithubDiscoveryRepoKeyFn),
+    reposToOverride: replaceWithRefinedRepos(
+      selection.reposToOverride,
+      refinedReposByKey,
+      getGithubDiscoveryRepoKeyFn
+    )
+  };
+}
+
+function replaceWithRefinedRepos(
+  repos: GithubDiscoverySelection["reposToAdd"],
+  refinedReposByKey: Map<string, GithubDiscoverySelection["reposToAdd"][number]>,
+  getGithubDiscoveryRepoKeyFn: typeof getGithubDiscoveryRepoKey
+): GithubDiscoverySelection["reposToAdd"] {
+  return repos.map(repo => refinedReposByKey.get(getGithubDiscoveryRepoKeyFn(repo)) || repo);
 }

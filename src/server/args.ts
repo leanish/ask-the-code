@@ -1,6 +1,8 @@
+import { HelpError } from "../core/cli/help-error.js";
+import { parseEnvPort } from "../core/env/parse-env.js";
 import type { Environment, ServerCommandOptions } from "../core/types.js";
 
-export class HelpError extends Error {}
+export { HelpError };
 
 export function parseServerArgs(argv: string[], env: Environment = process.env): ServerCommandOptions {
   let host = env.ARCHA_SERVER_HOST || "127.0.0.1";
@@ -45,12 +47,8 @@ function looksLikeFlag(value: string): boolean {
 }
 
 function parsePort(value: string, label: string): number {
-  if (!/^\d+$/u.test(value)) {
-    throw new Error(`Invalid ${label}: ${value}. Use a positive integer TCP port.`);
-  }
-
-  const port = Number.parseInt(value, 10);
-  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+  const port = parseEnvPort(value, label);
+  if (port == null) {
     throw new Error(`Invalid ${label}: ${value}. Use a TCP port between 0 and 65535.`);
   }
 
