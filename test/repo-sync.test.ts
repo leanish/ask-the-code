@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RepoSyncTarget } from "../src/core/types.js";
+import type { RepoSyncTarget } from "../src/core/types.ts";
 
 const mocks = vi.hoisted(() => ({
   access: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock("node:child_process", () => ({
   spawn: mocks.spawn
 }));
 
-import { syncRepos } from "../src/core/repos/repo-sync.js";
+import { syncRepos } from "../src/core/repos/repo-sync.ts";
 
 type DataHandler = (chunk: Buffer) => void;
 type CloseHandler = (code: number | null) => void;

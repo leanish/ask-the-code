@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { DEFAULT_ANSWER_AUDIENCE } from "../answer/answer-audience.js";
-import { answerQuestion } from "../answer/question-answering.js";
-import { CODEX_COMPLETED_STATUS_PREFIX } from "../codex/constants.js";
-import { createRepoSyncCoordinator } from "../repos/repo-sync-coordinator.js";
-import { createCallbackStatusReporter } from "../status/status-reporter.js";
-import { formatDuration } from "../time/duration-format.js";
+import { DEFAULT_ANSWER_AUDIENCE } from "../answer/answer-audience.ts";
+import { answerQuestion } from "../answer/question-answering.ts";
+import { CODEX_COMPLETED_STATUS_PREFIX } from "../codex/constants.ts";
+import { createRepoSyncCoordinator } from "../repos/repo-sync-coordinator.ts";
+import { createCallbackStatusReporter } from "../status/status-reporter.ts";
+import { formatDuration } from "../time/duration-format.ts";
 import type {
   AskJobEvent,
   AskJobManager,
@@ -14,7 +14,7 @@ import type {
   AskRequest,
   AnswerQuestionFn,
   Environment
-} from "../types.js";
+} from "../types.ts";
 
 const DEFAULT_JOB_RETENTION_MS = 3_600_000;
 const DEFAULT_MAX_CONCURRENT_JOBS = 3;

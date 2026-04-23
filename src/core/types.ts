@@ -1,4 +1,4 @@
-import type { AnswerAudience } from "./answer/answer-audience.js";
+import type { AnswerAudience } from "./answer/answer-audience.ts";
 
 export type Environment = NodeJS.ProcessEnv;
 

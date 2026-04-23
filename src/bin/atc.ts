@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { main } from "../cli/main.js";
-import { HelpError } from "../cli/parse-args.js";
+import { main } from "../cli/main.ts";
+import { HelpError } from "../cli/parse-args.ts";
 
 main(process.argv.slice(2)).catch(error => {
   const message = error instanceof Error ? error.message : String(error);

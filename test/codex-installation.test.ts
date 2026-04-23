@@ -7,8 +7,8 @@ import {
   formatMissingCodexMessage,
   formatUnconfiguredCodexMessage,
   normalizeCodexExecutionError
-} from "../src/core/codex/codex-installation.js";
-import { createSpawnSyncResult } from "./test-helpers.js";
+} from "../src/core/codex/codex-installation.ts";
+import { createSpawnSyncResult } from "./test-helpers.ts";
 
 describe("codex-installation", () => {
   it("returns quietly when codex is installed and logged in", () => {

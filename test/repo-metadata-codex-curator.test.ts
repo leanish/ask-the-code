@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { curateRepoMetadataWithCodex } from "../src/core/discovery/repo-metadata-codex-curator.js";
-import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.js";
+import { curateRepoMetadataWithCodex } from "../src/core/discovery/repo-metadata-codex-curator.ts";
+import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.ts";
 
 describe("repo-metadata-codex-curator", () => {
   it("accepts Codex-curated routing metadata and normalizes it", async () => {

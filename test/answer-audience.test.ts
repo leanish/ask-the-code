@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_ANSWER_AUDIENCE, resolveAnswerAudience } from "../src/core/answer/answer-audience.js";
+import { DEFAULT_ANSWER_AUDIENCE, resolveAnswerAudience } from "../src/core/answer/answer-audience.ts";
 
 describe("answer-audience", () => {
   it("returns the default audience for nullish or unsupported values", () => {

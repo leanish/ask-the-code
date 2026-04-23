@@ -4,9 +4,9 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { appendReposToConfig, applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "../src/core/config/config.js";
-import { getConfigPath, getDefaultManagedReposRoot } from "../src/core/config/config-paths.js";
-import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.js";
+import { appendReposToConfig, applyGithubDiscoveryToConfig, initializeConfig, loadConfig } from "../src/core/config/config.ts";
+import { getConfigPath, getDefaultManagedReposRoot } from "../src/core/config/config-paths.ts";
+import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.ts";
 
 describe("config", () => {
   let tempRoot: string;

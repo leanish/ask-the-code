@@ -1,5 +1,5 @@
-import { getGithubRepoIdentityFromUrl } from "../repos/repo-identifiers.js";
-import type { RepoRecord } from "../types.js";
+import { getGithubRepoIdentityFromUrl } from "../repos/repo-identifiers.ts";
+import type { RepoRecord } from "../types.ts";
 
 export { getGithubRepoIdentityFromUrl };
 

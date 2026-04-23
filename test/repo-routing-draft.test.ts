@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRepoRoutingDraft, inferRepoReach } from "../src/core/discovery/repo-routing-draft.js";
+import { buildRepoRoutingDraft, inferRepoReach } from "../src/core/discovery/repo-routing-draft.ts";
 
 describe("repo-routing-draft", () => {
   it("marks http-surface reach for HTTP route endpoints", () => {

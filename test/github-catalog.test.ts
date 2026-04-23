@@ -4,9 +4,9 @@ import {
   discoverGithubOwnerRepos,
   planGithubRepoDiscovery,
   refineDiscoveredGithubRepos
-} from "../src/core/discovery/github-catalog.js";
-import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.js";
-import { createLoadedConfig } from "./test-helpers.js";
+} from "../src/core/discovery/github-catalog.ts";
+import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.ts";
+import { createLoadedConfig } from "./test-helpers.ts";
 
 // Keep auth state explicit in this file so IDE and CLI test runs exercise the same code paths.
 async function discoverGithubOwnerReposWithoutAuth(

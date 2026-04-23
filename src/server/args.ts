@@ -1,6 +1,6 @@
-import { HelpError } from "../core/cli/help-error.js";
-import { parseEnvPort } from "../core/env/parse-env.js";
-import type { Environment, ServerCommandOptions } from "../core/types.js";
+import { HelpError } from "../core/cli/help-error.ts";
+import { parseEnvPort } from "../core/env/parse-env.ts";
+import type { Environment, ServerCommandOptions } from "../core/types.ts";
 
 export { HelpError };
 

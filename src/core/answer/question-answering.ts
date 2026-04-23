@@ -1,12 +1,12 @@
 import fs from "node:fs";
 
-import { resolveAnswerAudience } from "./answer-audience.js";
-import { loadConfig } from "../config/config.js";
-import { getCodexTimeoutMs, runCodexQuestion } from "../codex/codex-runner.js";
-import { selectRepos } from "../repos/repo-selection.js";
-import { syncRepos } from "../repos/repo-sync.js";
-import { formatSyncFailures } from "../repos/sync-report-format.js";
-import { formatDuration } from "../time/duration-format.js";
+import { resolveAnswerAudience } from "./answer-audience.ts";
+import { loadConfig } from "../config/config.ts";
+import { getCodexTimeoutMs, runCodexQuestion } from "../codex/codex-runner.ts";
+import { selectRepos } from "../repos/repo-selection.ts";
+import { syncRepos } from "../repos/repo-sync.ts";
+import { formatSyncFailures } from "../repos/sync-report-format.ts";
+import { formatDuration } from "../time/duration-format.ts";
 import type {
   AnswerQuestionFn,
   AskRequest,
@@ -21,7 +21,7 @@ import type {
   RepoSelectionMode,
   StatusReporter,
   SyncReportItem
-} from "../types.js";
+} from "../types.ts";
 
 const REPO_SELECTION_COMPARISON_TIMEOUT_MS = 30_000;
 

@@ -1,6 +1,6 @@
-import { DEFAULT_REPO_TRUNK_BRANCH } from "./constants.js";
-import { syncRepo } from "./repo-sync.js";
-import type { RepoSyncCallbacks, RepoSyncTarget, SyncReportItem } from "../types.js";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "./constants.ts";
+import { syncRepo } from "./repo-sync.ts";
+import type { RepoSyncCallbacks, RepoSyncTarget, SyncReportItem } from "../types.ts";
 
 type SyncRepoFn = (repo: RepoSyncTarget, callbacks?: RepoSyncCallbacks) => Promise<SyncReportItem>;
 

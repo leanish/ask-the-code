@@ -1,4 +1,4 @@
-import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.js";
+import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.ts";
 import type { SpawnSyncReturns } from "node:child_process";
 
 import type {
@@ -11,7 +11,7 @@ import type {
   RepoRecord,
   RetrievalOnlyResult,
   SyncReportItem
-} from "../src/core/types.js";
+} from "../src/core/types.ts";
 
 export function createManagedRepo(overrides: Partial<ManagedRepo> = {}): ManagedRepo {
   const name = overrides.name ?? "repo";

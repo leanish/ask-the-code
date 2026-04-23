@@ -4,16 +4,16 @@ import {
   getGithubRepoDisplayIdentity,
   getPrimarySourceOwner,
   groupDiscoveryItemsByOwner
-} from "../core/discovery/repo-display-utils.js";
-import { pathExists } from "../core/fs/path-exists.js";
-import { summarizeRepoRouting } from "../core/repos/repo-routing.js";
+} from "../core/discovery/repo-display-utils.ts";
+import { pathExists } from "../core/fs/path-exists.ts";
+import { summarizeRepoRouting } from "../core/repos/repo-routing.ts";
 import type {
   AnswerResult,
   GithubDiscoveryPlanEntry,
   ManagedRepo,
   RetrievalOnlyResult,
   SyncReportItem
-} from "../core/types.js";
+} from "../core/types.ts";
 
 type GithubDiscoveryRenderResult = {
   owner: string;

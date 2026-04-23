@@ -3,16 +3,16 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
-import { getDefaultManagedReposRoot } from "../config/config-paths.js";
-import { pathExists } from "../fs/path-exists.js";
-import { normalizeGitExecutionError } from "../git/git-installation.js";
-import { getManagedRepoDirectory, getManagedRepoRelativePath } from "../repos/repo-paths.js";
-import { createEmptyRepoRouting, filterRepoRoutingConsumes } from "../repos/repo-routing.js";
-import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.js";
-import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.js";
-import { buildRepoRoutingDraft } from "./repo-routing-draft.js";
-import { curateRepoMetadataWithCodex } from "./repo-metadata-codex-curator.js";
-import type { Environment, RepoClassification, RepoRecord, RepoRoutingMetadata } from "../types.js";
+import { getDefaultManagedReposRoot } from "../config/config-paths.ts";
+import { pathExists } from "../fs/path-exists.ts";
+import { normalizeGitExecutionError } from "../git/git-installation.ts";
+import { getManagedRepoDirectory, getManagedRepoRelativePath } from "../repos/repo-paths.ts";
+import { createEmptyRepoRouting, filterRepoRoutingConsumes } from "../repos/repo-routing.ts";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.ts";
+import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.ts";
+import { buildRepoRoutingDraft } from "./repo-routing-draft.ts";
+import { curateRepoMetadataWithCodex } from "./repo-metadata-codex-curator.ts";
+import type { Environment, RepoClassification, RepoRecord, RepoRoutingMetadata } from "../types.ts";
 
 const FRONTEND_CONFIG_FILES = [
   "next.config.js",

@@ -1,6 +1,6 @@
 import process from "node:process";
 
-import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/constants.js";
+import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/constants.ts";
 import {
   getDiscoveryOwnerLabel,
   getDiscoveryRepoBaseName,
@@ -8,7 +8,7 @@ import {
   getGithubRepoIdentityFromUrl,
   getPrimarySourceOwner,
   groupDiscoveryItemsByOwner
-} from "../../core/discovery/repo-display-utils.js";
+} from "../../core/discovery/repo-display-utils.ts";
 import {
   canPromptInteractively,
   defaultCreateInterface,
@@ -16,14 +16,14 @@ import {
   type CreateInterfaceFn,
   type PromptInput,
   type PromptOutput
-} from "./interactive-prompts.js";
+} from "./interactive-prompts.ts";
 import type {
   GithubDiscoveryPlan,
   GithubDiscoveryPlanEntry,
   GithubDiscoverySelection,
   ManagedRepoDefinition,
   RepoRecord
-} from "../../core/types.js";
+} from "../../core/types.ts";
 
 type GithubDiscoverySelectionPlan = Pick<GithubDiscoveryPlan, "entries"> & Partial<Pick<GithubDiscoveryPlan, "owner" | "ownerDisplay">>;
 type SelectableEntry = Pick<GithubDiscoveryPlanEntry, "status" | "repo">;

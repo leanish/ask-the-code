@@ -1,6 +1,6 @@
 import process from "node:process";
 
-import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/constants.js";
+import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/constants.ts";
 import {
   canPromptInteractively,
   defaultCreateInterface,
@@ -9,12 +9,12 @@ import {
   type CreateInterfaceFn,
   type PromptInput,
   type PromptOutput
-} from "./interactive-prompts.js";
+} from "./interactive-prompts.ts";
 import type {
   Environment,
   InitializeConfigResult,
   LoadedConfig
-} from "../../core/types.js";
+} from "../../core/types.ts";
 
 type DiscoveryRunOptions = {
   owner: string;

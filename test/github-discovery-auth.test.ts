@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ensureGithubDiscoveryAuthAvailable,
   formatMissingGithubDiscoveryAuthMessage
-} from "../src/core/discovery/github-discovery-auth.js";
-import { createSpawnSyncResult } from "./test-helpers.js";
+} from "../src/core/discovery/github-discovery-auth.ts";
+import { createSpawnSyncResult } from "./test-helpers.ts";
 
 describe("github-discovery-auth", () => {
   it("returns quietly when GH_TOKEN is set", () => {

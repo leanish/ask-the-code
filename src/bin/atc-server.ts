@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { HelpError, main } from "../server/main.js";
+import { HelpError, main } from "../server/main.ts";
 
 main(process.argv.slice(2)).catch(error => {
   const message = error instanceof Error ? error.message : String(error);

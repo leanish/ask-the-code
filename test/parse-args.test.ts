@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { HelpError, parseArgs } from "../src/cli/parse-args.js";
-import type { AskCommandOptions, ReposSyncCommandOptions } from "../src/core/types.js";
+import { HelpError, parseArgs } from "../src/cli/parse-args.ts";
+import type { AskCommandOptions, ReposSyncCommandOptions } from "../src/core/types.ts";
 
 function parseAskArgs(argv: string[], env: NodeJS.ProcessEnv): AskCommandOptions {
   const parsed = parseArgs(argv, env);

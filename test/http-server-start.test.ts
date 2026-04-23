@@ -12,9 +12,9 @@ vi.mock("node:http", () => ({
   }
 }));
 
-import { startHttpServer } from "../src/server/api/http-server.js";
-import type { AskJobManager } from "../src/core/types.js";
-import { createLoadedConfig } from "./test-helpers.js";
+import { startHttpServer } from "../src/server/api/http-server.ts";
+import type { AskJobManager } from "../src/core/types.ts";
+import { createLoadedConfig } from "./test-helpers.ts";
 
 describe("http-server startup", () => {
   beforeEach(() => {

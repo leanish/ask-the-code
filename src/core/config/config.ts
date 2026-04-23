@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { getConfigPath, getDefaultManagedReposRoot } from "./config-paths.js";
-import { buildRepoRoutingDraft } from "../discovery/repo-routing-draft.js";
-import { pathExists } from "../fs/path-exists.js";
-import { getManagedRepoDirectory } from "../repos/repo-paths.js";
-import { createEmptyRepoRouting, normalizeRepoRouting } from "../repos/repo-routing.js";
-import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.js";
-import { REPO_CLASSIFICATIONS } from "../types.js";
+import { getConfigPath, getDefaultManagedReposRoot } from "./config-paths.ts";
+import { buildRepoRoutingDraft } from "../discovery/repo-routing-draft.ts";
+import { pathExists } from "../fs/path-exists.ts";
+import { getManagedRepoDirectory } from "../repos/repo-paths.ts";
+import { createEmptyRepoRouting, normalizeRepoRouting } from "../repos/repo-routing.ts";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.ts";
+import { REPO_CLASSIFICATIONS } from "../types.ts";
 import type {
   ConfigMutationResult,
   Environment,
@@ -16,7 +16,7 @@ import type {
   ManagedRepo,
   ManagedRepoDefinition,
   RepoClassification
-} from "../types.js";
+} from "../types.ts";
 
 type RawConfig = {
   managedReposRoot?: unknown;

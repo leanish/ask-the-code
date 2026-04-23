@@ -1,18 +1,18 @@
 import process from "node:process";
 
-import { initializeConfig, loadConfig } from "../core/config/config.js";
-import { ensureCodexInstalled } from "../core/codex/codex-installation.js";
-import { getConfigPath } from "../core/config/config-paths.js";
-import { ensureGitInstalled } from "../core/git/git-installation.js";
-import { ensureGithubDiscoveryAuthAvailable } from "../core/discovery/github-discovery-auth.js";
-import { ensureInteractiveConfigSetup } from "../cli/setup/bootstrap.js";
-import { runGithubDiscoveryPipeline } from "../core/discovery/discovery-pipeline.js";
-import { createGithubDiscoveryProgressReporter } from "../cli/setup/discovery-progress.js";
-import { promptGithubDiscoverySelection } from "../cli/setup/discovery-selection.js";
-import { startHttpServer, type HttpServerHandle } from "./api/http-server.js";
-import { renderGithubDiscovery } from "../cli/render.js";
-import { HelpError, parseServerArgs } from "./args.js";
-import type { ConfigDiscoverGithubCommandOptions } from "../core/types.js";
+import { initializeConfig, loadConfig } from "../core/config/config.ts";
+import { ensureCodexInstalled } from "../core/codex/codex-installation.ts";
+import { getConfigPath } from "../core/config/config-paths.ts";
+import { ensureGitInstalled } from "../core/git/git-installation.ts";
+import { ensureGithubDiscoveryAuthAvailable } from "../core/discovery/github-discovery-auth.ts";
+import { ensureInteractiveConfigSetup } from "../cli/setup/bootstrap.ts";
+import { runGithubDiscoveryPipeline } from "../core/discovery/discovery-pipeline.ts";
+import { createGithubDiscoveryProgressReporter } from "../cli/setup/discovery-progress.ts";
+import { promptGithubDiscoverySelection } from "../cli/setup/discovery-selection.ts";
+import { startHttpServer, type HttpServerHandle } from "./api/http-server.ts";
+import { renderGithubDiscovery } from "../cli/render.ts";
+import { HelpError, parseServerArgs } from "./args.ts";
+import type { ConfigDiscoverGithubCommandOptions } from "../core/types.ts";
 
 type ServerGithubDiscoveryOptions = Omit<ConfigDiscoverGithubCommandOptions, "command" | "owner"> & {
   owner: string;

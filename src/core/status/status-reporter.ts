@@ -1,5 +1,5 @@
-import { CODEX_STATUS_PREFIX } from "../codex/constants.js";
-import type { StatusReporter } from "../types.js";
+import { CODEX_STATUS_PREFIX } from "../codex/constants.ts";
+import type { StatusReporter } from "../types.ts";
 
 type WritableStatusStream = {
   write(chunk: string): unknown;

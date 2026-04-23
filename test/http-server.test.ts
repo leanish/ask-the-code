@@ -1,10 +1,10 @@
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createAskJobManager } from "../src/core/jobs/ask-job-manager.js";
-import type { AnswerQuestionFn, AskJobEvent, AskJobSnapshot } from "../src/core/types.js";
-import { createHttpHandler } from "../src/server/api/http-server.js";
-import { createLoadedConfig, createManagedRepo } from "./test-helpers.js";
+import { createAskJobManager } from "../src/core/jobs/ask-job-manager.ts";
+import type { AnswerQuestionFn, AskJobEvent, AskJobSnapshot } from "../src/core/types.ts";
+import { createHttpHandler } from "../src/server/api/http-server.ts";
+import { createLoadedConfig, createManagedRepo } from "./test-helpers.ts";
 
 type HttpHandler = ReturnType<typeof createHttpHandler>;
 type HttpJobManager = Parameters<typeof createHttpHandler>[0]["jobManager"];

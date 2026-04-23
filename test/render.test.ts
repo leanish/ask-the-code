@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.js";
+import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.ts";
 
 const mocks = vi.hoisted(() => ({
   access: vi.fn()
@@ -11,14 +11,14 @@ vi.mock("node:fs/promises", () => ({
   }
 }));
 
-import { renderAnswer, renderGithubDiscovery, renderRepoList, renderRetrievalOnly, renderSyncReport } from "../src/cli/render.js";
+import { renderAnswer, renderGithubDiscovery, renderRepoList, renderRetrievalOnly, renderSyncReport } from "../src/cli/render.ts";
 import {
   createAnswerResult,
   createGithubDiscoveryPlanEntry,
   createManagedRepo,
   createRepoRecord,
   createRetrievalOnlyResult
-} from "./test-helpers.js";
+} from "./test-helpers.ts";
 
 describe("render", () => {
   beforeEach(() => {

@@ -10,9 +10,9 @@ import {
   promptToContinueGithubDiscovery,
   promptToInitializeConfig,
   renderConfigInit
-} from "../src/cli/setup/bootstrap.js";
-import type { CreateInterfaceFn, PromptInput, ReadlineLike } from "../src/cli/setup/interactive-prompts.js";
-import { createInitializeConfigResult, createLoadedConfig, createManagedRepo } from "./test-helpers.js";
+} from "../src/cli/setup/bootstrap.ts";
+import type { CreateInterfaceFn, PromptInput, ReadlineLike } from "../src/cli/setup/interactive-prompts.ts";
+import { createInitializeConfigResult, createLoadedConfig, createManagedRepo } from "./test-helpers.ts";
 
 type TestRawKeypressInput = EventEmitter & PromptInput & {
   isTTY: true;

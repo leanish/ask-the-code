@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createAskJobManager } from "../src/core/jobs/ask-job-manager.js";
-import type { AnswerQuestionFn, AskJobEvent, AskResult } from "../src/core/types.js";
-import { createAnswerResult } from "./test-helpers.js";
+import { createAskJobManager } from "../src/core/jobs/ask-job-manager.ts";
+import type { AnswerQuestionFn, AskJobEvent, AskResult } from "../src/core/types.ts";
+import { createAnswerResult } from "./test-helpers.ts";
 
 describe("ask-job-manager", () => {
   afterEach(() => {

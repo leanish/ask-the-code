@@ -1,11 +1,11 @@
-import { applyGithubDiscoveryToConfig } from "../config/config.js";
+import { applyGithubDiscoveryToConfig } from "../config/config.ts";
 import {
   buildAppliedGithubDiscoveryEntries,
   discoverGithubOwnerRepos,
   getGithubDiscoveryRepoKey,
   planGithubRepoDiscovery,
   refineDiscoveredGithubRepos
-} from "./github-catalog.js";
+} from "./github-catalog.ts";
 import type {
   Environment,
   GithubDiscoveryPipelineResult,
@@ -13,7 +13,7 @@ import type {
   GithubDiscoveryProgressEvent,
   GithubDiscoverySelection,
   LoadedConfig
-} from "../types.js";
+} from "../types.ts";
 
 type DiscoveryRunOptions = {
   config: LoadedConfig;

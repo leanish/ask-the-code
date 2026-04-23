@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createGithubDiscoveryProgressReporter } from "../src/cli/setup/discovery-progress.js";
+import { createGithubDiscoveryProgressReporter } from "../src/cli/setup/discovery-progress.ts";
 
 describe("github-discovery-progress", () => {
   it("prints line-based progress updates for non-interactive output", () => {

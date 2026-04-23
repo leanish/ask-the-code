@@ -1,4 +1,4 @@
-import type { RepoSelectionStrategy } from "../types.js";
+import type { RepoSelectionStrategy } from "../types.ts";
 
 export const SUPPORTED_SELECTION_STRATEGIES = ["single", "cascade"] as const;
 

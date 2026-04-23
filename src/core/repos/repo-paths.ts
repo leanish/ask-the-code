@@ -1,7 +1,7 @@
 import path from "node:path";
 
-import { getGithubRepoIdentityFromUrl } from "./repo-identifiers.js";
-import type { RepoRecord } from "../types.js";
+import { getGithubRepoIdentityFromUrl } from "./repo-identifiers.ts";
+import type { RepoRecord } from "../types.ts";
 
 type RepoPathLike = Pick<RepoRecord, "name" | "url" | "sourceFullName">;
 

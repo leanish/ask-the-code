@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { GithubDiscoveryPlan, GithubDiscoverySelection } from "../src/core/types.js";
+import type { GithubDiscoveryPlan, GithubDiscoverySelection } from "../src/core/types.ts";
 
 const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
@@ -85,8 +85,8 @@ vi.mock("../src/core/repos/repo-sync.js", () => ({
   syncRepos: mocks.syncRepos
 }));
 
-import { main } from "../src/cli/main.js";
-import { createAnswerResult, createManagedRepo, createLoadedConfig } from "./test-helpers.js";
+import { main } from "../src/cli/main.ts";
+import { createAnswerResult, createManagedRepo, createLoadedConfig } from "./test-helpers.ts";
 
 describe("cli", () => {
   let stdout: string[];

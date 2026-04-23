@@ -4,8 +4,8 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
-import { inspectRepoClassifications, inspectRepoMetadata } from "../src/core/discovery/repo-classification-inspector.js";
-import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.js";
+import { inspectRepoClassifications, inspectRepoMetadata } from "../src/core/discovery/repo-classification-inspector.ts";
+import { createEmptyRepoRouting } from "../src/core/repos/repo-routing.ts";
 
 type CuratedMetadata = {
   description: string;

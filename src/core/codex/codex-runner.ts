@@ -7,17 +7,17 @@ import { spawn } from "node:child_process";
 import {
   resolveAnswerAudience,
   type AnswerAudience
-} from "../answer/answer-audience.js";
-import { normalizeCodexExecutionError } from "./codex-installation.js";
+} from "../answer/answer-audience.ts";
+import { normalizeCodexExecutionError } from "./codex-installation.ts";
 import {
   CODEX_COMPLETED_STATUS_PREFIX,
   CODEX_STATUS_PREFIX,
   DEFAULT_CODEX_MODEL,
   DEFAULT_CODEX_REASONING_EFFORT
-} from "./constants.js";
-import { parseEnvPositiveInteger } from "../env/parse-env.js";
-import { formatDuration } from "../time/duration-format.js";
-import type { CodexScopeRepo, CodexSynthesis, Environment, RunCodexQuestionInput } from "../types.js";
+} from "./constants.ts";
+import { parseEnvPositiveInteger } from "../env/parse-env.ts";
+import { formatDuration } from "../time/duration-format.ts";
+import type { CodexScopeRepo, CodexSynthesis, Environment, RunCodexQuestionInput } from "../types.ts";
 
 const DEFAULT_CODEX_TIMEOUT_MS = 300_000;
 const FORCE_KILL_GRACE_PERIOD_MS = 5_000;

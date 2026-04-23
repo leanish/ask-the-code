@@ -6,29 +6,29 @@ import {
   ensureInteractiveConfigSetup,
   promptForGithubOwner,
   renderConfigInit as renderConfigInitSummary
-} from "./setup/bootstrap.js";
-import { loadConfig, initializeConfig } from "../core/config/config.js";
-import { ensureCodexInstalled } from "../core/codex/codex-installation.js";
-import { getConfigPath } from "../core/config/config-paths.js";
-import { ensureGitInstalled } from "../core/git/git-installation.js";
-import { ACCESSIBLE_GITHUB_OWNER } from "../core/discovery/constants.js";
-import { ensureGithubDiscoveryAuthAvailable } from "../core/discovery/github-discovery-auth.js";
-import { runGithubDiscoveryPipeline } from "../core/discovery/discovery-pipeline.js";
-import { createGithubDiscoveryProgressReporter } from "./setup/discovery-progress.js";
-import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "./setup/discovery-selection.js";
-import { parseArgs } from "./parse-args.js";
-import { answerQuestion } from "../core/answer/question-answering.js";
-import { selectReposByRequestedNames } from "../core/repos/repo-identifiers.js";
+} from "./setup/bootstrap.ts";
+import { loadConfig, initializeConfig } from "../core/config/config.ts";
+import { ensureCodexInstalled } from "../core/codex/codex-installation.ts";
+import { getConfigPath } from "../core/config/config-paths.ts";
+import { ensureGitInstalled } from "../core/git/git-installation.ts";
+import { ACCESSIBLE_GITHUB_OWNER } from "../core/discovery/constants.ts";
+import { ensureGithubDiscoveryAuthAvailable } from "../core/discovery/github-discovery-auth.ts";
+import { runGithubDiscoveryPipeline } from "../core/discovery/discovery-pipeline.ts";
+import { createGithubDiscoveryProgressReporter } from "./setup/discovery-progress.ts";
+import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "./setup/discovery-selection.ts";
+import { parseArgs } from "./parse-args.ts";
+import { answerQuestion } from "../core/answer/question-answering.ts";
+import { selectReposByRequestedNames } from "../core/repos/repo-identifiers.ts";
 import {
   renderAnswer,
   renderGithubDiscovery,
   renderRepoList,
   renderRetrievalOnly,
   renderSyncReport
-} from "./render.js";
-import { syncRepos } from "../core/repos/repo-sync.js";
-import { formatSyncFailures } from "../core/repos/sync-report-format.js";
-import { createStreamStatusReporter } from "../core/status/status-reporter.js";
+} from "./render.ts";
+import { syncRepos } from "../core/repos/repo-sync.ts";
+import { formatSyncFailures } from "../core/repos/sync-report-format.ts";
+import { createStreamStatusReporter } from "../core/status/status-reporter.ts";
 import type {
   AskCommandOptions,
   CliCommandOptions,
@@ -36,7 +36,7 @@ import type {
   LoadedConfig,
   ManagedRepo,
   SyncReportItem
-} from "../core/types.js";
+} from "../core/types.ts";
 
 type GithubDiscoveryOptions = Omit<ConfigDiscoverGithubCommandOptions, "command">;
 

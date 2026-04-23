@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDuration } from "../src/core/time/duration-format.js";
+import { formatDuration } from "../src/core/time/duration-format.ts";
 
 describe("duration-format", () => {
   it("formats zero and sub-second durations", () => {

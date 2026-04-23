@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createRepoSyncCoordinator } from "../src/core/repos/repo-sync-coordinator.js";
-import type { RepoSyncTarget, SyncReportItem } from "../src/core/types.js";
-import { createSyncReportItem } from "./test-helpers.js";
+import { createRepoSyncCoordinator } from "../src/core/repos/repo-sync-coordinator.ts";
+import type { RepoSyncTarget, SyncReportItem } from "../src/core/types.ts";
+import { createSyncReportItem } from "./test-helpers.ts";
 
 describe("repo-sync-coordinator", () => {
   it("deduplicates concurrent syncs for the same repo and makes waiters reuse the result", async () => {

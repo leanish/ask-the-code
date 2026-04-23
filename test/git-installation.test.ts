@@ -6,8 +6,8 @@ import {
   ensureGitInstalled,
   formatMissingGitMessage,
   normalizeGitExecutionError
-} from "../src/core/git/git-installation.js";
-import { createSpawnSyncResult } from "./test-helpers.js";
+} from "../src/core/git/git-installation.ts";
+import { createSpawnSyncResult } from "./test-helpers.ts";
 
 describe("git-installation", () => {
   it("returns quietly when git is installed", () => {

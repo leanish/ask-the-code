@@ -1,9 +1,9 @@
 import path from "node:path";
 
-import { runCodexPrompt } from "../codex/codex-runner.js";
-import { DEFAULT_CODEX_MODEL } from "../codex/constants.js";
-import { repoMatchesAnyName, selectReposByRequestedNames } from "./repo-identifiers.js";
-import { filterRepoRoutingConsumes } from "./repo-routing.js";
+import { runCodexPrompt } from "../codex/codex-runner.ts";
+import { DEFAULT_CODEX_MODEL } from "../codex/constants.ts";
+import { repoMatchesAnyName, selectReposByRequestedNames } from "./repo-identifiers.ts";
+import { filterRepoRoutingConsumes } from "./repo-routing.ts";
 import type {
   LoadedConfig,
   ManagedRepo,
@@ -11,7 +11,7 @@ import type {
   RepoSelectionResult,
   RepoSelectionStrategy,
   RepoSelectionSummary
-} from "../types.js";
+} from "../types.ts";
 
 const MAX_AUTOMATIC_REPOS = 4;
 const DEFAULT_REPO_SELECTION_CODEX_TIMEOUT_MS = 60_000;

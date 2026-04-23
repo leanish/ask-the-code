@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
 
-import { ACCESSIBLE_GITHUB_OWNER } from "./constants.js";
-import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.js";
-import { inspectRepoMetadata } from "./repo-classification-inspector.js";
-import { getGithubRepoDisplayIdentity } from "./repo-display-utils.js";
-import { buildRepoRoutingDraft } from "./repo-routing-draft.js";
-import { createEmptyRepoRouting, hasRepoRoutingContent } from "../repos/repo-routing.js";
-import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.js";
+import { ACCESSIBLE_GITHUB_OWNER } from "./constants.ts";
+import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.ts";
+import { inspectRepoMetadata } from "./repo-classification-inspector.ts";
+import { getGithubRepoDisplayIdentity } from "./repo-display-utils.ts";
+import { buildRepoRoutingDraft } from "./repo-routing-draft.ts";
+import { createEmptyRepoRouting, hasRepoRoutingContent } from "../repos/repo-routing.ts";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.ts";
 import type {
   Environment,
   GithubDiscoveryPlan,
@@ -17,7 +17,7 @@ import type {
   RepoClassification,
   RepoRecord,
   RepoRoutingMetadata
-} from "../types.js";
+} from "../types.ts";
 
 const GITHUB_API_URL = "https://api.github.com";
 const PAGE_SIZE = 100;

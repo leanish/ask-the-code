@@ -1,7 +1,7 @@
 import process from "node:process";
 
-import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/constants.js";
-import type { GithubDiscoveryProgressEvent } from "../../core/types.js";
+import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/constants.ts";
+import type { GithubDiscoveryProgressEvent } from "../../core/types.ts";
 
 type DiscoveryProgressOutput = Pick<NodeJS.WriteStream, "write" | "isTTY">;
 

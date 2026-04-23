@@ -5,12 +5,12 @@ import {
   DEFAULT_ANSWER_AUDIENCE,
   isSupportedAnswerAudience,
   SUPPORTED_ANSWER_AUDIENCES
-} from "../../core/answer/answer-audience.js";
-import { loadConfig } from "../../core/config/config.js";
-import { parseEnvPort, parseEnvPositiveInteger } from "../../core/env/parse-env.js";
-import { createAskJobManager } from "../../core/jobs/ask-job-manager.js";
-import { SUPPORTED_SELECTION_STRATEGIES, isSelectionStrategy } from "../../core/repos/selection-strategies.js";
-import { HTML_UI } from "../ui/html.js";
+} from "../../core/answer/answer-audience.ts";
+import { loadConfig } from "../../core/config/config.ts";
+import { parseEnvPort, parseEnvPositiveInteger } from "../../core/env/parse-env.ts";
+import { createAskJobManager } from "../../core/jobs/ask-job-manager.ts";
+import { SUPPORTED_SELECTION_STRATEGIES, isSelectionStrategy } from "../../core/repos/selection-strategies.ts";
+import { HTML_UI } from "../ui/html.ts";
 import type {
   AskJobManager,
   AskJobSnapshot,
@@ -20,7 +20,7 @@ import type {
   LoadedConfig,
   ManagedRepoDefinition,
   RepoSelectionStrategy
-} from "../../core/types.js";
+} from "../../core/types.ts";
 
 type HttpRequestLike = {
   method?: string | undefined;

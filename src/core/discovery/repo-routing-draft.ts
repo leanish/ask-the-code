@@ -1,5 +1,5 @@
-import { createEmptyRepoRouting } from "../repos/repo-routing.js";
-import type { RepoClassification, RepoRoutingMetadata } from "../types.js";
+import { createEmptyRepoRouting } from "../repos/repo-routing.ts";
+import type { RepoClassification, RepoRoutingMetadata } from "../types.ts";
 
 type BuildRepoRoutingDraftOptions = {
   repoName: string;

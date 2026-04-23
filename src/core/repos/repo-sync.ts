@@ -2,9 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
-import { pathExists } from "../fs/path-exists.js";
-import { normalizeGitExecutionError } from "../git/git-installation.js";
-import type { RepoSyncAction, RepoSyncCallbacks, RepoSyncTarget, SyncReportItem } from "../types.js";
+import { pathExists } from "../fs/path-exists.ts";
+import { normalizeGitExecutionError } from "../git/git-installation.ts";
+import type { RepoSyncAction, RepoSyncCallbacks, RepoSyncTarget, SyncReportItem } from "../types.ts";
 
 export async function syncRepos(repos: RepoSyncTarget[], callbacks: RepoSyncCallbacks = {}): Promise<SyncReportItem[]> {
   const report: SyncReportItem[] = [];

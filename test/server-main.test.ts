@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { GithubDiscoveryPlan, GithubDiscoverySelection } from "../src/core/types.js";
+import type { GithubDiscoveryPlan, GithubDiscoverySelection } from "../src/core/types.ts";
 
 const mocks = vi.hoisted(() => ({
   startHttpServer: vi.fn(),
@@ -60,8 +60,8 @@ vi.mock("../src/cli/render.js", () => ({
   renderGithubDiscovery: mocks.renderGithubDiscovery
 }));
 
-import { main, setupShutdownHandlers } from "../src/server/main.js";
-import { createGithubDiscoveryPlan, createLoadedConfig } from "./test-helpers.js";
+import { main, setupShutdownHandlers } from "../src/server/main.ts";
+import { createGithubDiscoveryPlan, createLoadedConfig } from "./test-helpers.ts";
 
 describe("server-main", () => {
   let stdout: string[];

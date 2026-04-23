@@ -1,8 +1,8 @@
-import { DEFAULT_ANSWER_AUDIENCE, isSupportedAnswerAudience, SUPPORTED_ANSWER_AUDIENCES } from "../core/answer/answer-audience.js";
-import { HelpError } from "../core/cli/help-error.js";
-import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "../core/codex/constants.js";
-import { SUPPORTED_SELECTION_STRATEGIES, isSelectionStrategy } from "../core/repos/selection-strategies.js";
-import type { AnswerAudience } from "../core/answer/answer-audience.js";
+import { DEFAULT_ANSWER_AUDIENCE, isSupportedAnswerAudience, SUPPORTED_ANSWER_AUDIENCES } from "../core/answer/answer-audience.ts";
+import { HelpError } from "../core/cli/help-error.ts";
+import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "../core/codex/constants.ts";
+import { SUPPORTED_SELECTION_STRATEGIES, isSelectionStrategy } from "../core/repos/selection-strategies.ts";
+import type { AnswerAudience } from "../core/answer/answer-audience.ts";
 import type {
   AskCommandOptions,
   CliCommandOptions,
@@ -12,7 +12,7 @@ import type {
   RepoSelectionStrategy,
   ReposListCommandOptions,
   ReposSyncCommandOptions
-} from "../core/types.js";
+} from "../core/types.ts";
 
 export { HelpError };
 

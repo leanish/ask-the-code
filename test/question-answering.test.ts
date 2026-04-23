@@ -32,8 +32,8 @@ vi.mock("../src/core/repos/repo-sync.js", () => ({
   syncRepos: mocks.syncRepos
 }));
 
-import { answerQuestion } from "../src/core/answer/question-answering.js";
-import { createSyncReportItem } from "./test-helpers.js";
+import { answerQuestion } from "../src/core/answer/question-answering.ts";
+import { createSyncReportItem } from "./test-helpers.ts";
 
 describe("answerQuestion", () => {
   const config = {

@@ -1,7 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 
-import type { Environment } from "../types.js";
+import type { Environment } from "../types.ts";
 
 export function getConfigPath(env: Environment = process.env): string {
   if (env.ATC_CONFIG_PATH) {

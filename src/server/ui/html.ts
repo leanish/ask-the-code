@@ -1,5 +1,5 @@
-import { CODEX_STATUS_PREFIX } from "../../core/codex/constants.js";
-import { SUPPORTED_SELECTION_STRATEGIES } from "../../core/repos/selection-strategies.js";
+import { CODEX_STATUS_PREFIX } from "../../core/codex/constants.ts";
+import { SUPPORTED_SELECTION_STRATEGIES } from "../../core/repos/selection-strategies.ts";
 
 export const HTML_UI = `<!DOCTYPE html>
 <html lang="en">

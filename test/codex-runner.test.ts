@@ -56,7 +56,7 @@ import {
   runCodexQuestion,
   summarizeCodexTimeoutStderr,
   summarizeCodexStderr
-} from "../src/core/codex/codex-runner.js";
+} from "../src/core/codex/codex-runner.ts";
 
 describe("codex-runner", () => {
   beforeEach(() => {

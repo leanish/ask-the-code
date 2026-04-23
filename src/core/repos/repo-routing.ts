@@ -1,4 +1,4 @@
-import type { RepoRoutingMetadata } from "../types.js";
+import type { RepoRoutingMetadata } from "../types.ts";
 
 const ROUTING_LIST_FIELDS = [
   "reach",

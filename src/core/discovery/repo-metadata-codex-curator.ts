@@ -1,6 +1,6 @@
-import { runCodexPrompt } from "../codex/codex-runner.js";
-import { createEmptyRepoRouting, filterRepoRoutingConsumes } from "../repos/repo-routing.js";
-import type { RepoRecord, RepoRoutingMetadata } from "../types.js";
+import { runCodexPrompt } from "../codex/codex-runner.ts";
+import { createEmptyRepoRouting, filterRepoRoutingConsumes } from "../repos/repo-routing.ts";
+import type { RepoRecord, RepoRoutingMetadata } from "../types.ts";
 
 const DEFAULT_DISCOVERY_CODEX_TIMEOUT_MS = 60_000;
 const DISCOVERY_CODEX_REASONING_EFFORT = "none";

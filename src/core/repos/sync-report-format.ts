@@ -1,4 +1,4 @@
-import type { SyncReportItem } from "../types.js";
+import type { SyncReportItem } from "../types.ts";
 
 export function formatSyncFailure(item: SyncReportItem): string {
   return item.detail ? `${item.name} (${item.detail})` : item.name;

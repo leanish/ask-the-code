@@ -7,7 +7,7 @@ import {
   hasRepoRoutingContent,
   normalizeRepoRouting,
   summarizeRepoRouting
-} from "../src/core/repos/repo-routing.js";
+} from "../src/core/repos/repo-routing.ts";
 
 describe("repo-routing", () => {
   it("returns an empty routing card for null values", () => {

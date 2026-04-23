@@ -2,15 +2,15 @@ import { EventEmitter } from "node:events";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "../src/cli/setup/discovery-selection.js";
-import type { CreateInterfaceFn, PromptInput, ReadlineLike } from "../src/cli/setup/interactive-prompts.js";
-import type { GithubDiscoveryPlan, GithubDiscoveryPlanEntry, RepoRecord } from "../src/core/types.js";
+import { promptGithubDiscoverySelection, selectGithubDiscoveryRepos } from "../src/cli/setup/discovery-selection.ts";
+import type { CreateInterfaceFn, PromptInput, ReadlineLike } from "../src/cli/setup/interactive-prompts.ts";
+import type { GithubDiscoveryPlan, GithubDiscoveryPlanEntry, RepoRecord } from "../src/core/types.ts";
 import {
   createGithubDiscoveryPlan,
   createGithubDiscoveryPlanEntry,
   createManagedRepo,
   createRepoRecord
-} from "./test-helpers.js";
+} from "./test-helpers.ts";
 
 describe("github-discovery-selection", () => {
   const plan = createPlan([
