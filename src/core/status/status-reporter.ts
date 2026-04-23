@@ -8,7 +8,7 @@ type WritableStatusStream = {
 
 export function createStreamStatusReporter(
   stream: WritableStatusStream,
-  prefix = "[archa] "
+  prefix = "[ask-the-code] "
 ): StatusReporter & { flush(): void } {
   let hasInteractiveCodexStatus = false;
 

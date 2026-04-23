@@ -64,8 +64,8 @@ describe("http-server", () => {
         return {
           mode: "answer",
           question,
-          selectedRepos: [{ name: "archa" }],
-          syncReport: [{ name: "archa", action: "skipped" }],
+          selectedRepos: [{ name: "ask-the-code" }],
+          syncReport: [{ name: "ask-the-code", action: "skipped" }],
           synthesis: {
             text: "Final answer"
           }
@@ -80,8 +80,8 @@ describe("http-server", () => {
       method: "POST",
       path: "/ask",
       body: {
-        question: "How does archa work?",
-        repoNames: ["archa"],
+        question: "How does ask-the-code work?",
+        repoNames: ["ask-the-code"],
         audience: "codebase",
         noSync: true
       }
@@ -151,7 +151,7 @@ describe("http-server", () => {
 
     expect(indexResponse.statusCode).toBe(200);
     expect(JSON.parse(indexResponse.body)).toMatchObject({
-      service: "archa-server",
+      service: "atc-server",
       endpoints: {
         createJob: "POST /ask",
         listRepos: "GET /repos"
@@ -267,11 +267,11 @@ describe("http-server", () => {
       loadConfigFn: async () => createLoadedConfig({
         repos: [
           createManagedRepo({
-            name: "archa",
+            name: "ask-the-code",
             defaultBranch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
             aliases: ["self"],
-            directory: "/workspace/archa"
+            directory: "/workspace/ask-the-code"
           }),
           createManagedRepo({
             name: "demo-repo",
@@ -292,7 +292,7 @@ describe("http-server", () => {
     expect(JSON.parse(response.body)).toEqual({
       repos: [
         {
-          name: "archa",
+          name: "ask-the-code",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           aliases: ["self"]
@@ -335,7 +335,7 @@ describe("http-server", () => {
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
       repos: [],
-      setupHint: 'No configured repos available. Try "archa config discover-github" to discover and add repos.'
+      setupHint: 'No configured repos available. Try "atc config discover-github" to discover and add repos.'
     });
   });
 
@@ -362,13 +362,13 @@ describe("http-server", () => {
     expect(htmlResponse.statusCode).toBe(200);
     expect(htmlResponse.headers["content-type"]).toContain("text/html");
     expect(htmlResponse.body).toContain("<!DOCTYPE html>");
-    expect(htmlResponse.body).toContain("archa");
+    expect(htmlResponse.body).toContain("ask-the-code");
     expect(htmlResponse.body).toContain("EventSource");
     expect(htmlResponse.body).toContain("/ask");
     expect(htmlResponse.body).toContain("/repos");
     expect(htmlResponse.body).toContain("Search configured repos");
     expect(htmlResponse.body).toContain('id="setup-hint"');
-    expect(htmlResponse.body).toContain('archa config discover-github');
+    expect(htmlResponse.body).toContain('atc config discover-github');
     expect(htmlResponse.body).toContain("automatic");
     expect(htmlResponse.body).toContain('id="advanced-options" hidden');
     expect(htmlResponse.body).toContain('params.get("admin")');
@@ -403,7 +403,7 @@ describe("http-server", () => {
     });
 
     expect(jsonResponse.statusCode).toBe(200);
-    expect(JSON.parse(jsonResponse.body)).toMatchObject({ service: "archa-server" });
+    expect(JSON.parse(jsonResponse.body)).toMatchObject({ service: "atc-server" });
   });
 
   it("streams job events over server-sent events", async () => {
@@ -609,7 +609,7 @@ describe("http-server", () => {
       path: "/ask",
       body: {
         question: "repo parsing",
-        repoNames: "archa, self",
+        repoNames: "ask-the-code, self",
         audience: "codebase"
       }
     });
@@ -618,7 +618,7 @@ describe("http-server", () => {
       path: "/ask",
       body: {
         question: "duplicate",
-        repoNames: ["archa"],
+        repoNames: ["ask-the-code"],
         repos: ["self"]
       }
     });
@@ -670,7 +670,7 @@ describe("http-server", () => {
     });
 
     expect(goodResponse.statusCode).toBe(202);
-    expect(JSON.parse(goodResponse.body).request.repoNames).toEqual(["archa", "self"]);
+    expect(JSON.parse(goodResponse.body).request.repoNames).toEqual(["ask-the-code", "self"]);
     expect(JSON.parse(goodResponse.body).request.audience).toBe("codebase");
     expect(duplicateFieldResponse.statusCode).toBe(400);
     expect(JSON.parse(duplicateFieldResponse.body).error).toContain("either \"repoNames\" or \"repos\"");

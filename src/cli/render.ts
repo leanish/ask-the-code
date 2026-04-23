@@ -31,7 +31,7 @@ export async function renderRepoList(repos: ManagedRepo[]): Promise<string> {
 
   if (repos.length === 0) {
     lines.push("- none configured");
-    lines.push("Run: archa config discover-github");
+    lines.push("Run: atc config discover-github");
     return lines.join("\n");
   }
 

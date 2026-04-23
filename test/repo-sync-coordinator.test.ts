@@ -18,8 +18,8 @@ describe("repo-sync-coordinator", () => {
       onRepoResult: vi.fn()
     };
     const repo: RepoSyncTarget = {
-      name: "archa",
-      directory: "/workspace/repos/archa",
+      name: "ask-the-code",
+      directory: "/workspace/repos/ask-the-code",
       defaultBranch: "main"
     };
 
@@ -30,31 +30,31 @@ describe("repo-sync-coordinator", () => {
     expect(callbacks.onRepoWait).toHaveBeenCalledWith(repo, "main");
 
     resolveSync(createSyncReportItem({
-      name: "archa",
-      directory: "/workspace/repos/archa",
+      name: "ask-the-code",
+      directory: "/workspace/repos/ask-the-code",
       action: "updated",
       detail: "main"
     }));
 
     await expect(firstSyncPromise).resolves.toEqual([
       {
-        name: "archa",
-        directory: "/workspace/repos/archa",
+        name: "ask-the-code",
+        directory: "/workspace/repos/ask-the-code",
         action: "updated",
         detail: "main"
       }
     ]);
     await expect(secondSyncPromise).resolves.toEqual([
       {
-        name: "archa",
-        directory: "/workspace/repos/archa",
+        name: "ask-the-code",
+        directory: "/workspace/repos/ask-the-code",
         action: "updated",
         detail: "main"
       }
     ]);
     expect(callbacks.onRepoResult).toHaveBeenCalledWith({
-      name: "archa",
-      directory: "/workspace/repos/archa",
+      name: "ask-the-code",
+      directory: "/workspace/repos/ask-the-code",
       action: "updated",
       detail: "main"
     });
@@ -69,8 +69,8 @@ describe("repo-sync-coordinator", () => {
     }));
     const coordinator = createRepoSyncCoordinator({ syncRepoFn });
     const repo: RepoSyncTarget = {
-      name: "archa",
-      directory: "/workspace/repos/archa",
+      name: "ask-the-code",
+      directory: "/workspace/repos/ask-the-code",
       defaultBranch: "main"
     };
 

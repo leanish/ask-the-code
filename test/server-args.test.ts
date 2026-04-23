@@ -19,8 +19,8 @@ describe("server-args", () => {
 
   it("uses environment defaults when flags are absent", () => {
     expect(parseServerArgs([], {
-      ARCHA_SERVER_HOST: "localhost",
-      ARCHA_SERVER_PORT: "8788"
+      ATC_SERVER_HOST: "localhost",
+      ATC_SERVER_PORT: "8788"
     })).toEqual({
       host: "localhost",
       port: 8788

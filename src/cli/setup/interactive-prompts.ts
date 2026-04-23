@@ -57,7 +57,7 @@ export async function promptEnterOrCancel({
   createInterfaceFn = defaultCreateInterface,
   prompt,
   retryPrompt = "Press Enter to continue, or press Esc to cancel.\n",
-  nonInteractiveError = "Interactive Archa setup requires a TTY."
+  nonInteractiveError = "Interactive ask-the-code setup requires a TTY."
 }: PromptOptions & {
   retryPrompt?: string;
 }): Promise<boolean> {
@@ -109,7 +109,7 @@ export async function promptLineOrCancel({
   output = process.stdout,
   createInterfaceFn = defaultCreateInterface,
   prompt,
-  nonInteractiveError = "Interactive Archa setup requires a TTY."
+  nonInteractiveError = "Interactive ask-the-code setup requires a TTY."
 }: PromptOptions): Promise<string | null> {
   if (!canPromptInteractively({ input, output })) {
     throw new Error(nonInteractiveError);

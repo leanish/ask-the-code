@@ -42,8 +42,8 @@ export async function promptToInitializeConfig({
     input,
     output,
     createInterfaceFn,
-    prompt: `Archa is not initialized yet: ${configPath} is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> `,
-    nonInteractiveError: "Interactive Archa setup requires a TTY."
+    prompt: `ask-the-code is not initialized yet: ${configPath} is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> `,
+    nonInteractiveError: "Interactive ask-the-code setup requires a TTY."
   });
 }
 
@@ -61,7 +61,7 @@ export async function promptToContinueGithubDiscovery({
     output,
     createInterfaceFn,
     prompt: "No repos are configured yet.\nPress Enter to continue with GitHub discovery, or press Esc to cancel.\n> ",
-    nonInteractiveError: "Interactive Archa setup requires a TTY."
+    nonInteractiveError: "Interactive ask-the-code setup requires a TTY."
   });
 }
 
@@ -79,7 +79,7 @@ export async function promptForGithubOwner({
     output,
     createInterfaceFn,
     prompt: "GitHub owner to discover from (user or org).\nPress Enter to use all accessible repos from your authenticated GitHub access.\n> ",
-    nonInteractiveError: "Interactive Archa setup requires a TTY."
+    nonInteractiveError: "Interactive ask-the-code setup requires a TTY."
   });
 
   if (answer === null) {
@@ -140,7 +140,7 @@ export async function ensureInteractiveConfigSetup({
 
     if (!shouldInitialize) {
       output.write?.(
-        'Initialization skipped. Configure the config file yourself or run "archa config init" when you are ready.\n'
+        'Initialization skipped. Configure the config file yourself or run "atc config init" when you are ready.\n'
       );
       return false;
     }
@@ -170,7 +170,7 @@ export async function ensureInteractiveConfigSetup({
 
     if (!shouldDiscover) {
       output.write?.(
-        'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
+        'GitHub discovery skipped. Add repos manually or run "atc config discover-github" when you are ready.\n'
       );
       return allowProceedWithoutRepos;
     }
@@ -181,7 +181,7 @@ export async function ensureInteractiveConfigSetup({
     });
     if (owner === null) {
       output.write?.(
-        'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
+        'GitHub discovery skipped. Add repos manually or run "atc config discover-github" when you are ready.\n'
       );
       return allowProceedWithoutRepos;
     }
@@ -200,7 +200,7 @@ export async function ensureInteractiveConfigSetup({
     }
 
     output.write?.(
-      'No repos were added. Configure repos manually or run "archa config discover-github".\n'
+      'No repos were added. Configure repos manually or run "atc config discover-github".\n'
     );
     return allowProceedWithoutRepos;
   }
@@ -219,7 +219,7 @@ export function renderConfigInit(result: InitializeConfigResult, {
 
   if (includeNextStepSuggestion && result.repoCount === 0) {
     lines.push("");
-    lines.push("Next step: archa config discover-github");
+    lines.push("Next step: atc config discover-github");
     lines.push("That imports GitHub metadata plus curated descriptions and routing cards into your config.");
   }
 
@@ -227,5 +227,5 @@ export function renderConfigInit(result: InitializeConfigResult, {
 }
 
 export function isMissingConfigError(error: unknown): error is Error {
-  return error instanceof Error && error.message.includes("Archa config not found at ");
+  return error instanceof Error && error.message.includes("ask-the-code config not found at ");
 }

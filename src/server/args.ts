@@ -5,8 +5,8 @@ import type { Environment, ServerCommandOptions } from "../core/types.js";
 export { HelpError };
 
 export function parseServerArgs(argv: string[], env: Environment = process.env): ServerCommandOptions {
-  let host = env.ARCHA_SERVER_HOST || "127.0.0.1";
-  let port = parsePort(env.ARCHA_SERVER_PORT || "8787", "ARCHA_SERVER_PORT");
+  let host = env.ATC_SERVER_HOST || "127.0.0.1";
+  let port = parsePort(env.ATC_SERVER_PORT || "8787", "ATC_SERVER_PORT");
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -57,21 +57,21 @@ function parsePort(value: string, label: string): number {
 
 function helpText(): string {
   return [
-    "Archa server exposes async HTTP question-answering jobs.",
+    "ask-the-code server exposes async HTTP question-answering jobs.",
     "",
     "Usage:",
-    "  archa-server [--host <host>] [--port <port>]",
+    "  atc-server [--host <host>] [--port <port>]",
     "",
     "Options:",
     "  --host <host>                Host interface to bind",
     "  --port <port>                TCP port to bind",
     "",
     "Environment:",
-    "  ARCHA_SERVER_HOST            Override default bind host",
-    "  ARCHA_SERVER_PORT            Override default bind port",
-    "  ARCHA_SERVER_BODY_LIMIT_BYTES",
-    "  ARCHA_SERVER_MAX_CONCURRENT_JOBS",
-    "  ARCHA_SERVER_JOB_RETENTION_MS",
+    "  ATC_SERVER_HOST              Override default bind host",
+    "  ATC_SERVER_PORT              Override default bind port",
+    "  ATC_SERVER_BODY_LIMIT_BYTES",
+    "  ATC_SERVER_MAX_CONCURRENT_JOBS",
+    "  ATC_SERVER_JOB_RETENTION_MS",
     "",
     "  -h, --help                   Show help"
   ].join("\n");

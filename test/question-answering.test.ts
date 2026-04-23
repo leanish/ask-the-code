@@ -201,7 +201,7 @@ describe("answerQuestion", () => {
       noSynthesis: false,
       repoNames: null
     })).rejects.toThrow(
-      "No managed repositories matched the question. Use --repo <name> or update the Archa config."
+      "No managed repositories matched the question. Use --repo <name> or update the ask-the-code config."
     );
   });
 
@@ -275,7 +275,7 @@ describe("answerQuestion", () => {
       noSynthesis: false,
       repoNames: null
     }, {
-      env: { ARCHA_CODEX_TIMEOUT_MS: "12345" },
+      env: { ATC_CODEX_TIMEOUT_MS: "12345" },
       statusReporter,
       loadConfigFn,
       selectReposFn,
@@ -292,7 +292,7 @@ describe("answerQuestion", () => {
         text: "Injected answer"
       }
     });
-    expect(loadConfigFn).toHaveBeenCalledWith({ ARCHA_CODEX_TIMEOUT_MS: "12345" });
+    expect(loadConfigFn).toHaveBeenCalledWith({ ATC_CODEX_TIMEOUT_MS: "12345" });
     expect(selectReposFn).toHaveBeenCalled();
     expect(syncReposFn).toHaveBeenCalled();
     expect(runCodexQuestionFn).toHaveBeenCalledWith(expect.objectContaining({
@@ -357,8 +357,8 @@ describe("answerQuestion", () => {
           directory: "/workspace/repos/sqs-codec"
         },
         {
-          name: "archa",
-          directory: "/workspace/repos/archa"
+          name: "ask-the-code",
+          directory: "/workspace/repos/ask-the-code"
         }
       ]
     };
@@ -393,7 +393,7 @@ describe("answerQuestion", () => {
       nowFn
     });
 
-    expect(statusReporter.info).toHaveBeenCalledWith("All repos in 2s: sqs-codec, archa");
+    expect(statusReporter.info).toHaveBeenCalledWith("All repos in 2s: sqs-codec, ask-the-code");
     expect(statusReporter.info).toHaveBeenCalledWith("Skip repo sync: yes");
   });
 
@@ -543,7 +543,7 @@ describe("answerQuestion", () => {
         noSynthesis: true,
         repoNames: null
       }, {
-        env: { ARCHA_CODEX_TIMEOUT_MS: "12345" },
+        env: { ATC_CODEX_TIMEOUT_MS: "12345" },
         loadConfigFn: mocks.loadConfig,
         selectReposFn: mocks.selectRepos
       }, statusReporter);

@@ -1,15 +1,15 @@
 # Architecture
 
-Archa answers questions about how your code behaves by resolving the in-scope repos, syncing them locally, and running Codex against the right workspace. The same core flow is shared by the CLI and the optional HTTP server.
+ask-the-code answers questions about how your code behaves by resolving the in-scope repos, syncing them locally, and running Codex against the right workspace. The same core flow is shared by the CLI and the optional HTTP server.
 
-The repository is TypeScript-first: source lives in `src/` as ESM TypeScript, and package/runtime artifacts are emitted to `dist/`. The published package surface is intentionally limited to the `archa` and `archa-server` binaries rather than a consumable module export.
+The repository is TypeScript-first: source lives in `src/` as ESM TypeScript, and package/runtime artifacts are emitted to `dist/`. The published package surface is intentionally limited to the `atc` and `atc-server` binaries rather than a consumable module export.
 
 ## Component map
 
 ```mermaid
 flowchart LR
-  CLI["archa CLI"] --> CLIAdapter["CLI adapter"]
-  HTTP["archa-server HTTP API"] --> HttpAdapter["HTTP adapter"]
+  CLI["atc CLI"] --> CLIAdapter["CLI adapter"]
+  HTTP["atc-server HTTP API"] --> HttpAdapter["HTTP adapter"]
   HttpAdapter --> Jobs["Ask job manager"]
   CLIAdapter --> Core["Question-answering core"]
   Jobs --> Core
@@ -50,7 +50,7 @@ flowchart LR
 ```mermaid
 sequenceDiagram
   participant Client as "HTTP client"
-  participant Server as "archa-server"
+  participant Server as "atc-server"
   participant Jobs as "Ask job manager"
   participant Core as "Question-answering core"
   participant Sync as "Sync coordinator"
@@ -75,18 +75,18 @@ sequenceDiagram
 
 ## Sync coordination
 
-Within one `archa-server` process, concurrent jobs share repo sync work by repo directory. If one job is already cloning or updating a repo, later jobs wait for that same in-flight sync result instead of starting a second clone or pull. This coordination is in-memory only, so it applies inside a single server process, not across multiple processes.
+Within one `atc-server` process, concurrent jobs share repo sync work by repo directory. If one job is already cloning or updating a repo, later jobs wait for that same in-flight sync result instead of starting a second clone or pull. This coordination is in-memory only, so it applies inside a single server process, not across multiple processes.
 
 ## Main modules
 
 - `src/cli/main.ts`
   Dispatches commands, resolves question files, prints output, handles interactive CLI bootstrap when config is missing or freshly initialized without repos, and lets direct `config discover-github` prompt for an owner or default to `@accessible` when `--owner` is omitted.
 - `src/server/main.ts`
-  Parses server startup arguments, reuses the same interactive config bootstrap flow as `archa`, and then boots the HTTP adapter.
+  Parses server startup arguments, reuses the same interactive config bootstrap flow as `atc`, and then boots the HTTP adapter.
 - `src/cli/setup/bootstrap.ts`
   Hosts the shared interactive CLI prompts and bootstrap flow for missing-config initialization and optional GitHub discovery continuation, including the Enter-to-use-`@accessible` owner shortcut.
 - `src/core/config/config-paths.ts`
-  Resolves the active config path and default managed repos root.
+  Resolves the active config path from `ATC_CONFIG_PATH` or `~/.config/atc/config.json`, plus the default managed repos root under `~/.local/share/atc/repos`.
 - `src/core/config/config.ts`
   Loads and validates config, bootstraps a config file from scratch or from an imported catalog, applies selected GitHub discovery additions or overrides into the active config, and drafts fallback routing cards from legacy repo `topics` / `classifications` when `routing` is still missing.
   Derives each GitHub managed checkout directory from the repo's GitHub identity, so checkouts live under owner-scoped paths like `leanish/nullability` or `OtherCo/dtv` even when the configured repo name stays plain.

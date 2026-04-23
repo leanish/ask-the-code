@@ -74,8 +74,8 @@ describe("github-catalog", () => {
       if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
         return createJsonResponse(200, [
           {
-            name: "archa",
-            clone_url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            clone_url: "https://github.com/leanish/ask-the-code.git",
             default_branch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
             topics: [],
@@ -106,7 +106,7 @@ describe("github-catalog", () => {
         ]);
       }
 
-      if (url === "https://api.github.com/repos/leanish/archa/topics") {
+      if (url === "https://api.github.com/repos/leanish/ask-the-code/topics") {
         return createJsonResponse(200, {
           names: ["cli", "codex", "qa"]
         });
@@ -132,8 +132,8 @@ describe("github-catalog", () => {
       ownerType: "User",
       repos: [
         expectRepoRouting({
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex"
         }, {
@@ -245,8 +245,8 @@ describe("github-catalog", () => {
       if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
         return createJsonResponse(200, [
           {
-            name: "archa",
-            clone_url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            clone_url: "https://github.com/leanish/ask-the-code.git",
             default_branch: "main",
             description: "Repo-aware CLI",
             topics: [],
@@ -257,7 +257,7 @@ describe("github-catalog", () => {
         ]);
       }
 
-      if (url === "https://api.github.com/repos/leanish/archa/topics") {
+      if (url === "https://api.github.com/repos/leanish/ask-the-code/topics") {
         return createJsonResponse(200, {
           names: ["cli"]
         });
@@ -278,12 +278,12 @@ describe("github-catalog", () => {
       inspectRepoFn,
       curateWithCodex: false,
       inspectRepos: false,
-      selectedRepoNames: ["archa"]
+      selectedRepoNames: ["ask-the-code"]
     });
 
     expect(refined.repos).toHaveLength(1);
     expect(refined.repos[0]).toEqual(expectRepoRouting({
-      name: "archa",
+      name: "ask-the-code",
       description: "Repo-aware CLI"
     }, {
       role: "developer-cli",
@@ -304,8 +304,8 @@ describe("github-catalog", () => {
       if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
         return createJsonResponse(200, [
           {
-            name: "archa",
-            clone_url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            clone_url: "https://github.com/leanish/ask-the-code.git",
             default_branch: "main",
             description: "Repo-aware CLI",
             topics: [],
@@ -316,7 +316,7 @@ describe("github-catalog", () => {
             private: true,
             visibility: "private",
             node_id: "R_kgDOTest",
-            full_name: "leanish/archa",
+            full_name: "leanish/ask-the-code",
             owner: {
               login: "leanish",
               id: 42
@@ -325,7 +325,7 @@ describe("github-catalog", () => {
         ]);
       }
 
-      if (url === "https://api.github.com/repos/leanish/archa/topics") {
+      if (url === "https://api.github.com/repos/leanish/ask-the-code/topics") {
         return createJsonResponse(200, {
           names: ["cli"]
         });
@@ -342,8 +342,8 @@ describe("github-catalog", () => {
 
     expect(result.discoveryContext?.discoveredRepos).toEqual([
       {
-        name: "archa",
-        clone_url: "https://github.com/leanish/archa.git",
+        name: "ask-the-code",
+        clone_url: "https://github.com/leanish/ask-the-code.git",
         default_branch: "main",
         description: "Repo-aware CLI",
         topics: [],
@@ -351,7 +351,7 @@ describe("github-catalog", () => {
         fork: false,
         archived: false,
         disabled: false,
-        full_name: "leanish/archa",
+        full_name: "leanish/ask-the-code",
         owner: {
           login: "leanish"
         }
@@ -440,9 +440,9 @@ describe("github-catalog", () => {
       if (url === "https://api.github.com/user/repos?per_page=100&page=1&sort=full_name&affiliation=owner,organization_member&visibility=all") {
         return createJsonResponse(200, [
           {
-            name: "archa",
-            full_name: "leanish/archa",
-            clone_url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            full_name: "leanish/ask-the-code",
+            clone_url: "https://github.com/leanish/ask-the-code.git",
             default_branch: "main",
             description: "Repo-aware CLI",
             topics: ["cli"],
@@ -487,12 +487,12 @@ describe("github-catalog", () => {
       ownerType: "Accessible",
       repos: [
         expectRepoRouting({
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI",
           sourceOwner: "leanish",
-          sourceFullName: "leanish/archa"
+          sourceFullName: "leanish/ask-the-code"
         }, createEmptyRepoRouting()),
         expectRepoRouting({
           name: "dtv",
@@ -566,8 +566,8 @@ describe("github-catalog", () => {
       if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
         return createJsonResponse(200, [
           {
-            name: "archa",
-            clone_url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            clone_url: "https://github.com/leanish/ask-the-code.git",
             default_branch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
             topics: ["cli", "codex", "qa"],
@@ -607,7 +607,7 @@ describe("github-catalog", () => {
       type: "repo-hydrated",
       inspectRepos: true,
       owner: "leanish",
-      repoName: "archa",
+      repoName: "ask-the-code",
       processedCount: 1,
       totalCount: 1
     });
@@ -710,7 +710,7 @@ describe("github-catalog", () => {
       resolveFirstInspection = resolve;
     });
     const inspectRepoFn = vi.fn(async ({ repo }) => {
-      if (repo.name === "archa") {
+      if (repo.name === "ask-the-code") {
         resolveFirstStarted();
         await firstInspection;
       }
@@ -728,8 +728,8 @@ describe("github-catalog", () => {
       if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
         return createJsonResponse(200, [
           {
-            name: "archa",
-            clone_url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            clone_url: "https://github.com/leanish/ask-the-code.git",
             default_branch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
             topics: ["cli"],
@@ -764,7 +764,7 @@ describe("github-catalog", () => {
     expect(inspectRepoFn).toHaveBeenCalledTimes(1);
     expect(inspectRepoFn).toHaveBeenNthCalledWith(1, expect.objectContaining({
       repo: expect.objectContaining({
-        name: "archa"
+        name: "ask-the-code"
       })
     }));
 
@@ -902,8 +902,8 @@ describe("github-catalog", () => {
       if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
         return createJsonResponse(200, [
           {
-            name: "archa",
-            clone_url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            clone_url: "https://github.com/leanish/ask-the-code.git",
             default_branch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
             topics: ["cli"],
@@ -978,8 +978,8 @@ describe("github-catalog", () => {
       if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
         return createJsonResponse(200, [
           {
-            name: "archa",
-            clone_url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            clone_url: "https://github.com/leanish/ask-the-code.git",
             default_branch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
             topics: ["cli"],
@@ -1136,8 +1136,8 @@ describe("github-catalog", () => {
       if (url === "https://api.github.com/users/leanish/repos?per_page=100&page=1&sort=full_name&type=owner") {
         return createJsonResponse(200, [
           {
-            name: "archa",
-            clone_url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            clone_url: "https://github.com/leanish/ask-the-code.git",
             default_branch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
             topics: ["cli", "codex", "qa"],
@@ -1159,8 +1159,8 @@ describe("github-catalog", () => {
 
     expect(result.repos).toEqual([
       expectRepoRouting({
-        name: "archa",
-        url: "https://github.com/leanish/archa.git",
+        name: "ask-the-code",
+        url: "https://github.com/leanish/ask-the-code.git",
         defaultBranch: "main",
         description: "Repo-aware CLI for engineering Q&A with local Codex"
       }, {
@@ -1692,8 +1692,8 @@ describe("github-catalog", () => {
           routing: createEmptyRepoRouting()
         },
         {
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI",
           routing: {
@@ -1712,10 +1712,10 @@ describe("github-catalog", () => {
       conflicts: 1,
       withSuggestions: 1
     });
-    expect(plan.entries.find(entry => entry.repo.name === "archa")).toMatchObject({
+    expect(plan.entries.find(entry => entry.repo.name === "ask-the-code")).toMatchObject({
       status: "new",
       repo: {
-        name: "archa"
+        name: "ask-the-code"
       }
     });
     expect(plan.entries.find(entry => entry.repo.name === "foundation")).toMatchObject({
@@ -1739,8 +1739,8 @@ describe("github-catalog", () => {
     });
     expect(plan.reposToAdd).toEqual([
       expectRepoRouting({
-        name: "archa",
-        url: "https://github.com/leanish/archa.git",
+        name: "ask-the-code",
+        url: "https://github.com/leanish/ask-the-code.git",
         defaultBranch: "main",
         description: "Repo-aware CLI"
       }, {

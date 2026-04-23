@@ -6,8 +6,8 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDirectory, "..");
 const executableBits = 0o111;
 const binFiles = [
-  path.join(repoRoot, "dist/bin/archa.js"),
-  path.join(repoRoot, "dist/bin/archa-server.js")
+  path.join(repoRoot, "dist/bin/atc.js"),
+  path.join(repoRoot, "dist/bin/atc-server.js")
 ];
 
 for (const filePath of binFiles) {

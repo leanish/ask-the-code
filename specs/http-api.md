@@ -1,6 +1,6 @@
 # HTTP API
 
-The optional `archa-server` adapter exposes the repo-aware question-answering flow as async HTTP jobs. New jobs are created with `POST /ask`, then read back through `GET /jobs/:id` and `GET /jobs/:id/events`.
+The optional `atc-server` adapter exposes the repo-aware question-answering flow as async HTTP jobs. New jobs are created with `POST /ask`, then read back through `GET /jobs/:id` and `GET /jobs/:id/events`.
 
 ## Endpoints
 
@@ -43,7 +43,7 @@ Response:
 {
   "repos": [
     {
-      "name": "archa",
+      "name": "ask-the-code",
       "defaultBranch": "main",
       "description": "Repo-aware CLI for engineering Q&A with local Codex",
       "aliases": ["self"]
@@ -70,8 +70,8 @@ Request body:
 
 ```json
 {
-  "question": "How does archa choose the Codex working directory when one repo matches versus several?",
-  "repoNames": ["archa"],
+  "question": "How does ask-the-code choose the Codex working directory when one repo matches versus several?",
+  "repoNames": ["ask-the-code"],
   "audience": "general",
   "model": "gpt-5.4-mini",
   "reasoningEffort": "low",
@@ -104,8 +104,8 @@ Response:
   "id": "job-id",
   "status": "queued",
   "request": {
-    "question": "How does archa choose the Codex working directory when one repo matches versus several?",
-    "repoNames": ["archa"],
+    "question": "How does ask-the-code choose the Codex working directory when one repo matches versus several?",
+    "repoNames": ["ask-the-code"],
     "audience": "general",
     "model": null,
     "reasoningEffort": null,

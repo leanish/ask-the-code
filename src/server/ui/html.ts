@@ -6,7 +6,7 @@ export const HTML_UI = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>archa</title>
+<title>ask-the-code</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -280,7 +280,7 @@ button[type="submit"]:disabled {
 </head>
 <body>
 <main>
-  <h1>archa</h1>
+  <h1>ask-the-code</h1>
   <p class="subtitle">Ask your codebase how it behaves.</p>
   <div id="setup-hint" class="setup-hint"></div>
 
@@ -557,7 +557,7 @@ ${SUPPORTED_SELECTION_STRATEGIES.map((strategy, index) => `            <option v
       if (repos.length === 0) {
         const setupHint = typeof payload.setupHint === "string" && payload.setupHint.trim()
           ? payload.setupHint.trim()
-          : 'No configured repos available. Try "archa config discover-github" to discover and add repos.';
+          : 'No configured repos available. Try "atc config discover-github" to discover and add repos.';
         repoFilter.disabled = true;
         repoFilter.placeholder = "No configured repos available";
         repoHelp.textContent = setupHint;

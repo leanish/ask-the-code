@@ -46,10 +46,10 @@ export async function main(argv: string[]) {
     port: options.port
   });
 
-  process.stdout.write(`Archa server listening on ${serverHandle.url}\n`);
+  process.stdout.write(`ask-the-code server listening on ${serverHandle.url}\n`);
   if (serverHandle.configuredRepoCount === 0) {
     process.stderr.write(
-      'archa-server: no managed repos are configured yet. Suggestion: run "archa config discover-github".\n'
+      'atc-server: no managed repos are configured yet. Suggestion: run "atc config discover-github".\n'
     );
   }
 

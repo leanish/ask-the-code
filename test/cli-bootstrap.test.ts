@@ -46,7 +46,7 @@ describe("cli-bootstrap", () => {
     const readline = createReadline([""]);
 
     const result = await promptToInitializeConfig({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       input: { isTTY: true },
       output: { isTTY: true },
       createInterfaceFn: () => readline
@@ -54,7 +54,7 @@ describe("cli-bootstrap", () => {
 
     expect(result).toBe(true);
     expect(readline.question).toHaveBeenCalledWith(
-      "Archa is not initialized yet: /tmp/archa-config.json is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> "
+      "ask-the-code is not initialized yet: /tmp/atc-config.json is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> "
     );
     expect(readline.close).toHaveBeenCalled();
   });
@@ -66,7 +66,7 @@ describe("cli-bootstrap", () => {
       write: vi.fn()
     };
     const resultPromise = promptToInitializeConfig({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       input,
       output
     });
@@ -80,7 +80,7 @@ describe("cli-bootstrap", () => {
     expect(result).toBe(false);
     expect(output.write).toHaveBeenNthCalledWith(
       1,
-      "Archa is not initialized yet: /tmp/archa-config.json is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> "
+      "ask-the-code is not initialized yet: /tmp/atc-config.json is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> "
     );
     expect(output.write).toHaveBeenNthCalledWith(2, "\n");
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
@@ -96,7 +96,7 @@ describe("cli-bootstrap", () => {
       write: vi.fn()
     };
     const resultPromise = promptToInitializeConfig({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       input,
       output
     });
@@ -111,7 +111,7 @@ describe("cli-bootstrap", () => {
     expect(result).toBe(false);
     expect(output.write).toHaveBeenNthCalledWith(
       1,
-      "Archa is not initialized yet: /tmp/archa-config.json is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> "
+      "ask-the-code is not initialized yet: /tmp/atc-config.json is missing.\nPress Enter to initialize it now, or press Esc to cancel.\n> "
     );
     expect(output.write).toHaveBeenNthCalledWith(2, "\n");
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
@@ -129,7 +129,7 @@ describe("cli-bootstrap", () => {
       write: vi.fn()
     };
     const resultPromise = promptToInitializeConfig({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       input,
       output
     });
@@ -213,11 +213,11 @@ describe("cli-bootstrap", () => {
 
   it("initializes and continues into discovery when config is missing", async () => {
     const loadConfigFn = vi.fn()
-      .mockRejectedValueOnce(new Error('Archa config not found at /tmp/archa-config.json. Run "archa config init" or set ARCHA_CONFIG_PATH.'))
+      .mockRejectedValueOnce(new Error('ask-the-code config not found at /tmp/atc-config.json. Run "atc config init" or set ATC_CONFIG_PATH.'))
       .mockResolvedValueOnce(createLoadedConfig({ repos: [] }))
-      .mockResolvedValueOnce(createLoadedConfig({ repos: [createManagedRepo({ name: "archa" })] }));
+      .mockResolvedValueOnce(createLoadedConfig({ repos: [createManagedRepo({ name: "ask-the-code" })] }));
     const initializeConfigFn = vi.fn(async () => createInitializeConfigResult({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       managedReposRoot: "/workspace/repos",
       repoCount: 0
     }));
@@ -230,7 +230,7 @@ describe("cli-bootstrap", () => {
       output,
       loadConfigFn,
       initializeConfigFn,
-      getConfigPathFn: () => "/tmp/archa-config.json",
+      getConfigPathFn: () => "/tmp/atc-config.json",
       runDiscoveryFn,
       canPromptInteractivelyFn: () => true,
       promptToInitializeConfigFn: vi.fn(async () => true),
@@ -249,7 +249,7 @@ describe("cli-bootstrap", () => {
       overrideRepoNames: []
     });
     expect(output.write).toHaveBeenCalledWith(
-      "Initialized config at /tmp/archa-config.json\nManaged repos root: /workspace/repos\nRepos imported: 0\n"
+      "Initialized config at /tmp/atc-config.json\nManaged repos root: /workspace/repos\nRepos imported: 0\n"
     );
   });
 
@@ -262,7 +262,7 @@ describe("cli-bootstrap", () => {
       output,
       loadConfigFn: vi.fn(async () => createLoadedConfig({ repos: [] })),
       initializeConfigFn: vi.fn(),
-      getConfigPathFn: () => "/tmp/archa-config.json",
+      getConfigPathFn: () => "/tmp/atc-config.json",
       runDiscoveryFn: vi.fn(),
       canPromptInteractivelyFn: () => true,
       promptToContinueGithubDiscoveryFn: vi.fn(async () => false)
@@ -270,7 +270,7 @@ describe("cli-bootstrap", () => {
 
     expect(result).toBe(false);
     expect(output.write).toHaveBeenCalledWith(
-      'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
+      'GitHub discovery skipped. Add repos manually or run "atc config discover-github" when you are ready.\n'
     );
   });
 
@@ -284,7 +284,7 @@ describe("cli-bootstrap", () => {
       output,
       loadConfigFn: vi.fn(async () => createLoadedConfig({ repos: [] })),
       initializeConfigFn: vi.fn(),
-      getConfigPathFn: () => "/tmp/archa-config.json",
+      getConfigPathFn: () => "/tmp/atc-config.json",
       runDiscoveryFn,
       canPromptInteractivelyFn: () => true,
       promptToContinueGithubDiscoveryFn: vi.fn(async () => true),
@@ -294,7 +294,7 @@ describe("cli-bootstrap", () => {
     expect(result).toBe(false);
     expect(runDiscoveryFn).not.toHaveBeenCalled();
     expect(output.write).toHaveBeenCalledWith(
-      'GitHub discovery skipped. Add repos manually or run "archa config discover-github" when you are ready.\n'
+      'GitHub discovery skipped. Add repos manually or run "atc config discover-github" when you are ready.\n'
     );
   });
 });

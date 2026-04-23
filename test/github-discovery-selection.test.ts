@@ -17,8 +17,8 @@ describe("github-discovery-selection", () => {
     createEntry({
       status: "new",
       repo: createRepoRecord({
-        name: "archa",
-        url: "https://github.com/leanish/archa.git",
+        name: "ask-the-code",
+        url: "https://github.com/leanish/ask-the-code.git",
         defaultBranch: "main",
         description: "Repo-aware CLI",
         topics: ["cli"]
@@ -64,7 +64,7 @@ describe("github-discovery-selection", () => {
 
   it("selects explicit additions and overrides case-insensitively", () => {
     expect(selectGithubDiscoveryRepos(plan, {
-      addRepoNames: ["Archa"],
+      addRepoNames: ["ask-the-code"],
       overrideRepoNames: ["FOUNDATION"]
     })).toEqual({
       reposToAdd: [plan.entries[0]!.repo],
@@ -153,7 +153,7 @@ describe("github-discovery-selection", () => {
     const fakeReadline = {
       question: async (prompt: string) => {
         outputWrites.push(prompt);
-        return "archa, java-conventions, foundation";
+        return "ask-the-code, java-conventions, foundation";
       },
       write() {},
       close() {}
@@ -173,7 +173,7 @@ describe("github-discovery-selection", () => {
     });
     expect(outputWrites.join("")).toContain("Select repos to add or override");
     expect(outputWrites.join("")).toContain("Press Enter to add all new repos, press Esc to cancel");
-    expect(outputWrites.join("")).toContain("New (2): archa, java-conventions");
+    expect(outputWrites.join("")).toContain("New (2): ask-the-code, java-conventions");
     expect(outputWrites.join("")).toContain("Configured already (1): foundation");
     expect(outputWrites.join("")).toContain("Name conflicts (1): shared -> leanish/foundation");
   });
@@ -200,7 +200,7 @@ describe("github-discovery-selection", () => {
     expect(readlineFactory.instances[0]!.readline.question).toHaveBeenCalledWith(
       'Select repos to add or override (comma-separated, "*" for all)\n'
         + "Press Enter to add all new repos, press Esc to cancel, or type repo names to customize.\n"
-        + "New (2): archa, java-conventions\n"
+        + "New (2): ask-the-code, java-conventions\n"
         + "Configured already (1): foundation\n"
         + "Name conflicts (1): shared -> leanish/foundation\n"
         + "> "
@@ -237,7 +237,7 @@ describe("github-discovery-selection", () => {
     expect(settled).toBe(false);
     expect(input.setRawMode).toHaveBeenNthCalledWith(1, true);
 
-    readlineFactory.instances[0]!.resolveQuestion?.("archa");
+    readlineFactory.instances[0]!.resolveQuestion?.("ask-the-code");
 
     await expect(resultPromise).resolves.toEqual({
       reposToAdd: [plan.entries[0]!.repo],
@@ -272,7 +272,7 @@ describe("github-discovery-selection", () => {
     expect(prompts).toEqual([
       'Select repos to add or override (comma-separated, "*" for all)\n'
         + "Press Enter to add all new repos, press Esc to cancel, or type repo names to customize.\n"
-        + "New (2): archa, java-conventions\n"
+        + "New (2): ask-the-code, java-conventions\n"
         + "Configured already (1): foundation\n"
         + "Name conflicts (1): shared -> leanish/foundation\n"
         + "> ",
@@ -308,7 +308,7 @@ describe("github-discovery-selection", () => {
     expect(readlineFactory.instances[0]!.readline.question).toHaveBeenCalledWith(
       'Select repos to add or override (comma-separated, "*" for all)\n'
         + "Press Enter to add all new repos, press Esc to cancel, or type repo names to customize.\n"
-        + "New (2): archa, java-conventions\n"
+        + "New (2): ask-the-code, java-conventions\n"
         + "Configured already (1): foundation\n"
         + "Name conflicts (1): shared -> leanish/foundation\n"
         + "> "
@@ -436,10 +436,10 @@ describe("github-discovery-selection", () => {
       createEntry({
         status: "new",
         repo: createRepoRecord({
-          name: "archa",
+          name: "ask-the-code",
           sourceOwner: "leanish",
-          sourceFullName: "leanish/archa",
-          url: "https://github.com/leanish/archa.git",
+          sourceFullName: "leanish/ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI",
           topics: ["cli"]
@@ -482,7 +482,7 @@ describe("github-discovery-selection", () => {
       reposToAdd: [multiOwnerPlan.entries[1]!.repo],
       reposToOverride: []
     });
-    expect(prompts[0]).toContain("New (2):\nleanish: archa\nOtherCo: dtv");
+    expect(prompts[0]).toContain("New (2):\nleanish: ask-the-code\nOtherCo: dtv");
   });
 
   it("keeps owner-qualified labels only when repo names collide across owners", async () => {

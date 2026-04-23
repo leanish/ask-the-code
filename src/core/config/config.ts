@@ -59,7 +59,7 @@ export async function initializeConfig({
   const resolvedManagedReposRoot = managedReposRoot || getDefaultManagedReposRoot(env);
 
   if (!force && await pathExists(configPath)) {
-    throw new Error(`Archa config already exists at ${configPath}. Use --force to overwrite it.`);
+    throw new Error(`ask-the-code config already exists at ${configPath}. Use --force to overwrite it.`);
   }
 
   const repos = catalogPath ? await importCatalog(catalogPath) : [];
@@ -165,7 +165,7 @@ async function readConfigFile(configPath: string): Promise<string> {
     return await fs.readFile(configPath, "utf8");
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-      throw new Error(`Archa config not found at ${configPath}. Run "archa config init" or set ARCHA_CONFIG_PATH.`);
+      throw new Error(`ask-the-code config not found at ${configPath}. Run "atc config init" or set ATC_CONFIG_PATH.`);
     }
     throw error;
   }
@@ -176,7 +176,7 @@ function parseConfigJson(configPath: string, raw: string): RawConfig {
     return JSON.parse(raw) as RawConfig;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Invalid Archa config at ${configPath}: ${message}`);
+    throw new Error(`Invalid ask-the-code config at ${configPath}: ${message}`);
   }
 }
 
@@ -188,7 +188,7 @@ async function loadParsedConfigFile(env: Environment): Promise<ParsedConfigFile>
   return {
     configPath,
     parsed,
-    repos: getRawRepos(parsed, configPath, "Archa config")
+    repos: getRawRepos(parsed, configPath, "ask-the-code config")
   };
 }
 
@@ -221,21 +221,21 @@ function normalizeRepo(repo: unknown, index: number, managedReposRoot: string, c
 
 function normalizeRepoDefinition(repo: unknown, index: number, sourcePath: string): ManagedRepoDefinition {
   if (!repo || typeof repo !== "object") {
-    throw new Error(`Invalid Archa config at ${sourcePath}: repo #${index + 1} must be an object.`);
+    throw new Error(`Invalid ask-the-code config at ${sourcePath}: repo #${index + 1} must be an object.`);
   }
 
   const rawRepo = repo as RawRepo;
 
   if (!rawRepo.name || typeof rawRepo.name !== "string") {
-    throw new Error(`Invalid Archa config at ${sourcePath}: repo #${index + 1} is missing a string "name".`);
+    throw new Error(`Invalid ask-the-code config at ${sourcePath}: repo #${index + 1} is missing a string "name".`);
   }
 
   if (!rawRepo.url || typeof rawRepo.url !== "string") {
-    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${rawRepo.name}" is missing a string "url".`);
+    throw new Error(`Invalid ask-the-code config at ${sourcePath}: repo "${rawRepo.name}" is missing a string "url".`);
   }
 
   if (rawRepo.alwaysSelect != null && typeof rawRepo.alwaysSelect !== "boolean") {
-    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${rawRepo.name}" has non-boolean "alwaysSelect".`);
+    throw new Error(`Invalid ask-the-code config at ${sourcePath}: repo "${rawRepo.name}" has non-boolean "alwaysSelect".`);
   }
 
   const description = typeof rawRepo.description === "string" ? rawRepo.description : "";
@@ -378,11 +378,11 @@ function normalizeAliases(value: unknown, repoName: string, sourcePath: string):
   }
 
   if (!Array.isArray(value)) {
-    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${repoName}" has non-array "aliases".`);
+    throw new Error(`Invalid ask-the-code config at ${sourcePath}: repo "${repoName}" has non-array "aliases".`);
   }
 
   if (!value.every(alias => typeof alias === "string" && alias.trim() !== "")) {
-    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${repoName}" has non-string or empty aliases.`);
+    throw new Error(`Invalid ask-the-code config at ${sourcePath}: repo "${repoName}" has non-string or empty aliases.`);
   }
 
   return value.map(alias => alias.trim());
@@ -398,7 +398,7 @@ function validateUniqueRepoIdentifiers(repos: Array<Pick<ManagedRepoDefinition, 
 
       if (existingOwner) {
         throw new Error(
-          `Invalid Archa config at ${sourcePath}: duplicate repo identifier "${identifier}" for "${existingOwner}" and "${repo.name}". Repo names and aliases must be unique case-insensitively.`
+          `Invalid ask-the-code config at ${sourcePath}: duplicate repo identifier "${identifier}" for "${existingOwner}" and "${repo.name}". Repo names and aliases must be unique case-insensitively.`
         );
       }
 

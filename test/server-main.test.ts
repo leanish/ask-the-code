@@ -108,7 +108,7 @@ describe("server-main", () => {
     });
     mocks.ensureInteractiveConfigSetup.mockResolvedValue(true);
     mocks.loadConfig.mockResolvedValue(createLoadedConfig({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       repos: []
     }));
     mocks.discoverGithubOwnerRepos.mockResolvedValue({
@@ -138,7 +138,7 @@ describe("server-main", () => {
       reposToOverride: []
     });
     mocks.applyGithubDiscoveryToConfig.mockResolvedValue({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       addedCount: 0,
       overriddenCount: 0
     });
@@ -163,8 +163,8 @@ describe("server-main", () => {
     expect(mocks.ensureGitInstalled).toHaveBeenCalled();
     expect(mocks.ensureCodexInstalled).toHaveBeenCalled();
     expect(mocks.ensureInteractiveConfigSetup).toHaveBeenCalled();
-    expect(stdout.join("")).toBe("Archa server listening on http://127.0.0.1:8787\n");
-    expect(stderr.join("")).toContain('Suggestion: run "archa config discover-github".');
+    expect(stdout.join("")).toBe("ask-the-code server listening on http://127.0.0.1:8787\n");
+    expect(stderr.join("")).toContain('Suggestion: run "atc config discover-github".');
   });
 
   it("does not print the discovery suggestion when repos are already configured", async () => {
@@ -229,8 +229,8 @@ describe("server-main", () => {
 
   it("curates only the selected repo subset during interactive server bootstrap", async () => {
     const selectedRepo = {
-      name: "archa",
-      url: "https://github.com/leanish/archa.git",
+      name: "ask-the-code",
+      url: "https://github.com/leanish/ask-the-code.git",
       defaultBranch: "main",
       description: "Repo-aware CLI for engineering Q&A with local Codex",
       topics: ["cli", "codex", "qa"]
@@ -262,7 +262,7 @@ describe("server-main", () => {
         };
       });
     mocks.refineDiscoveredGithubRepos.mockImplementationOnce(async ({ onProgress, selectedRepoNames }) => {
-        expect(selectedRepoNames).toEqual(["archa"]);
+        expect(selectedRepoNames).toEqual(["ask-the-code"]);
         onProgress?.({
           type: "discovery-listed",
           owner: "leanish",
@@ -277,7 +277,7 @@ describe("server-main", () => {
           type: "repo-hydrated",
           inspectRepos: true,
           owner: "leanish",
-          repoName: "archa",
+          repoName: "ask-the-code",
           processedCount: 1,
           totalCount: 1
         });
@@ -330,7 +330,7 @@ describe("server-main", () => {
     expect(result).toBeNull();
     expect(stderr.join("")).toContain("Found 2 repo(s); ready to choose from 2 eligible repo(s).");
     expect(stderr.join("")).toContain("Found 2 repo(s); loading and curating metadata for 1 eligible repo(s)...");
-    expect(stderr.join("")).toContain("Curating repos: 1/1 (archa)");
+    expect(stderr.join("")).toContain("Curating repos: 1/1 (ask-the-code)");
     expect(mocks.discoverGithubOwnerRepos).toHaveBeenNthCalledWith(1, expect.objectContaining({
       inspectRepos: false,
       hydrateMetadata: false,
@@ -342,7 +342,7 @@ describe("server-main", () => {
       }),
       inspectRepos: true,
       curateWithCodex: true,
-      selectedRepoNames: ["archa"]
+      selectedRepoNames: ["ask-the-code"]
     }));
     expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledTimes(1);
     expect(mocks.applyGithubDiscoveryToConfig).toHaveBeenCalledWith({
@@ -354,15 +354,15 @@ describe("server-main", () => {
 
   it("does not reload config before planning the applied discovery summary during server bootstrap", async () => {
     const selectedRepo = {
-      name: "archa",
-      url: "https://github.com/leanish/archa.git",
+      name: "ask-the-code",
+      url: "https://github.com/leanish/ask-the-code.git",
       defaultBranch: "main",
       description: "Repo-aware CLI",
       topics: ["cli"],
       classifications: ["cli"]
     };
     const initialConfig = {
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       repos: []
     };
 

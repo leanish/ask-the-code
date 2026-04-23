@@ -13,7 +13,7 @@ describe("config", () => {
   let env: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
-    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "archa-config-"));
+    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "ask-the-code-config-"));
     env = {
       XDG_CONFIG_HOME: path.join(tempRoot, "config"),
       XDG_DATA_HOME: path.join(tempRoot, "data")
@@ -25,22 +25,22 @@ describe("config", () => {
   });
 
   it("resolves config and managed repo paths from xdg defaults", () => {
-    expect(getConfigPath(env)).toBe(path.join(tempRoot, "config", "archa", "config.json"));
-    expect(getDefaultManagedReposRoot(env)).toBe(path.join(tempRoot, "data", "archa", "repos"));
+    expect(getConfigPath(env)).toBe(path.join(tempRoot, "config", "atc", "config.json"));
+    expect(getDefaultManagedReposRoot(env)).toBe(path.join(tempRoot, "data", "atc", "repos"));
   });
 
-  it("prefers an explicit ARCHA_CONFIG_PATH override", () => {
+  it("prefers an explicit ATC_CONFIG_PATH override", () => {
     expect(getConfigPath({
       ...env,
-      ARCHA_CONFIG_PATH: "/tmp/custom-archa-config.json"
-    })).toBe("/tmp/custom-archa-config.json");
+      ATC_CONFIG_PATH: "/tmp/custom-atc-config.json"
+    })).toBe("/tmp/custom-atc-config.json");
   });
 
   it("falls back to home-based paths when xdg env vars are absent", () => {
     const homedirSpy = vi.spyOn(os, "homedir").mockReturnValue("/tmp/home");
 
-    expect(getConfigPath({})).toBe("/tmp/home/.config/archa/config.json");
-    expect(getDefaultManagedReposRoot({})).toBe("/tmp/home/.local/share/archa/repos");
+    expect(getConfigPath({})).toBe("/tmp/home/.config/atc/config.json");
+    expect(getDefaultManagedReposRoot({})).toBe("/tmp/home/.local/share/atc/repos");
 
     homedirSpy.mockRestore();
   });
@@ -49,10 +49,10 @@ describe("config", () => {
     const result = await initializeConfig({ env });
     const loaded = await loadConfig(env);
 
-    expect(result.configPath).toBe(path.join(tempRoot, "config", "archa", "config.json"));
-    expect(result.managedReposRoot).toBe(path.join(tempRoot, "data", "archa", "repos"));
+    expect(result.configPath).toBe(path.join(tempRoot, "config", "atc", "config.json"));
+    expect(result.managedReposRoot).toBe(path.join(tempRoot, "data", "atc", "repos"));
     expect(result.repoCount).toBe(0);
-    expect(loaded.managedReposRoot).toBe(path.join(tempRoot, "data", "archa", "repos"));
+    expect(loaded.managedReposRoot).toBe(path.join(tempRoot, "data", "atc", "repos"));
     expect(loaded.repos).toEqual([]);
   });
 
@@ -190,7 +190,7 @@ describe("config", () => {
         routing: createEmptyRepoRouting(),
         aliases: [],
         alwaysSelect: false,
-        directory: path.join(tempRoot, "data", "archa", "repos", "leanish", "nullability")
+        directory: path.join(tempRoot, "data", "atc", "repos", "leanish", "nullability")
       }
     ]);
   });
@@ -219,14 +219,14 @@ describe("config", () => {
         routing: createEmptyRepoRouting(),
         aliases: [],
         alwaysSelect: false,
-        directory: path.join(tempRoot, "data", "archa", "repos", "OtherCo", "dtv")
+        directory: path.join(tempRoot, "data", "atc", "repos", "OtherCo", "dtv")
       }
     ]);
   });
 
   it("throws a clear error when the config file is missing", async () => {
     await expect(loadConfig(env)).rejects.toThrow(
-      `Archa config not found at ${path.join(tempRoot, "config", "archa", "config.json")}. Run "archa config init" or set ARCHA_CONFIG_PATH.`
+      `ask-the-code config not found at ${path.join(tempRoot, "config", "atc", "config.json")}. Run "atc config init" or set ATC_CONFIG_PATH.`
     );
   });
 
@@ -251,7 +251,7 @@ describe("config", () => {
     await fs.mkdir(path.dirname(configPath), { recursive: true });
     await fs.writeFile(configPath, "{not-json");
 
-    await expect(loadConfig(env)).rejects.toThrow(/Invalid Archa config/);
+    await expect(loadConfig(env)).rejects.toThrow(/Invalid ask-the-code config/);
   });
 
   it("rejects repos missing a url", async () => {
@@ -346,7 +346,7 @@ describe("config", () => {
           routing: createEmptyRepoRouting(),
           aliases: [],
           alwaysSelect: false,
-          directory: path.join(tempRoot, "data", "archa", "repos", "leanish", "sqs-codec")
+          directory: path.join(tempRoot, "data", "atc", "repos", "leanish", "sqs-codec")
         }
       ]
     });
@@ -523,22 +523,22 @@ describe("config", () => {
       env,
       repos: [
         {
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           routing: {
             ...createEmptyRepoRouting(),
             role: "developer-cli",
             owns: ["repo selection", "question answering"],
-            exposes: ["archa CLI", "archa-server"]
+            exposes: ["atc CLI", "atc-server"]
           }
         }
       ]
     });
 
     expect(result).toEqual({
-      configPath: path.join(tempRoot, "config", "archa", "config.json"),
+      configPath: path.join(tempRoot, "config", "atc", "config.json"),
       addedCount: 1,
       totalCount: 1
     });
@@ -546,14 +546,14 @@ describe("config", () => {
       managedReposRoot: "/workspace/repos",
       repos: [
         {
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           routing: expect.objectContaining({
             role: "developer-cli",
             owns: ["repo selection", "question answering"],
-            exposes: ["archa CLI", "archa-server"]
+            exposes: ["atc CLI", "atc-server"]
           })
         }
       ]
@@ -578,15 +578,15 @@ describe("config", () => {
       env,
       repos: [
         {
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           routing: {
             ...createEmptyRepoRouting(),
             role: "developer-cli",
             owns: ["repo selection", "question answering"],
-            exposes: ["archa CLI", "archa-server"]
+            exposes: ["atc CLI", "atc-server"]
           }
         }
       ]
@@ -605,15 +605,15 @@ describe("config", () => {
           alwaysSelect: false
         },
         {
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           routing: {
             ...createEmptyRepoRouting(),
             role: "developer-cli",
             owns: ["repo selection", "question answering"],
-            exposes: ["archa CLI", "archa-server"]
+            exposes: ["atc CLI", "atc-server"]
           },
           aliases: [],
           alwaysSelect: false
@@ -650,15 +650,15 @@ describe("config", () => {
       env,
       reposToAdd: [
         {
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           routing: {
             ...createEmptyRepoRouting(),
             role: "developer-cli",
             owns: ["repo selection", "question answering"],
-            exposes: ["archa CLI", "archa-server"]
+            exposes: ["atc CLI", "atc-server"]
           }
         }
       ],
@@ -679,7 +679,7 @@ describe("config", () => {
     });
 
     expect(result).toEqual({
-      configPath: path.join(tempRoot, "config", "archa", "config.json"),
+      configPath: path.join(tempRoot, "config", "atc", "config.json"),
       addedCount: 1,
       overriddenCount: 1,
       totalCount: 2
@@ -700,8 +700,8 @@ describe("config", () => {
           alwaysSelect: true
         },
         {
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           routing: expect.objectContaining({

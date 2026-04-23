@@ -62,7 +62,7 @@ describe("render", () => {
     expect(await renderRepoList([])).toBe([
       "Managed repos:",
       "- none configured",
-      "Run: archa config discover-github"
+      "Run: atc config discover-github"
     ].join("\n"));
   });
 
@@ -124,7 +124,7 @@ describe("render", () => {
         createGithubDiscoveryPlanEntry({
           status: "new",
           repo: createRepoRecord({
-            name: "archa",
+            name: "ask-the-code",
             description: "Repo-aware CLI",
             routing: {
               ...createEmptyRepoRouting(),
@@ -135,14 +135,14 @@ describe("render", () => {
         })
       ],
       selectedCount: 1,
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       addedCount: 1,
       overriddenCount: 2
     });
 
-    expect(applied).toContain("archa [new]");
+    expect(applied).toContain("ask-the-code [new]");
     expect(applied).toContain("Repos selected: 1");
-    expect(applied).toContain("Config updated: /tmp/archa-config.json");
+    expect(applied).toContain("Config updated: /tmp/atc-config.json");
     expect(applied).toContain("Repos overridden: 2");
   });
 
@@ -154,19 +154,19 @@ describe("render", () => {
         createGithubDiscoveryPlanEntry({
           status: "new",
           repo: createRepoRecord({
-            name: "archa",
+            name: "ask-the-code",
             description: "Repo-aware CLI"
           }),
           suggestions: []
         })
       ],
       selectedCount: 1,
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       addedCount: 1,
       overriddenCount: 0
     });
 
-    expect(applied).toContain("archa [new]");
+    expect(applied).toContain("ask-the-code [new]");
     expect(applied).toContain("Repo-aware CLI");
   });
 
@@ -179,9 +179,9 @@ describe("render", () => {
         createGithubDiscoveryPlanEntry({
           status: "new",
           repo: createRepoRecord({
-            name: "archa",
+            name: "ask-the-code",
             sourceOwner: "leanish",
-            sourceFullName: "leanish/archa",
+            sourceFullName: "leanish/ask-the-code",
             description: "Repo-aware CLI",
             routing: {
               ...createEmptyRepoRouting(),
@@ -206,15 +206,15 @@ describe("render", () => {
         })
       ],
       selectedCount: 2,
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       addedCount: 2,
       overriddenCount: 0
     });
 
     expect(summary).toContain("GitHub repo discovery for leanish + orgs (Accessible):");
-    expect(summary).toContain("leanish:\n- archa [new]");
+    expect(summary).toContain("leanish:\n- ask-the-code [new]");
     expect(summary).toContain("OtherCo:\n- dtv [new]");
-    expect(summary).toContain("Config updated: /tmp/archa-config.json");
+    expect(summary).toContain("Config updated: /tmp/atc-config.json");
   });
 
   it("falls back to owner-qualified labels inside grouped summaries when names collide", () => {
@@ -247,7 +247,7 @@ describe("render", () => {
         })
       ],
       selectedCount: 2,
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       addedCount: 2,
       overriddenCount: 0
     });
@@ -286,7 +286,7 @@ describe("render", () => {
         })
       ],
       selectedCount: 2,
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       addedCount: 1,
       overriddenCount: 1
     });

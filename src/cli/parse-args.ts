@@ -39,10 +39,8 @@ function parseAskCommand(argv: string[], env: Environment): AskCommandOptions {
   const questionParts: string[] = [];
   let questionFile: string | null = null;
   let audience: AnswerAudience = DEFAULT_ANSWER_AUDIENCE;
-  let model = env.ARCHA_DEFAULT_MODEL || env.ARCHA_MODEL || DEFAULT_CODEX_MODEL;
-  let reasoningEffort = env.ARCHA_DEFAULT_REASONING_EFFORT
-    || env.ARCHA_REASONING_EFFORT
-    || DEFAULT_CODEX_REASONING_EFFORT;
+  let model = env.ATC_DEFAULT_MODEL || DEFAULT_CODEX_MODEL;
+  let reasoningEffort = env.ATC_DEFAULT_REASONING_EFFORT || DEFAULT_CODEX_REASONING_EFFORT;
   let selectionMode: RepoSelectionStrategy = "single";
   let selectionShadowCompare = false;
   let noSync = false;
@@ -308,16 +306,16 @@ function isHelpFlag(value: string): boolean {
 
 function helpText(): string {
   return [
-    "Archa is your personal code archaeologist.",
+    "ask-the-code is your personal code archaeologist.",
     "Ask your codebase how it behaves.",
     "",
     "Usage:",
-    "  archa [options] <question>",
-    "  archa repos list",
-    "  archa repos sync [repo1,repo2,...]",
-    "  archa config path",
-    "  archa config init [--catalog <path>] [--managed-repos-root <path>] [--force]",
-    "  archa config discover-github [--owner <name|@accessible>] [--add <names>] [--override <names>] [--exclude-forks] [--include-archived]",
+    "  atc [options] <question>",
+    "  atc repos list",
+    "  atc repos sync [repo1,repo2,...]",
+    "  atc config path",
+    "  atc config init [--catalog <path>] [--managed-repos-root <path>] [--force]",
+    "  atc config discover-github [--owner <name|@accessible>] [--add <names>] [--override <names>] [--exclude-forks] [--include-archived]",
     "",
     "Ask Options:",
     "  --repo <names>                Limit to managed repo names",
@@ -339,9 +337,9 @@ function helpText(): string {
     "  --include-archived            Include archived repos during discovery",
     "",
     "Config:",
-    "  ARCHA_CONFIG_PATH             Override config file location",
-    "  ARCHA_DEFAULT_MODEL           Override default model",
-    "  ARCHA_DEFAULT_REASONING_EFFORT Override default reasoning effort",
+    "  ATC_CONFIG_PATH               Override config file location",
+    "  ATC_DEFAULT_MODEL             Override default model",
+    "  ATC_DEFAULT_REASONING_EFFORT  Override default reasoning effort",
     "",
     "  -h, --help                    Show help"
   ].join("\n");

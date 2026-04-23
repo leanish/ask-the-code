@@ -76,18 +76,18 @@ describe("codex-runner", () => {
     const context = getCodexExecutionContext({
       question,
       audience: "general",
-      workspaceRoot: "/workspace/archa/repos",
+      workspaceRoot: "/workspace/atc/repos",
       selectedRepos: [
         {
           name: "sqs-codec",
           description: "SQS execution interceptor with compression and checksum metadata",
-          directory: "/workspace/archa/repos/sqs-codec",
+          directory: "/workspace/atc/repos/sqs-codec",
           defaultBranch: "main"
         }
       ]
     });
 
-    expect(context.workingDirectory).toBe("/workspace/archa/repos/sqs-codec");
+    expect(context.workingDirectory).toBe("/workspace/atc/repos/sqs-codec");
     expect(context.prompt).toContain("Answer using the code in the current workspace.");
     expect(context.prompt).toContain("Write for a non-engineering reader. Keep the answer self-contained and do not assume the reader can inspect this workspace.");
     expect(context.prompt).toContain("Assume no knowledge or access to source code or implementation details.");
@@ -107,24 +107,24 @@ describe("codex-runner", () => {
     const context = getCodexExecutionContext({
       question: "How do sqs-codec and java-conventions relate?",
       audience: "codebase",
-      workspaceRoot: "/workspace/archa/repos",
+      workspaceRoot: "/workspace/atc/repos",
       selectedRepos: [
         {
           name: "sqs-codec",
           description: "SQS execution interceptor with compression and checksum metadata",
-          directory: "/workspace/archa/repos/sqs-codec",
+          directory: "/workspace/atc/repos/sqs-codec",
           defaultBranch: "main"
         },
         {
           name: "java-conventions",
           description: "Shared Gradle conventions for JDK-based projects",
-          directory: "/workspace/archa/repos/java-conventions",
+          directory: "/workspace/atc/repos/java-conventions",
           defaultBranch: "main"
         }
       ]
     });
 
-    expect(context.workingDirectory).toBe("/workspace/archa/repos");
+    expect(context.workingDirectory).toBe("/workspace/atc/repos");
     expect(context.prompt).toContain("Write for an engineer who can inspect this workspace. Be concrete about the implementation and mention relevant files, symbols, and execution flow when useful.");
     expect(context.prompt).toContain("Use code snippets when they help explain behavior or where to make changes.");
     expect(context.prompt).toContain("These repos are in scope for answering the question: sqs-codec, java-conventions.");
@@ -146,11 +146,11 @@ describe("codex-runner", () => {
         selectedRepos: [
           {
             name: "sqs-codec",
-            directory: "/workspace/archa/repos/sqs-codec",
+            directory: "/workspace/atc/repos/sqs-codec",
             defaultBranch: "master"
           }
         ],
-        workspaceRoot: "/workspace/archa/repos",
+        workspaceRoot: "/workspace/atc/repos",
         onStatus
       });
 
@@ -169,7 +169,7 @@ describe("codex-runner", () => {
           'model_reasoning_effort="low"',
           "exec",
           "-C",
-          "/workspace/archa/repos/sqs-codec",
+          "/workspace/atc/repos/sqs-codec",
           "--sandbox",
           "read-only",
           "--skip-git-repo-check",
@@ -179,8 +179,8 @@ describe("codex-runner", () => {
         ]),
         { stdio: ["pipe", "ignore", "pipe"] }
       );
-      expect(mocks.readFile).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), "utf8");
-      expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), { force: true });
+      expect(mocks.readFile).toHaveBeenCalledWith(expect.stringContaining("/tmp/atc-codex-"), "utf8");
+      expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/atc-codex-"), { force: true });
     } finally {
       dateNowSpy.mockRestore();
     }
@@ -193,7 +193,7 @@ describe("codex-runner", () => {
 
     const result = await runCodexPrompt({
       prompt: "Return JSON only.",
-      workingDirectory: "/workspace/archa/repos/java-conventions"
+      workingDirectory: "/workspace/atc/repos/java-conventions"
     });
 
     expect(result).toEqual({ text: "{\"topics\":[\"java\"]}" });
@@ -202,7 +202,7 @@ describe("codex-runner", () => {
       "codex",
       expect.arrayContaining([
         "-C",
-        "/workspace/archa/repos/java-conventions",
+        "/workspace/atc/repos/java-conventions",
         "--model",
         "gpt-5.4-mini"
       ]),
@@ -220,10 +220,10 @@ describe("codex-runner", () => {
 
       await runCodexPrompt({
         prompt: "Return JSON only.",
-        workingDirectory: "/workspace/archa/repos/java-conventions"
+        workingDirectory: "/workspace/atc/repos/java-conventions"
       });
 
-      const expectedPath = `/tmp/archa-codex-${process.pid}-1234567890-uuid-123.txt`;
+      const expectedPath = `/tmp/atc-codex-${process.pid}-1234567890-uuid-123.txt`;
       expect(mocks.readFile).toHaveBeenCalledWith(expectedPath, "utf8");
       expect(mocks.rm).toHaveBeenCalledWith(expectedPath, { force: true });
     } finally {
@@ -245,11 +245,11 @@ describe("codex-runner", () => {
         selectedRepos: [
           {
             name: "sqs-codec",
-            directory: "/workspace/archa/repos/sqs-codec",
+            directory: "/workspace/atc/repos/sqs-codec",
             defaultBranch: "master"
           }
         ],
-        workspaceRoot: "/workspace/archa/repos",
+        workspaceRoot: "/workspace/atc/repos",
         onStatus
       });
 
@@ -284,11 +284,11 @@ describe("codex-runner", () => {
       selectedRepos: [
         {
           name: "sqs-codec",
-          directory: "/workspace/archa/repos/sqs-codec",
+          directory: "/workspace/atc/repos/sqs-codec",
           defaultBranch: "master"
         }
       ],
-      workspaceRoot: "/workspace/archa/repos",
+      workspaceRoot: "/workspace/atc/repos",
       onStatus
     });
 
@@ -325,11 +325,11 @@ describe("codex-runner", () => {
       selectedRepos: [
         {
           name: "sqs-codec",
-          directory: "/workspace/archa/repos/sqs-codec",
+          directory: "/workspace/atc/repos/sqs-codec",
           defaultBranch: "master"
         }
       ],
-      workspaceRoot: "/workspace/archa/repos",
+      workspaceRoot: "/workspace/atc/repos",
       onStatus,
       timeoutMs: 300_000
     });
@@ -342,7 +342,7 @@ describe("codex-runner", () => {
     expect(child.stdin.destroy).toHaveBeenCalled();
     expect(child.stderr.destroy).toHaveBeenCalled();
     expect(onStatus).toHaveBeenCalledWith("Codex timed out after 5m; stopping...");
-    expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), { force: true });
+    expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/atc-codex-"), { force: true });
     expect(mocks.readFile).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(5_000);
@@ -418,11 +418,11 @@ describe("codex-runner", () => {
       selectedRepos: [
         {
           name: "sqs-codec",
-          directory: "/workspace/archa/repos/sqs-codec",
+          directory: "/workspace/atc/repos/sqs-codec",
           defaultBranch: "master"
         }
       ],
-      workspaceRoot: "/workspace/archa/repos",
+      workspaceRoot: "/workspace/atc/repos",
       timeoutMs: 5_000
     });
 
@@ -437,20 +437,20 @@ describe("codex-runner", () => {
 
   it("parses a custom codex timeout from the environment", () => {
     expect(getCodexTimeoutMs({
-      ARCHA_CODEX_TIMEOUT_MS: "45000"
+      ATC_CODEX_TIMEOUT_MS: "45000"
     })).toBe(45_000);
   });
 
   it("rejects invalid codex timeout overrides", () => {
     expect(() => getCodexTimeoutMs({
-      ARCHA_CODEX_TIMEOUT_MS: "wat"
-    })).toThrow("Invalid ARCHA_CODEX_TIMEOUT_MS: wat. Use a positive integer.");
+      ATC_CODEX_TIMEOUT_MS: "wat"
+    })).toThrow("Invalid ATC_CODEX_TIMEOUT_MS: wat. Use a positive integer.");
   });
 
   it("rejects malformed codex timeout overrides instead of truncating them", () => {
     expect(() => getCodexTimeoutMs({
-      ARCHA_CODEX_TIMEOUT_MS: "300s"
-    })).toThrow("Invalid ARCHA_CODEX_TIMEOUT_MS: 300s. Use a positive integer.");
+      ATC_CODEX_TIMEOUT_MS: "300s"
+    })).toThrow("Invalid ATC_CODEX_TIMEOUT_MS: 300s. Use a positive integer.");
   });
 
   it("surfaces a summarized codex error and still cleans up the output file", async () => {
@@ -466,14 +466,14 @@ describe("codex-runner", () => {
       selectedRepos: [
         {
           name: "sqs-codec",
-          directory: "/workspace/archa/repos/sqs-codec",
+          directory: "/workspace/atc/repos/sqs-codec",
           defaultBranch: "master"
         }
       ],
-      workspaceRoot: "/workspace/archa/repos"
+      workspaceRoot: "/workspace/atc/repos"
     })).rejects.toThrow("codex exec failed with exit code 2: two\nthree\nfour\nfive\nsix\nseven\neight\nnine");
 
-    expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/archa-codex-"), { force: true });
+    expect(mocks.rm).toHaveBeenCalledWith(expect.stringContaining("/tmp/atc-codex-"), { force: true });
     expect(mocks.readFile).not.toHaveBeenCalled();
   });
 
@@ -484,7 +484,7 @@ describe("codex-runner", () => {
 
     await expect(runCodexPrompt({
       prompt: "Return JSON only.",
-      workingDirectory: "/workspace/archa/repos"
+      workingDirectory: "/workspace/atc/repos"
     })).rejects.toThrow(
       'Codex CLI is required but was not found on PATH. Install it with "brew install codex". If Codex is still not connected afterwards, complete the Codex connection/login flow and retry later.'
     );

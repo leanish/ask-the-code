@@ -12,7 +12,7 @@ import {
 describe("repo-routing", () => {
   it("returns an empty routing card for null values", () => {
     expect(normalizeRepoRouting(null, {
-      repoName: "archa",
+      repoName: "ask-the-code",
       sourcePath: "/tmp/config.json"
     })).toEqual(createEmptyRepoRouting());
   });
@@ -23,21 +23,21 @@ describe("repo-routing", () => {
       reach: ["cli", "CLI", "http-server"],
       responsibilities: ["Owns repo selection.", "Owns repo selection."],
       owns: ["repo selection", "Repo Selection", "question answering"],
-      exposes: ["archa CLI", "archa CLI", "archa-server"],
+      exposes: ["atc CLI", "atc CLI", "atc-server"],
       consumes: ["Codex"],
       workflows: ["Repo-aware Q&A"],
       boundaries: ["Do not select only because another repo mentions Codex."],
       selectWhen: ["The question is about repo selection."],
       selectWithOtherReposWhen: ["Use with config repos when tracing selection inputs."]
     }, {
-      repoName: "archa",
+      repoName: "ask-the-code",
       sourcePath: "/tmp/config.json"
     })).toEqual({
       role: "developer-cli",
       reach: ["cli", "http-server"],
       responsibilities: ["Owns repo selection."],
       owns: ["repo selection", "question answering"],
-      exposes: ["archa CLI", "archa-server"],
+      exposes: ["atc CLI", "atc-server"],
       consumes: ["Codex"],
       workflows: ["Repo-aware Q&A"],
       boundaries: ["Do not select only because another repo mentions Codex."],
@@ -48,23 +48,23 @@ describe("repo-routing", () => {
 
   it("throws clear errors for invalid routing payloads", () => {
     expect(() => normalizeRepoRouting("bad", {
-      repoName: "archa",
+      repoName: "ask-the-code",
       sourcePath: "/tmp/config.json"
-    })).toThrow('repo "archa" has non-object "routing"');
+    })).toThrow('repo "ask-the-code" has non-object "routing"');
 
     expect(() => normalizeRepoRouting({
       role: "developer-cli",
       reach: "cli"
     }, {
-      repoName: "archa",
+      repoName: "ask-the-code",
       sourcePath: "/tmp/config.json"
-    })).toThrow('repo "archa" has non-array "reach"');
+    })).toThrow('repo "ask-the-code" has non-array "reach"');
 
     expect(() => normalizeRepoRouting({
       role: "developer-cli",
       reach: ["cli", ""]
     }, {
-      repoName: "archa",
+      repoName: "ask-the-code",
       sourcePath: "/tmp/config.json"
     })).toThrow("has non-string or empty reach");
   });
@@ -75,7 +75,7 @@ describe("repo-routing", () => {
       reach: ["cli", "http-server"],
       responsibilities: ["Owns repo selection."],
       owns: ["repo selection", "question answering"],
-      exposes: ["archa CLI", "archa-server"],
+      exposes: ["atc CLI", "atc-server"],
       consumes: ["Codex"],
       workflows: ["Repo-aware Q&A"],
       boundaries: ["Do not select only because another repo mentions Codex."],
@@ -94,8 +94,8 @@ describe("repo-routing", () => {
       "Owns repo selection.",
       "repo selection",
       "question answering",
-      "archa CLI",
-      "archa-server",
+      "atc CLI",
+      "atc-server",
       "Codex",
       "Repo-aware Q&A",
       "Do not select only because another repo mentions Codex.",
@@ -104,7 +104,7 @@ describe("repo-routing", () => {
     ]);
     expect(summarizeRepoRouting(createEmptyRepoRouting())).toBe("");
     expect(summarizeRepoRouting(routing)).toBe(
-      "role=developer-cli reach=cli,http-server owns=repo selection,question answering exposes=archa CLI,archa-server"
+      "role=developer-cli reach=cli,http-server owns=repo selection,question answering exposes=atc CLI,atc-server"
     );
   });
 

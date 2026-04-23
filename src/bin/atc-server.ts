@@ -9,6 +9,6 @@ main(process.argv.slice(2)).catch(error => {
     return;
   }
 
-  console.error(`archa-server: ${message}`);
+  console.error(`atc-server: ${message}`);
   process.exitCode = 1;
 });

@@ -56,7 +56,7 @@ export function createRepoRecord(overrides: Partial<RepoRecord> = {}): RepoRecor
 
 export function createLoadedConfig(overrides: Partial<LoadedConfig> = {}): LoadedConfig {
   return {
-    configPath: overrides.configPath ?? "/tmp/archa-config.json",
+    configPath: overrides.configPath ?? "/tmp/atc-config.json",
     managedReposRoot: overrides.managedReposRoot ?? "/workspace/repos",
     repos: overrides.repos ?? []
   };
@@ -64,7 +64,7 @@ export function createLoadedConfig(overrides: Partial<LoadedConfig> = {}): Loade
 
 export function createInitializeConfigResult(overrides: Partial<InitializeConfigResult> = {}): InitializeConfigResult {
   return {
-    configPath: overrides.configPath ?? "/tmp/archa-config.json",
+    configPath: overrides.configPath ?? "/tmp/atc-config.json",
     managedReposRoot: overrides.managedReposRoot ?? "/workspace/repos",
     repoCount: overrides.repoCount ?? 0
   };

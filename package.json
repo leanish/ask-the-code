@@ -1,11 +1,11 @@
 {
-  "name": "archa",
+  "name": "ask-the-code",
   "version": "0.1.0",
-  "description": "Your personal code archaeologist for repo-aware engineering Q&A",
+  "description": "Ask your codebase how it behaves.",
   "type": "module",
   "bin": {
-    "archa": "./dist/bin/archa.js",
-    "archa-server": "./dist/bin/archa-server.js"
+    "atc": "./dist/bin/atc.js",
+    "atc-server": "./dist/bin/atc-server.js"
   },
   "exports": {},
   "files": [
@@ -18,8 +18,8 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "check": "npm run typecheck && npm test && npm run build",
     "prepack": "npm run build",
-    "cli": "node --import tsx src/bin/archa.ts",
-    "server": "node --import tsx src/bin/archa-server.ts",
+    "cli": "node --import tsx src/bin/atc.ts",
+    "server": "node --import tsx src/bin/atc-server.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "prepare": "husky"

@@ -97,16 +97,18 @@ export async function startHttpServer({
   maxConcurrentJobs = null,
   jobRetentionMs = null
 }: StartHttpServerOptions = {}): Promise<HttpServerHandle> {
-  const resolvedHost = host || env.ARCHA_SERVER_HOST || DEFAULT_HOST;
-  const resolvedPort = port ?? getOptionalPort(env.ARCHA_SERVER_PORT, "ARCHA_SERVER_PORT") ?? DEFAULT_PORT;
+  const resolvedHost = host || env.ATC_SERVER_HOST || DEFAULT_HOST;
+  const resolvedPort = port
+    ?? getOptionalPort(env.ATC_SERVER_PORT, "ATC_SERVER_PORT")
+    ?? DEFAULT_PORT;
   const resolvedBodyLimitBytes = bodyLimitBytes
-    ?? getOptionalPositiveInteger(env.ARCHA_SERVER_BODY_LIMIT_BYTES, "ARCHA_SERVER_BODY_LIMIT_BYTES")
+    ?? getOptionalPositiveInteger(env.ATC_SERVER_BODY_LIMIT_BYTES, "ATC_SERVER_BODY_LIMIT_BYTES")
     ?? DEFAULT_BODY_LIMIT_BYTES;
   const resolvedMaxConcurrentJobs = maxConcurrentJobs
-    ?? getOptionalPositiveInteger(env.ARCHA_SERVER_MAX_CONCURRENT_JOBS, "ARCHA_SERVER_MAX_CONCURRENT_JOBS")
+    ?? getOptionalPositiveInteger(env.ATC_SERVER_MAX_CONCURRENT_JOBS, "ATC_SERVER_MAX_CONCURRENT_JOBS")
     ?? undefined;
   const resolvedJobRetentionMs = jobRetentionMs
-    ?? getOptionalPositiveInteger(env.ARCHA_SERVER_JOB_RETENTION_MS, "ARCHA_SERVER_JOB_RETENTION_MS")
+    ?? getOptionalPositiveInteger(env.ATC_SERVER_JOB_RETENTION_MS, "ATC_SERVER_JOB_RETENTION_MS")
     ?? undefined;
   const loadedConfig = await loadConfigFn(env);
   const resolvedJobManager = jobManager ?? createAskJobManager({
@@ -207,7 +209,7 @@ async function handleRequest({
       }
 
       writeJson(response, 200, {
-        service: "archa-server",
+        service: "atc-server",
         endpoints: {
           createJob: "POST /ask",
           getJob: "GET /jobs/:id",
@@ -543,7 +545,7 @@ function serializeRepoSummary(
 }
 
 function getEmptyConfigSetupHint(): string {
-  return 'No configured repos available. Try "archa config discover-github" to discover and add repos.';
+  return 'No configured repos available. Try "atc config discover-github" to discover and add repos.';
 }
 
 function setCorsHeaders(response: HttpResponseLike): void {
@@ -584,7 +586,7 @@ function formatServerUrl(server: http.Server): string | null {
 
 function parseRequestUrl(value: string | undefined): URL {
   try {
-    return new URL(value || "/", "http://archa.local");
+    return new URL(value || "/", "http://atc.local");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new HttpError(400, `Invalid request URL: ${message}`);

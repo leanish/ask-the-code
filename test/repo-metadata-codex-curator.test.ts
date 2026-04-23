@@ -103,7 +103,7 @@ describe("repo-metadata-codex-curator", () => {
         reach: ["cli"],
         responsibilities: ["Owns CLI utilities."],
         owns: ["CLI behavior"],
-        exposes: ["archa CLI"],
+        exposes: ["atc CLI"],
         consumes: ["GitHub API"],
         workflows: ["Handles CLI workflows."],
         boundaries: [],
@@ -113,10 +113,10 @@ describe("repo-metadata-codex-curator", () => {
     };
 
     const metadata = await curateRepoMetadataWithCodex({
-      directory: "/workspace/repos/archa",
+      directory: "/workspace/repos/ask-the-code",
       repo: {
-        name: "archa",
-        url: "https://github.com/leanish/archa.git",
+        name: "ask-the-code",
+        url: "https://github.com/leanish/ask-the-code.git",
         defaultBranch: "main"
       },
       inferredMetadata,
@@ -157,7 +157,7 @@ describe("repo-metadata-codex-curator", () => {
             reach: "bad",
             responsibilities: [123, "", "Refines responsibilities.", "refines responsibilities."],
             owns: ["", "Owns checkout.", "owns checkout.", 42, "Owns sync."],
-            exposes: ["", "archa CLI", "Archa CLI"],
+            exposes: ["", "atc CLI", "ATC CLI"],
             consumes: [false, "Node.js", "node.js", "git", "GitHub API"],
             workflows: ["", "Handles sync flows."],
             boundaries: [],
@@ -175,7 +175,7 @@ describe("repo-metadata-codex-curator", () => {
       reach: ["shared-library"],
       responsibilities: ["Refines responsibilities."],
       owns: ["Owns checkout.", "Owns sync."],
-      exposes: ["archa CLI"],
+      exposes: ["atc CLI"],
       consumes: ["GitHub API"],
       workflows: ["Handles sync flows."],
       boundaries: [],

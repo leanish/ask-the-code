@@ -110,7 +110,7 @@ describe("cli", () => {
       stderr.push(chunk);
       return true;
     });
-    mocks.getConfigPath.mockReturnValue("/tmp/archa-config.json");
+    mocks.getConfigPath.mockReturnValue("/tmp/atc-config.json");
     mocks.ensureCodexInstalled.mockImplementation(() => {});
     mocks.ensureGitInstalled.mockImplementation(() => {});
     mocks.ensureGithubDiscoveryAuthAvailable.mockImplementation(() => {});
@@ -148,14 +148,14 @@ describe("cli", () => {
 
       if (options.includeNextStepSuggestion !== false && result.repoCount === 0) {
         lines.push("");
-        lines.push("Next step: archa config discover-github");
+        lines.push("Next step: atc config discover-github");
         lines.push("That imports GitHub metadata plus curated descriptions, topics, and classifications into your config.");
       }
 
       return lines.join("\n");
     });
     mocks.loadConfig.mockResolvedValue(createLoadedConfig({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       repos: [
         createManagedRepo({
           name: "sqs-codec",
@@ -204,7 +204,7 @@ describe("cli", () => {
       reposToOverride: []
     });
     mocks.applyGithubDiscoveryToConfig.mockResolvedValue({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       addedCount: 0,
       overriddenCount: 0,
       totalCount: 1
@@ -308,7 +308,7 @@ describe("cli", () => {
     await main(["What", "is", "x-codec-meta?"]);
 
     expect(stderr.join("")).toBe(
-      "[archa] Running Codex...\r\x1b[2K[archa] Running Codex... 5s elapsed\r\x1b[2K[archa] Running Codex... done in 5s\n"
+      "[ask-the-code] Running Codex...\r\x1b[2K[ask-the-code] Running Codex... 5s elapsed\r\x1b[2K[ask-the-code] Running Codex... done in 5s\n"
     );
     expect(stdout.join("")).toContain("Final answer");
   });
@@ -344,36 +344,36 @@ describe("cli", () => {
   it("prints the active config path", async () => {
     await main(["config", "path"]);
 
-    expect(stdout.join("")).toBe("/tmp/archa-config.json\n");
+    expect(stdout.join("")).toBe("/tmp/atc-config.json\n");
   });
 
   it("prints initialized config details", async () => {
     mocks.initializeConfig.mockResolvedValue({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       managedReposRoot: "/workspace/repos",
       repoCount: 2
     });
 
     await main(["config", "init", "--force"]);
 
-    expect(stdout.join("")).toContain("Initialized config at /tmp/archa-config.json");
+    expect(stdout.join("")).toContain("Initialized config at /tmp/atc-config.json");
     expect(stdout.join("")).toContain("Managed repos root: /workspace/repos");
     expect(stdout.join("")).toContain("Repos imported: 2");
   });
 
   it("suggests GitHub discovery when config init creates an empty repo list", async () => {
     mocks.initializeConfig.mockResolvedValue({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       managedReposRoot: "/workspace/repos",
       repoCount: 0
     });
 
     await main(["config", "init"]);
 
-    expect(stdout.join("")).toContain("Initialized config at /tmp/archa-config.json");
+    expect(stdout.join("")).toContain("Initialized config at /tmp/atc-config.json");
     expect(stdout.join("")).toContain("Repos imported: 0");
     expect(stdout.join("")).toContain(
-      "Next step: archa config discover-github"
+      "Next step: atc config discover-github"
     );
     expect(stdout.join("")).toContain(
       "That imports GitHub metadata plus curated descriptions, topics, and classifications into your config."
@@ -421,8 +421,8 @@ describe("cli", () => {
         skippedArchived: 0,
         repos: [
           {
-            name: "archa",
-            url: "https://github.com/leanish/archa.git",
+            name: "ask-the-code",
+            url: "https://github.com/leanish/ask-the-code.git",
             defaultBranch: "main",
             description: "Repo-aware CLI for engineering Q&A with local Codex",
             topics: ["cli", "codex", "qa"]
@@ -439,7 +439,7 @@ describe("cli", () => {
         {
           status: "new",
           repo: {
-            name: "archa",
+            name: "ask-the-code",
             topics: ["cli", "codex", "qa"],
             description: "Repo-aware CLI for engineering Q&A with local Codex"
           },
@@ -448,8 +448,8 @@ describe("cli", () => {
       ],
       reposToAdd: [
         {
-          name: "archa",
-          url: "https://github.com/leanish/archa.git",
+          name: "ask-the-code",
+          url: "https://github.com/leanish/ask-the-code.git",
           defaultBranch: "main",
           description: "Repo-aware CLI for engineering Q&A with local Codex",
           topics: ["cli", "codex", "qa"]
@@ -468,7 +468,7 @@ describe("cli", () => {
 
     expect(stdout.join("")).toContain("GitHub repo discovery for leanish (User):");
     expect(stdout.join("")).toContain("Repos selected: 0");
-    expect(stdout.join("")).toContain("Config unchanged: /tmp/archa-config.json");
+    expect(stdout.join("")).toContain("Config unchanged: /tmp/atc-config.json");
     expect(stderr.join("")).toContain("Discovering GitHub repos for leanish...");
     expect(stderr.join("")).toContain("Found 2 repo(s); ready to choose from 1 eligible repo(s).");
     expect(mocks.applyGithubDiscoveryToConfig).not.toHaveBeenCalled();
@@ -670,7 +670,7 @@ describe("cli", () => {
       reposToOverride: []
     });
     mocks.applyGithubDiscoveryToConfig.mockResolvedValue({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       addedCount: 1,
       overriddenCount: 0,
       totalCount: 2
@@ -703,7 +703,7 @@ describe("cli", () => {
     });
     expect(stderr.join("")).toContain("Found 1 repo(s); ready to choose from 1 eligible repo(s).");
     expect(stderr.join("")).toContain("Curating repos: 1/1 (java-conventions)");
-    expect(stdout.join("")).toContain("Config updated: /tmp/archa-config.json");
+    expect(stdout.join("")).toContain("Config updated: /tmp/atc-config.json");
     expect(stdout.join("")).toContain("Repos added: 1");
   });
 
@@ -717,7 +717,7 @@ describe("cli", () => {
       classifications: ["library"]
     };
     const initialConfig = {
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       repos: []
     };
 
@@ -849,7 +849,7 @@ describe("cli", () => {
       reposToOverride
     });
     mocks.applyGithubDiscoveryToConfig.mockResolvedValue({
-      configPath: "/tmp/archa-config.json",
+      configPath: "/tmp/atc-config.json",
       addedCount: 1,
       overriddenCount: 1,
       totalCount: 2

@@ -2,10 +2,10 @@
 
 ## What This Repo Is
 
-- `archa` is a Node.js ESM project.
+- `ask-the-code` is a Node.js ESM project.
 - It exposes the same repo-aware Q&A flow through:
-  - a CLI: `archa`
-  - an HTTP server: `archa-server`
+  - a CLI: `atc`
+  - an HTTP server: `atc-server`
 - The core workflow is: load config -> select repos -> sync repos -> run Codex -> render result.
 
 ## Code Map

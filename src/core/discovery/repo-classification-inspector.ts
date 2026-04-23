@@ -327,7 +327,7 @@ async function prepareInspectionDirectory({
     };
   }
 
-  const tempRoot = await fsModule.mkdtemp(path.join(tempDirRoot, "archa-discovery-"));
+  const tempRoot = await fsModule.mkdtemp(path.join(tempDirRoot, "atc-discovery-"));
   const cloneDirectory = path.join(tempRoot, getManagedRepoRelativePath(repo));
   const cloneUrl = repo.url;
 

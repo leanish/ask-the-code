@@ -53,7 +53,7 @@ export function normalizeRepoRouting(
   }
 
   if (typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${repoName}" has non-object "routing".`);
+    throw new Error(`Invalid ask-the-code config at ${sourcePath}: repo "${repoName}" has non-object "routing".`);
   }
 
   const rawRouting = value as Record<string, unknown>;
@@ -156,11 +156,11 @@ function normalizeRoutingList(
   }
 
   if (!Array.isArray(value)) {
-    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${repoName}" has non-array "${label}".`);
+    throw new Error(`Invalid ask-the-code config at ${sourcePath}: repo "${repoName}" has non-array "${label}".`);
   }
 
   if (!value.every(item => typeof item === "string" && item.trim() !== "")) {
-    throw new Error(`Invalid Archa config at ${sourcePath}: repo "${repoName}" has non-string or empty ${label}.`);
+    throw new Error(`Invalid ask-the-code config at ${sourcePath}: repo "${repoName}" has non-string or empty ${label}.`);
   }
 
   const seen = new Set<string>();

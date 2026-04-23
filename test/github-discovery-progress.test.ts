@@ -26,7 +26,7 @@ describe("github-discovery-progress", () => {
       inspectRepos: false,
       processedCount: 1,
       totalCount: 2,
-      repoName: "archa"
+      repoName: "ask-the-code"
     });
     reporter.onProgress({
       type: "repo-hydrated",
@@ -39,7 +39,7 @@ describe("github-discovery-progress", () => {
 
     expect(output.write).toHaveBeenNthCalledWith(1, "Discovering GitHub repos for leanish...\n");
     expect(output.write).toHaveBeenNthCalledWith(2, "Found 3 repo(s); loading GitHub metadata for 2 eligible repo(s)...\n");
-    expect(output.write).toHaveBeenNthCalledWith(3, "Loading repos: 1/2 (archa)\n");
+    expect(output.write).toHaveBeenNthCalledWith(3, "Loading repos: 1/2 (ask-the-code)\n");
     expect(output.write).toHaveBeenNthCalledWith(4, "Loading repos: 2/2 (terminator)\n");
   });
 
@@ -153,12 +153,12 @@ describe("github-discovery-progress", () => {
       inspectRepos: false,
       processedCount: 1,
       totalCount: 2,
-      repoName: "archa"
+      repoName: "ask-the-code"
     });
     reporter.finish();
 
     expect(output.write).toHaveBeenNthCalledWith(1, "Discovering GitHub repos for leanish...\n");
-    expect(output.write).toHaveBeenNthCalledWith(2, "\rLoading repos: 1/2 (archa)");
+    expect(output.write).toHaveBeenNthCalledWith(2, "\rLoading repos: 1/2 (ask-the-code)");
     expect(output.write).toHaveBeenNthCalledWith(3, "\n");
   });
 
@@ -216,12 +216,12 @@ describe("github-discovery-progress", () => {
       inspectRepos: true,
       processedCount: 1,
       totalCount: 1,
-      repoName: "archa"
+      repoName: "ask-the-code"
     });
 
     expect(output.write).toHaveBeenNthCalledWith(1, "Discovering GitHub repos for leanish...\n");
     expect(output.write).toHaveBeenNthCalledWith(2, "Found 1 repo(s); loading and curating metadata for 1 eligible repo(s)...\n");
-    expect(output.write).toHaveBeenNthCalledWith(3, "Curating repos: 1/1 (archa)\n");
+    expect(output.write).toHaveBeenNthCalledWith(3, "Curating repos: 1/1 (ask-the-code)\n");
   });
 
   it("shows immediate selection readiness when metadata hydration is skipped", () => {

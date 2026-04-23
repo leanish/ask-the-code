@@ -40,7 +40,7 @@ describe("repo-routing-draft", () => {
 
   it("still derives workflow hints from concrete route and cli signals", () => {
     expect(buildRepoRoutingDraft({
-      repoName: "archa",
+      repoName: "ask-the-code",
       description: "Repo-aware CLI",
       classifications: ["cli"],
       routeEndpoints: ["GET /admin/jobs"]

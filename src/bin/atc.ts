@@ -10,6 +10,6 @@ main(process.argv.slice(2)).catch(error => {
     return;
   }
 
-  console.error(`archa: ${message}`);
+  console.error(`atc: ${message}`);
   process.exitCode = 1;
 });

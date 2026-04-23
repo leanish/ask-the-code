@@ -18,7 +18,7 @@ import {
 import { createLoadedConfig, createManagedRepo } from "./test-helpers.js";
 
 const config = createLoadedConfig({
-  configPath: "/workspace/.config/archa/config.json",
+  configPath: "/workspace/.config/atc/config.json",
   repos: [
     createManagedRepo({
       name: "sqs-codec",
@@ -37,18 +37,18 @@ const config = createLoadedConfig({
       }
     }),
     createManagedRepo({
-      name: "archa",
+      name: "ask-the-code",
       description: "Repo-aware CLI for engineering Q&A with local Codex",
       routing: {
         role: "developer-cli",
         reach: ["developer-cli"],
         responsibilities: ["Owns the repo-aware question answering CLI and server."],
         owns: ["repo selection", "question answering"],
-        exposes: ["archa CLI", "archa-server"],
+        exposes: ["atc CLI", "atc-server"],
         consumes: ["Codex"],
         workflows: ["Handles repo-aware engineering questions."],
         boundaries: ["Do not select only because a repo mentions Codex."],
-        selectWhen: ["The question is about archa CLI behavior or repo selection."],
+        selectWhen: ["The question is about atc CLI behavior or repo selection."],
         selectWithOtherReposWhen: []
       }
     }),
@@ -78,7 +78,7 @@ describe("selectRepos", () => {
   });
 
   it("honors explicit repo names without invoking codex", async () => {
-    const result = await selectRepos(config, "anything", ["archa"]);
+    const result = await selectRepos(config, "anything", ["ask-the-code"]);
 
     expect(result).toEqual({
       repos: [config.repos[1]],
@@ -88,7 +88,7 @@ describe("selectRepos", () => {
         shadowCompare: false,
         source: "requested",
         finalEffort: null,
-        finalRepoNames: ["archa"],
+        finalRepoNames: ["ask-the-code"],
         runs: []
       }
     });
@@ -168,7 +168,7 @@ describe("selectRepos", () => {
       if (reasoningEffort === "none") {
         return {
           text: JSON.stringify({
-            selectedRepoNames: ["archa"],
+            selectedRepoNames: ["ask-the-code"],
             confidence: 0.21
           })
         };
@@ -177,7 +177,7 @@ describe("selectRepos", () => {
       if (reasoningEffort === "minimal") {
         return {
           text: JSON.stringify({
-            selectedRepoNames: ["archa"],
+            selectedRepoNames: ["ask-the-code"],
             confidence: 0.35
           })
         };
@@ -214,7 +214,7 @@ describe("selectRepos", () => {
   it("keeps background comparison runs available through selectionPromise", async () => {
     mocks.runCodexPrompt.mockImplementation(async ({ reasoningEffort }) => ({
       text: JSON.stringify({
-        selectedRepoNames: reasoningEffort === "high" ? ["java-conventions"] : ["archa"],
+        selectedRepoNames: reasoningEffort === "high" ? ["java-conventions"] : ["ask-the-code"],
         confidence: reasoningEffort === "none" ? 0.92 : reasoningEffort === "low" ? 0.74 : 0.61
       })
     }));
@@ -236,7 +236,7 @@ describe("selectRepos", () => {
 describe("buildRepoSelectionPrompt", () => {
   it("builds a routing-focused prompt and filters noisy consumes values", () => {
     expect(buildRepoSelectionPrompt(createLoadedConfig({
-      configPath: "/workspace/.config/archa/config.json",
+      configPath: "/workspace/.config/atc/config.json",
       repos: [
         createManagedRepo({
           name: "java-conventions",
@@ -270,7 +270,7 @@ describe("buildRepoSelectionPrompt", () => {
       There are no alwaysSelect repos.
 
       Using full routing summaries for the configured repos.
-      Configured repositories from /workspace/.config/archa/config.json (one JSON object per line):
+      Configured repositories from /workspace/.config/atc/config.json (one JSON object per line):
       {"name":"java-conventions","description":"Java conventions and build defaults","routing":{"role":"shared-library","reach":["shared-library"],"owns":["Gradle conventions","Java build defaults"],"exposes":["Gradle plugin"],"selectWhen":["The question is about conventions or build defaults."],"responsibilities":["Owns shared Java build conventions."],"workflows":["Shared Java build setup"],"consumes":["GitHub API"]}}
 
       User question:
@@ -282,7 +282,7 @@ describe("buildRepoSelectionPrompt", () => {
 
   it("compacts repo summaries when many repos are configured", () => {
     const largeConfig = createLoadedConfig({
-      configPath: "/workspace/.config/archa/config.json",
+      configPath: "/workspace/.config/atc/config.json",
       repos: Array.from({ length: 17 }, (_, index) => createManagedRepo({
         name: `repo-${index + 1}`,
         description: `Service ${index + 1}`,
@@ -347,11 +347,11 @@ describe("parseRepoSelectionRunResult", () => {
 
   it("normalizes invalid confidence values to null while keeping matched repos", () => {
     expect(parseRepoSelectionRunResult(JSON.stringify({
-      selectedRepoNames: ["archa"],
+      selectedRepoNames: ["ask-the-code"],
       confidence: 1.2
     }), config, "low", 15)).toEqual({
       effort: "low",
-      repoNames: ["archa"],
+      repoNames: ["ask-the-code"],
       repos: [config.repos[1]],
       confidence: null,
       latencyMs: 15
@@ -386,7 +386,7 @@ describe("parseRepoSelectionRunResult", () => {
 describe("isUsableCodexRun", () => {
   it("applies the per-effort confidence thresholds", () => {
     const baseRun = {
-      repoNames: ["archa"],
+      repoNames: ["ask-the-code"],
       repos: [config.repos[1]!],
       latencyMs: 10
     };
@@ -436,7 +436,7 @@ describe("isUsableCodexRun", () => {
   it("allows high-effort runs without confidence and rejects empty repo sets", () => {
     expect(isUsableCodexRun({
       effort: "high",
-      repoNames: ["archa"],
+      repoNames: ["ask-the-code"],
       repos: [config.repos[1]!],
       confidence: null,
       latencyMs: 20
@@ -453,15 +453,15 @@ describe("isUsableCodexRun", () => {
 
 describe("selectReposHeuristically", () => {
   it("prefers owned behavior and exposed surfaces", () => {
-    const result = selectReposHeuristically(config, "Which repo owns the archa CLI?", null);
+    const result = selectReposHeuristically(config, "Which repo owns the atc CLI?", null);
 
-    expect(result.repos[0]?.name).toBe("archa");
+    expect(result.repos[0]?.name).toBe("ask-the-code");
   });
 
   it("honors explicit repo names", () => {
-    const result = selectReposHeuristically(config, "anything", ["archa"]);
+    const result = selectReposHeuristically(config, "anything", ["ask-the-code"]);
 
-    expect(result.repos.map(repo => repo.name)).toEqual(["archa"]);
+    expect(result.repos.map(repo => repo.name)).toEqual(["ask-the-code"]);
     expect(result.mode).toBe("requested");
   });
 
@@ -478,7 +478,7 @@ describe("selectReposHeuristically", () => {
   it("falls back to all configured repos when nothing scores positively", () => {
     const result = selectReposHeuristically(config, "zebra moonlight quartz", null);
 
-    expect(result.repos.map(repo => repo.name)).toEqual(["sqs-codec", "archa", "java-conventions"]);
+    expect(result.repos.map(repo => repo.name)).toEqual(["sqs-codec", "ask-the-code", "java-conventions"]);
     expect(result.mode).toBe("all");
   });
 
@@ -535,9 +535,9 @@ describe("selectReposHeuristically", () => {
         }),
         ...config.repos
       ]
-    }), "Which repo owns the archa CLI?", null);
+    }), "Which repo owns the atc CLI?", null);
 
     expect(result.repos.map(repo => repo.name)).toContain("foundation");
-    expect(result.repos[1]?.name).toBe("archa");
+    expect(result.repos[1]?.name).toBe("ask-the-code");
   });
 });

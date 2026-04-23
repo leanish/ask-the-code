@@ -119,35 +119,35 @@ describe("http-server startup", () => {
 
     await expect(startHttpServer({
       env: {
-        ARCHA_SERVER_PORT: "wat"
+        ATC_SERVER_PORT: "wat"
       },
       loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
-    })).rejects.toThrow("Invalid ARCHA_SERVER_PORT: wat. Use a TCP port between 0 and 65535.");
+    })).rejects.toThrow("Invalid ATC_SERVER_PORT: wat. Use a TCP port between 0 and 65535.");
 
     await expect(startHttpServer({
       env: {
-        ARCHA_SERVER_BODY_LIMIT_BYTES: "wat"
+        ATC_SERVER_BODY_LIMIT_BYTES: "wat"
       },
       loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
-    })).rejects.toThrow("Invalid ARCHA_SERVER_BODY_LIMIT_BYTES: wat. Use a positive integer.");
+    })).rejects.toThrow("Invalid ATC_SERVER_BODY_LIMIT_BYTES: wat. Use a positive integer.");
 
     await expect(startHttpServer({
       env: {
-        ARCHA_SERVER_MAX_CONCURRENT_JOBS: "wat"
+        ATC_SERVER_MAX_CONCURRENT_JOBS: "wat"
       },
       loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
-    })).rejects.toThrow("Invalid ARCHA_SERVER_MAX_CONCURRENT_JOBS: wat. Use a positive integer.");
+    })).rejects.toThrow("Invalid ATC_SERVER_MAX_CONCURRENT_JOBS: wat. Use a positive integer.");
 
     await expect(startHttpServer({
       env: {
-        ARCHA_SERVER_JOB_RETENTION_MS: "wat"
+        ATC_SERVER_JOB_RETENTION_MS: "wat"
       },
       loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
-    })).rejects.toThrow("Invalid ARCHA_SERVER_JOB_RETENTION_MS: wat. Use a positive integer.");
+    })).rejects.toThrow("Invalid ATC_SERVER_JOB_RETENTION_MS: wat. Use a positive integer.");
   });
 
   it("accepts port zero from the environment", async () => {
@@ -165,7 +165,7 @@ describe("http-server startup", () => {
 
     const handle = await startHttpServer({
       env: {
-        ARCHA_SERVER_PORT: "0"
+        ATC_SERVER_PORT: "0"
       },
       loadConfigFn: async () => createLoadedConfig({ repos: [] }),
       jobManager
@@ -188,10 +188,10 @@ describe("http-server startup", () => {
 
     await expect(startHttpServer({
       loadConfigFn: async () => {
-        throw new Error("Invalid Archa config at /tmp/config.json: bad value");
+        throw new Error("Invalid ask-the-code config at /tmp/config.json: bad value");
       },
       jobManager: createJobManagerDouble()
-    })).rejects.toThrow("Invalid Archa config at /tmp/config.json: bad value");
+    })).rejects.toThrow("Invalid ask-the-code config at /tmp/config.json: bad value");
 
     expect(mocks.createServer).not.toHaveBeenCalled();
   });

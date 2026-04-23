@@ -44,7 +44,7 @@ export const answerQuestion: AnswerQuestionFn = async (
   const selectedRepos = selection.repos;
 
   if (selectedRepos.length === 0) {
-    throw new Error("No managed repositories matched the question. Use --repo <name> or update the Archa config.");
+    throw new Error("No managed repositories matched the question. Use --repo <name> or update the ask-the-code config.");
   }
 
   execution.statusReporter?.info(
