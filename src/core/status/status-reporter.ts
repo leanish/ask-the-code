@@ -1,4 +1,4 @@
-import { CODEX_STATUS_PREFIX } from "../codex/codex-status.js";
+import { CODEX_STATUS_PREFIX } from "../codex/constants.js";
 import type { StatusReporter } from "../types.js";
 
 type WritableStatusStream = {

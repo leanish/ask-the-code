@@ -6,7 +6,7 @@ import { buildRepoRoutingDraft } from "../discovery/repo-routing-draft.js";
 import { pathExists } from "../fs/path-exists.js";
 import { getManagedRepoDirectory } from "../repos/repo-paths.js";
 import { createEmptyRepoRouting, normalizeRepoRouting } from "../repos/repo-routing.js";
-import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/repo-defaults.js";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.js";
 import { REPO_CLASSIFICATIONS } from "../types.js";
 import type {
   ConfigMutationResult,
@@ -406,4 +406,3 @@ function validateUniqueRepoIdentifiers(repos: Array<Pick<ManagedRepoDefinition, 
     }
   }
 }
-

@@ -1,4 +1,4 @@
-import { DEFAULT_REPO_TRUNK_BRANCH } from "./repo-defaults.js";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "./constants.js";
 import { syncRepo } from "./repo-sync.js";
 import type { RepoSyncCallbacks, RepoSyncTarget, SyncReportItem } from "../types.js";
 

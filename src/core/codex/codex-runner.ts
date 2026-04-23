@@ -9,8 +9,12 @@ import {
   type AnswerAudience
 } from "../answer/answer-audience.js";
 import { normalizeCodexExecutionError } from "./codex-installation.js";
-import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "./codex-defaults.js";
-import { CODEX_COMPLETED_STATUS_PREFIX, CODEX_STATUS_PREFIX } from "./codex-status.js";
+import {
+  CODEX_COMPLETED_STATUS_PREFIX,
+  CODEX_STATUS_PREFIX,
+  DEFAULT_CODEX_MODEL,
+  DEFAULT_CODEX_REASONING_EFFORT
+} from "./constants.js";
 import { parseEnvPositiveInteger } from "../env/parse-env.js";
 import { formatDuration } from "../time/duration-format.js";
 import type { CodexScopeRepo, CodexSynthesis, Environment, RunCodexQuestionInput } from "../types.js";

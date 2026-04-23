@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import { runCodexPrompt } from "../codex/codex-runner.js";
-import { DEFAULT_CODEX_MODEL } from "../codex/codex-defaults.js";
+import { DEFAULT_CODEX_MODEL } from "../codex/constants.js";
 import { repoMatchesAnyName, selectReposByRequestedNames } from "./repo-identifiers.js";
 import { filterRepoRoutingConsumes } from "./repo-routing.js";
 import type {

@@ -8,7 +8,7 @@ import { pathExists } from "../fs/path-exists.js";
 import { normalizeGitExecutionError } from "../git/git-installation.js";
 import { getManagedRepoDirectory, getManagedRepoRelativePath } from "../repos/repo-paths.js";
 import { createEmptyRepoRouting, filterRepoRoutingConsumes } from "../repos/repo-routing.js";
-import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/repo-defaults.js";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.js";
 import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.js";
 import { buildRepoRoutingDraft } from "./repo-routing-draft.js";
 import { curateRepoMetadataWithCodex } from "./repo-metadata-codex-curator.js";

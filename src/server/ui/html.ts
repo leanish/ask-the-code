@@ -1,4 +1,4 @@
-import { CODEX_STATUS_PREFIX } from "../../core/codex/codex-status.js";
+import { CODEX_STATUS_PREFIX } from "../../core/codex/constants.js";
 import { SUPPORTED_SELECTION_STRATEGIES } from "../../core/repos/selection-strategies.js";
 
 export const HTML_UI = `<!DOCTYPE html>

@@ -1,6 +1,6 @@
 import { DEFAULT_ANSWER_AUDIENCE, isSupportedAnswerAudience, SUPPORTED_ANSWER_AUDIENCES } from "../core/answer/answer-audience.js";
 import { HelpError } from "../core/cli/help-error.js";
-import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "../core/codex/codex-defaults.js";
+import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "../core/codex/constants.js";
 import { SUPPORTED_SELECTION_STRATEGIES, isSelectionStrategy } from "../core/repos/selection-strategies.js";
 import type { AnswerAudience } from "../core/answer/answer-audience.js";
 import type {

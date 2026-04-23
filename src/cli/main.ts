@@ -11,7 +11,7 @@ import { loadConfig, initializeConfig } from "../core/config/config.js";
 import { ensureCodexInstalled } from "../core/codex/codex-installation.js";
 import { getConfigPath } from "../core/config/config-paths.js";
 import { ensureGitInstalled } from "../core/git/git-installation.js";
-import { ACCESSIBLE_GITHUB_OWNER } from "../core/discovery/github-owner.js";
+import { ACCESSIBLE_GITHUB_OWNER } from "../core/discovery/constants.js";
 import { ensureGithubDiscoveryAuthAvailable } from "../core/discovery/github-discovery-auth.js";
 import { runGithubDiscoveryPipeline } from "../core/discovery/discovery-pipeline.js";
 import { createGithubDiscoveryProgressReporter } from "./setup/discovery-progress.js";

@@ -1,6 +1,6 @@
 import process from "node:process";
 
-import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/github-owner.js";
+import { ACCESSIBLE_GITHUB_OWNER } from "../../core/discovery/constants.js";
 import {
   canPromptInteractively,
   defaultCreateInterface,

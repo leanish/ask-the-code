@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
 
-import { ACCESSIBLE_GITHUB_OWNER } from "./github-owner.js";
+import { ACCESSIBLE_GITHUB_OWNER } from "./constants.js";
 import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.js";
 import { inspectRepoMetadata } from "./repo-classification-inspector.js";
 import { getGithubRepoDisplayIdentity } from "./repo-display-utils.js";
 import { buildRepoRoutingDraft } from "./repo-routing-draft.js";
 import { createEmptyRepoRouting, hasRepoRoutingContent } from "../repos/repo-routing.js";
-import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/repo-defaults.js";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/constants.js";
 import type {
   Environment,
   GithubDiscoveryPlan,
