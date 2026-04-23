@@ -7,6 +7,8 @@ ask-the-code exposes two adapters over the same repo-aware question-answering co
 - the `atc` CLI for local terminal use
 - the `atc-server` HTTP server for async job-based integrations
 
+Install the `ask-the-code` package, then run the shorter `atc` and `atc-server` commands.
+
 Both adapters manage a configured set of repositories, keep them in sync, and use the local `codex exec` CLI to answer codebase questions across them.
 
 The source is written as TypeScript ESM under `src/`. Published CLI entrypoints are built into `dist/bin/`.
