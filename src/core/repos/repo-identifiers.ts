@@ -3,6 +3,19 @@ type RepoIdentifierTarget = {
   aliases?: string[] | undefined;
 };
 
+export function getGithubRepoIdentityFromUrl(url: string | undefined): string | null {
+  if (typeof url !== "string" || url.trim() === "") {
+    return null;
+  }
+
+  const match = url.trim().match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?$/i);
+  if (!match) {
+    return null;
+  }
+
+  return `${match[1]}/${match[2]}`;
+}
+
 export function selectReposByRequestedNames<T extends RepoIdentifierTarget>(
   repos: T[],
   requestedRepoNames: string[]

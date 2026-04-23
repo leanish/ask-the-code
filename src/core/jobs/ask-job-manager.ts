@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { DEFAULT_ANSWER_AUDIENCE } from "../answer/answer-audience.js";
 import { answerQuestion } from "../answer/question-answering.js";
-import { CODEX_COMPLETED_STATUS_PREFIX } from "../codex/codex-runner.js";
+import { CODEX_COMPLETED_STATUS_PREFIX } from "../codex/codex-status.js";
 import { createRepoSyncCoordinator } from "../repos/repo-sync-coordinator.js";
 import { createCallbackStatusReporter } from "../status/status-reporter.js";
 import { formatDuration } from "../time/duration-format.js";

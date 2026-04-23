@@ -1,3 +1,4 @@
+import { CODEX_STATUS_PREFIX } from "../codex/codex-status.js";
 import type { StatusReporter } from "../types.js";
 
 type WritableStatusStream = {
@@ -63,5 +64,5 @@ function isInteractiveCodexStatus(stream: WritableStatusStream, message: string)
 }
 
 function isCodexStatus(message: string): boolean {
-  return message.startsWith("Running Codex");
+  return message.startsWith(CODEX_STATUS_PREFIX);
 }

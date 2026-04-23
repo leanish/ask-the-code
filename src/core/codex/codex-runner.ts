@@ -10,13 +10,14 @@ import {
 } from "../answer/answer-audience.js";
 import { normalizeCodexExecutionError } from "./codex-installation.js";
 import { DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT } from "./codex-defaults.js";
+import { CODEX_COMPLETED_STATUS_PREFIX, CODEX_STATUS_PREFIX } from "./codex-status.js";
+import { parseEnvPositiveInteger } from "../env/parse-env.js";
 import { formatDuration } from "../time/duration-format.js";
 import type { CodexScopeRepo, CodexSynthesis, Environment, RunCodexQuestionInput } from "../types.js";
 
 const DEFAULT_CODEX_TIMEOUT_MS = 300_000;
 const FORCE_KILL_GRACE_PERIOD_MS = 5_000;
 const HEARTBEAT_INTERVAL_MS = 5_000;
-export const CODEX_COMPLETED_STATUS_PREFIX = "Running Codex... done in ";
 
 type StatusCallback = ((message: string) => void) | null | undefined;
 
@@ -112,21 +113,10 @@ function createCodexOutputFilePath(): string {
 }
 
 export function getCodexTimeoutMs(env: Environment = process.env): number {
-  if (!env.ARCHA_CODEX_TIMEOUT_MS) {
-    return DEFAULT_CODEX_TIMEOUT_MS;
-  }
-
-  const rawTimeoutMs = env.ARCHA_CODEX_TIMEOUT_MS.trim();
-  if (!/^\d+$/u.test(rawTimeoutMs)) {
-    throw new Error(`Invalid ARCHA_CODEX_TIMEOUT_MS: ${env.ARCHA_CODEX_TIMEOUT_MS}. Use a positive integer.`);
-  }
-
-  const timeoutMs = Number.parseInt(rawTimeoutMs, 10);
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new Error(`Invalid ARCHA_CODEX_TIMEOUT_MS: ${env.ARCHA_CODEX_TIMEOUT_MS}. Use a positive integer.`);
-  }
-
-  return timeoutMs;
+  const timeoutMs = parseEnvPositiveInteger(env.ARCHA_CODEX_TIMEOUT_MS?.trim(), {
+    label: "ARCHA_CODEX_TIMEOUT_MS"
+  });
+  return timeoutMs ?? DEFAULT_CODEX_TIMEOUT_MS;
 }
 
 export function getCodexExecutionContext({
@@ -363,11 +353,11 @@ function startCodexHeartbeat(onStatus: StatusCallback, startedAt: number): () =>
 }
 
 function formatCodexRunningStatus(): string {
-  return "Running Codex...";
+  return `${CODEX_STATUS_PREFIX}...`;
 }
 
 function formatCodexElapsedStatus(elapsedMs: number): string {
-  return `Running Codex... ${formatDuration(elapsedMs)} elapsed`;
+  return `${CODEX_STATUS_PREFIX}... ${formatDuration(elapsedMs)} elapsed`;
 }
 
 function formatCodexCompletedStatus(elapsedMs: number): string {

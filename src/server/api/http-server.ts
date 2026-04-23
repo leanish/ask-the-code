@@ -7,7 +7,9 @@ import {
   SUPPORTED_ANSWER_AUDIENCES
 } from "../../core/answer/answer-audience.js";
 import { loadConfig } from "../../core/config/config.js";
+import { parseEnvPort, parseEnvPositiveInteger } from "../../core/env/parse-env.js";
 import { createAskJobManager } from "../../core/jobs/ask-job-manager.js";
+import { SUPPORTED_SELECTION_STRATEGIES, isSelectionStrategy } from "../../core/repos/selection-strategies.js";
 import { HTML_UI } from "../ui/html.js";
 import type {
   AskJobManager,
@@ -16,7 +18,8 @@ import type {
   AnswerQuestionFn,
   Environment,
   LoadedConfig,
-  ManagedRepoDefinition
+  ManagedRepoDefinition,
+  RepoSelectionStrategy
 } from "../../core/types.js";
 
 type HttpRequestLike = {
@@ -492,22 +495,23 @@ function normalizeOptionalBoolean(value: unknown, label: string): boolean {
   return value;
 }
 
-function normalizeSelectionMode(value: unknown): "single" | "cascade" | null {
+function normalizeSelectionMode(value: unknown): RepoSelectionStrategy {
   if (value == null) {
     return "single";
   }
 
-  if (value === "single" || value === "cascade") {
+  if (isSelectionStrategy(value)) {
     return value;
   }
 
-  throw new HttpError(400, '"selectionMode" must be one of: single, cascade.');
+  throw new HttpError(400, `"selectionMode" must be one of: ${SUPPORTED_SELECTION_STRATEGIES.join(", ")}.`);
 }
 
-function matchJobPath(pathname: string, suffix = ""): string | null {
-  const pattern = suffix
-    ? new RegExp(`^/jobs/([^/]+)${escapeRegExp(suffix)}$`, "u")
-    : /^\/jobs\/([^/]+)$/u;
+const JOB_PATH_PATTERN = /^\/jobs\/([^/]+)$/u;
+const JOB_EVENTS_PATH_PATTERN = /^\/jobs\/([^/]+)\/events$/u;
+
+function matchJobPath(pathname: string, suffix: "" | "/events" = ""): string | null {
+  const pattern = suffix === "/events" ? JOB_EVENTS_PATH_PATTERN : JOB_PATH_PATTERN;
   const match = pathname.match(pattern);
 
   if (!match || !match[1]) {
@@ -515,10 +519,6 @@ function matchJobPath(pathname: string, suffix = ""): string | null {
   }
 
   return decodeURIComponent(match[1]);
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function withJobLinks(job: AskJobSnapshot): AskJobSnapshot & { links: { self: string; events: string } } {
@@ -596,37 +596,11 @@ function hasOwn(object: object, property: string): boolean {
 }
 
 function getOptionalPort(value: string | undefined, label: string): number | null {
-  if (value == null || value === "") {
-    return null;
-  }
-
-  if (!/^\d+$/u.test(String(value))) {
-    throw new Error(`Invalid ${label}: ${value}. Use a TCP port between 0 and 65535.`);
-  }
-
-  const parsed = Number.parseInt(String(value), 10);
-  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65_535) {
-    throw new Error(`Invalid ${label}: ${value}. Use a TCP port between 0 and 65535.`);
-  }
-
-  return parsed;
+  return parseEnvPort(value, label);
 }
 
 function getOptionalPositiveInteger(value: string | undefined, label: string): number | null {
-  if (value == null || value === "") {
-    return null;
-  }
-
-  if (!/^\d+$/u.test(String(value))) {
-    throw new Error(`Invalid ${label}: ${value}. Use a positive integer.`);
-  }
-
-  const parsed = Number.parseInt(String(value), 10);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`Invalid ${label}: ${value}. Use a positive integer.`);
-  }
-
-  return parsed;
+  return parseEnvPositiveInteger(value, { label });
 }
 
 function isTerminalStatus(status: string): boolean {

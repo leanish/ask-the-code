@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
+import { pathExists } from "../fs/path-exists.js";
 import { normalizeGitExecutionError } from "../git/git-installation.js";
 import type { RepoSyncAction, RepoSyncCallbacks, RepoSyncTarget, SyncReportItem } from "../types.js";
 
@@ -21,7 +22,7 @@ export async function syncRepo(repo: RepoSyncTarget, callbacks: RepoSyncCallback
 
     await fs.mkdir(path.dirname(repo.directory), { recursive: true });
 
-    if (!(await exists(repo.directory))) {
+    if (!(await pathExists(repo.directory))) {
       callbacks.onRepoStart?.(repo, "clone", trunkBranch);
       await runCommand("git", [
         "clone",
@@ -76,15 +77,6 @@ function getCloneUrl(repo: Pick<RepoSyncTarget, "name" | "url">): string {
   }
 
   return url;
-}
-
-async function exists(targetPath: string): Promise<boolean> {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function isShallowRepo(directory: string): Promise<boolean> {

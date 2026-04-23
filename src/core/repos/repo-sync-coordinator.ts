@@ -1,3 +1,4 @@
+import { DEFAULT_REPO_TRUNK_BRANCH } from "./repo-defaults.js";
 import { syncRepo } from "./repo-sync.js";
 import type { RepoSyncCallbacks, RepoSyncTarget, SyncReportItem } from "../types.js";
 
@@ -21,7 +22,7 @@ export function createRepoSyncCoordinator({ syncRepoFn = syncRepo }: { syncRepoF
   async function syncRepoWithCoordination(repo: RepoSyncTarget, callbacks: RepoSyncCallbacks): Promise<SyncReportItem> {
     const existingSync = inFlightSyncs.get(repo.directory);
     if (existingSync) {
-      callbacks.onRepoWait?.(repo, repo.defaultBranch || repo.branch || "main");
+      callbacks.onRepoWait?.(repo, repo.defaultBranch || repo.branch || DEFAULT_REPO_TRUNK_BRANCH);
       const item = await existingSync;
       callbacks.onRepoResult?.(item);
       return item;

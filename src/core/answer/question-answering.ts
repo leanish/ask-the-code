@@ -5,6 +5,7 @@ import { loadConfig } from "../config/config.js";
 import { getCodexTimeoutMs, runCodexQuestion } from "../codex/codex-runner.js";
 import { selectRepos } from "../repos/repo-selection.js";
 import { syncRepos } from "../repos/repo-sync.js";
+import { formatSyncFailures } from "../repos/sync-report-format.js";
 import { formatDuration } from "../time/duration-format.js";
 import type {
   AnswerQuestionFn,
@@ -103,12 +104,6 @@ export const answerQuestion: AnswerQuestionFn = async (
   };
 };
 
-function formatSyncFailures(failedSyncs: SyncReportItem[]): string {
-  return failedSyncs
-    .map(item => item.detail ? `${item.name} (${item.detail})` : item.name)
-    .join(", ");
-}
-
 function formatRepoSelectionStatus(
   selectionMode: RepoSelectionMode,
   selectedRepos: ManagedRepo[],
@@ -153,9 +148,15 @@ function getRepoSelectionStatusLabel(selectionMode: RepoSelectionMode): string {
       return "Requested repos";
     case "all":
       return "All repos";
-    default:
+    case "resolved":
       return "Resolved repos";
   }
+
+  return assertUnreachable(selectionMode);
+}
+
+function assertUnreachable(value: never): never {
+  throw new Error(`Unexpected repo selection mode: ${String(value)}`);
 }
 
 async function finalizeRepoSelection(

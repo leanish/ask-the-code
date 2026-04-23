@@ -4,9 +4,11 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 import { getDefaultManagedReposRoot } from "../config/config-paths.js";
+import { pathExists } from "../fs/path-exists.js";
 import { normalizeGitExecutionError } from "../git/git-installation.js";
 import { getManagedRepoDirectory, getManagedRepoRelativePath } from "../repos/repo-paths.js";
 import { createEmptyRepoRouting, filterRepoRoutingConsumes } from "../repos/repo-routing.js";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/repo-defaults.js";
 import { EXTERNAL_FACING_PHRASES, getMaxInferredTopics } from "./inference-constants.js";
 import { buildRepoRoutingDraft } from "./repo-routing-draft.js";
 import { curateRepoMetadataWithCodex } from "./repo-metadata-codex-curator.js";
@@ -318,7 +320,7 @@ async function prepareInspectionDirectory({
   tempDirRoot
 }: Required<Pick<InspectRepoMetadataOptions, "repo" | "env" | "fsModule" | "runCommandFn" | "tempDirRoot">>): Promise<InspectionDirectory> {
   const managedRepoDirectory = getManagedRepoDirectory(getDefaultManagedReposRoot(env), repo);
-  if (await exists(fsModule, managedRepoDirectory)) {
+  if (await pathExists(managedRepoDirectory, fsModule)) {
     return {
       directory: managedRepoDirectory,
       cleanup: null
@@ -343,7 +345,7 @@ async function prepareInspectionDirectory({
       "--depth",
       "1",
       "--branch",
-      repo.defaultBranch || "main",
+      repo.defaultBranch || DEFAULT_REPO_TRUNK_BRANCH,
       "--single-branch",
       cloneUrl,
       cloneDirectory
@@ -368,7 +370,7 @@ async function inferMetadataFromDirectory({
   sourceRepo,
   fsModule
 }: InferMetadataFromDirectoryOptions): Promise<LegacyRepoMetadata> {
-  if (!(await exists(fsModule, directory))) {
+  if (!(await pathExists(directory, fsModule))) {
     return {
       description: "",
       topics: [],
@@ -585,7 +587,7 @@ function inferTopicsFromSignals(
 
 async function hasAnyPath(fsModule: FsModule, rootDirectory: string, relativePaths: string[]): Promise<boolean> {
   for (const relativePath of relativePaths) {
-    if (await exists(fsModule, path.join(rootDirectory, relativePath))) {
+    if (await pathExists(path.join(rootDirectory, relativePath), fsModule)) {
       return true;
     }
   }
@@ -596,7 +598,7 @@ async function hasAnyPath(fsModule: FsModule, rootDirectory: string, relativePat
 async function hasAnyFile(fsModule: FsModule, rootDirectory: string, filenames: string[]): Promise<boolean> {
   for (const filename of filenames) {
     const candidatePath = path.join(rootDirectory, filename);
-    if (await exists(fsModule, candidatePath)) {
+    if (await pathExists(candidatePath, fsModule)) {
       return true;
     }
   }
@@ -855,15 +857,6 @@ function extractRouteEndpoints(routeText: string): string[] {
 
 function hasAnyTerm(signals: Set<string>, terms: string[]): boolean {
   return terms.some(term => signals.has(term));
-}
-
-async function exists(fsModule: FsModule, targetPath: string): Promise<boolean> {
-  try {
-    await fsModule.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function runCommand(command: string, args: string[]): Promise<void> {

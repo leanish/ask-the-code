@@ -96,6 +96,45 @@ describe("config", () => {
     ]);
   });
 
+  it("drops unknown repo fields when importing repo definitions from a catalog file", async () => {
+    const catalogPath = path.join(tempRoot, "catalog.json");
+    await fs.writeFile(catalogPath, JSON.stringify({
+      repos: [
+        {
+          name: "sqs-codec",
+          url: "https://github.com/leanish/sqs-codec.git",
+          branch: "main",
+          description: "SQS execution interceptor with compression and checksum metadata",
+          aliases: ["codec"],
+          alwaysSelect: true,
+          sourceFullName: "leanish/sqs-codec",
+          unexpectedField: "should-not-leak"
+        }
+      ]
+    }, null, 2));
+
+    await initializeConfig({
+      env,
+      catalogPath
+    });
+
+    const persistedConfig = JSON.parse(await fs.readFile(getConfigPath(env), "utf8")) as {
+      repos: unknown[];
+    };
+
+    expect(persistedConfig.repos).toEqual([
+      {
+        name: "sqs-codec",
+        url: "https://github.com/leanish/sqs-codec.git",
+        defaultBranch: "main",
+        description: "SQS execution interceptor with compression and checksum metadata",
+        routing: createEmptyRepoRouting(),
+        aliases: ["codec"],
+        alwaysSelect: true
+      }
+    ]);
+  });
+
   it("migrates legacy topics and classifications into a draft routing card when routing is missing", async () => {
     const configPath = getConfigPath(env);
     await fs.mkdir(path.dirname(configPath), { recursive: true });

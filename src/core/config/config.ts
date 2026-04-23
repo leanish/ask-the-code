@@ -3,8 +3,10 @@ import path from "node:path";
 
 import { getConfigPath, getDefaultManagedReposRoot } from "./config-paths.js";
 import { buildRepoRoutingDraft } from "../discovery/repo-routing-draft.js";
+import { pathExists } from "../fs/path-exists.js";
 import { getManagedRepoDirectory } from "../repos/repo-paths.js";
 import { createEmptyRepoRouting, normalizeRepoRouting } from "../repos/repo-routing.js";
+import { DEFAULT_REPO_TRUNK_BRANCH } from "../repos/repo-defaults.js";
 import { REPO_CLASSIFICATIONS } from "../types.js";
 import type {
   ConfigMutationResult,
@@ -56,7 +58,7 @@ export async function initializeConfig({
   const configPath = getConfigPath(env);
   const resolvedManagedReposRoot = managedReposRoot || getDefaultManagedReposRoot(env);
 
-  if (!force && await exists(configPath)) {
+  if (!force && await pathExists(configPath)) {
     throw new Error(`Archa config already exists at ${configPath}. Use --force to overwrite it.`);
   }
 
@@ -245,7 +247,7 @@ function normalizeRepoDefinition(repo: unknown, index: number, sourcePath: strin
       ? rawRepo.defaultBranch
       : typeof rawRepo.branch === "string"
         ? rawRepo.branch
-        : "main",
+        : DEFAULT_REPO_TRUNK_BRANCH,
     description,
     routing: normalizeRepoRoutingWithLegacyFallback(rawRepo, {
       repoName: rawRepo.name,
@@ -405,11 +407,3 @@ function validateUniqueRepoIdentifiers(repos: Array<Pick<ManagedRepoDefinition, 
   }
 }
 
-async function exists(targetPath: string): Promise<boolean> {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-}

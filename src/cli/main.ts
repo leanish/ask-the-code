@@ -11,6 +11,7 @@ import { loadConfig, initializeConfig } from "../core/config/config.js";
 import { ensureCodexInstalled } from "../core/codex/codex-installation.js";
 import { getConfigPath } from "../core/config/config-paths.js";
 import { ensureGitInstalled } from "../core/git/git-installation.js";
+import { ACCESSIBLE_GITHUB_OWNER } from "../core/discovery/github-owner.js";
 import { ensureGithubDiscoveryAuthAvailable } from "../core/discovery/github-discovery-auth.js";
 import { runGithubDiscoveryPipeline } from "../core/discovery/discovery-pipeline.js";
 import { createGithubDiscoveryProgressReporter } from "./setup/discovery-progress.js";
@@ -26,6 +27,7 @@ import {
   renderSyncReport
 } from "./render.js";
 import { syncRepos } from "../core/repos/repo-sync.js";
+import { formatSyncFailures } from "../core/repos/sync-report-format.js";
 import { createStreamStatusReporter } from "../core/status/status-reporter.js";
 import type {
   AskCommandOptions,
@@ -145,11 +147,7 @@ function failOnSyncFailures(report: SyncReportItem[]): void {
     return;
   }
 
-  throw new Error(`Failed to sync managed repo(s): ${failedSyncs.map(item => formatSyncFailure(item)).join(", ")}`);
-}
-
-function formatSyncFailure(item: SyncReportItem): string {
-  return item.detail ? `${item.name} (${item.detail})` : item.name;
+  throw new Error(`Failed to sync managed repo(s): ${formatSyncFailures(failedSyncs)}`);
 }
 
 function hasExplicitGithubDiscoverySelection(options: GithubDiscoveryOptions): boolean {
@@ -229,7 +227,7 @@ async function resolveGithubDiscoveryOwner(owner: string | null): Promise<string
     input: process.stdin,
     output: process.stdout
   })) {
-    return "@accessible";
+    return ACCESSIBLE_GITHUB_OWNER;
   }
 
   return promptForGithubOwner({
