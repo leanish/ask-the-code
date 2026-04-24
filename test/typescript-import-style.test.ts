@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 const relativeImportPattern =
   /\bfrom\s+["'](\.{1,2}\/[^"']+)["']|\bimport\s*\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g;
 const repoRoot = new URL("../", import.meta.url);
+const repoRootPath = fileURLToPath(repoRoot);
 const tsDirectories = ["src", "test"];
 const tsRootFiles = ["vitest.config.ts"];
 
@@ -14,7 +15,7 @@ describe("typescript import style", () => {
     const offenders = collectTypeScriptSourceFiles()
       .flatMap((filePath) =>
         findNonTsRelativeImportSpecifiers(filePath).map(
-          (specifier) => `${path.relative(fileURLToPath(repoRoot), filePath)}: ${specifier}`
+          (specifier) => `${path.relative(repoRootPath, filePath)}: ${specifier}`
         )
       );
 
@@ -25,9 +26,9 @@ describe("typescript import style", () => {
 function collectTypeScriptSourceFiles(): string[] {
   return [
     ...tsDirectories.flatMap((directory) =>
-      collectTypeScriptFiles(path.join(fileURLToPath(repoRoot), directory))
+      collectTypeScriptFiles(path.join(repoRootPath, directory))
     ),
-    ...tsRootFiles.map((fileName) => path.join(fileURLToPath(repoRoot), fileName))
+    ...tsRootFiles.map((fileName) => path.join(repoRootPath, fileName))
   ];
 }
 
