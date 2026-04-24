@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   runCodexPrompt: vi.fn()
 }));
 
-vi.mock("../src/core/codex/codex-runner.js", () => ({
+vi.mock("../src/core/codex/codex-runner.ts", () => ({
   runCodexPrompt: mocks.runCodexPrompt
 }));
 

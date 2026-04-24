@@ -3,18 +3,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const relativeImportPattern =
-  /\bfrom\s+["'](\.{1,2}\/[^"']+)["']|\bimport\s*\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g;
+const relativeModuleSpecifierPattern =
+  /\bfrom\s+["'](\.{1,2}\/[^"']+)["']|\bimport\s*\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)|\bvi\.mock\s*\(\s*["'](\.{1,2}\/[^"']+)["']/g;
 const repoRoot = new URL("../", import.meta.url);
 const repoRootPath = fileURLToPath(repoRoot);
 const tsDirectories = ["src", "test"];
 const tsRootFiles = ["vitest.config.ts"];
 
 describe("typescript import style", () => {
-  it("uses .ts suffixes on relative imports in TypeScript files", () => {
+  it("uses .ts suffixes on relative module specifiers in TypeScript files", () => {
     const offenders = collectTypeScriptSourceFiles()
       .flatMap((filePath) =>
-        findNonTsRelativeImportSpecifiers(filePath).map(
+        findNonTsRelativeModuleSpecifiers(filePath).map(
           (specifier) => `${path.relative(repoRootPath, filePath)}: ${specifier}`
         )
       );
@@ -44,9 +44,9 @@ function collectTypeScriptFiles(directory: string): string[] {
   });
 }
 
-function findNonTsRelativeImportSpecifiers(filePath: string): string[] {
+function findNonTsRelativeModuleSpecifiers(filePath: string): string[] {
   const contents = readFileSync(filePath, "utf8");
 
-  return Array.from(contents.matchAll(relativeImportPattern), (match) => match[1] ?? match[2] ?? "")
+  return Array.from(contents.matchAll(relativeModuleSpecifierPattern), (match) => match[1] ?? match[2] ?? match[3] ?? "")
     .filter((specifier) => !specifier.endsWith(".ts"));
 }

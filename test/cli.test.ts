@@ -33,7 +33,7 @@ vi.mock("node:fs/promises", () => ({
   }
 }));
 
-vi.mock("../src/cli/setup/bootstrap.js", () => ({
+vi.mock("../src/cli/setup/bootstrap.ts", () => ({
   canPromptInteractively: mocks.canPromptInteractively,
   promptToInitializeConfig: mocks.promptToInitializeConfig,
   promptToContinueGithubDiscovery: mocks.promptToContinueGithubDiscovery,
@@ -42,29 +42,29 @@ vi.mock("../src/cli/setup/bootstrap.js", () => ({
   renderConfigInit: mocks.renderConfigInit
 }));
 
-vi.mock("../src/core/config/config.js", () => ({
+vi.mock("../src/core/config/config.ts", () => ({
   loadConfig: mocks.loadConfig,
   initializeConfig: mocks.initializeConfig,
   applyGithubDiscoveryToConfig: mocks.applyGithubDiscoveryToConfig
 }));
 
-vi.mock("../src/core/codex/codex-installation.js", () => ({
+vi.mock("../src/core/codex/codex-installation.ts", () => ({
   ensureCodexInstalled: mocks.ensureCodexInstalled
 }));
 
-vi.mock("../src/core/git/git-installation.js", () => ({
+vi.mock("../src/core/git/git-installation.ts", () => ({
   ensureGitInstalled: mocks.ensureGitInstalled
 }));
 
-vi.mock("../src/core/discovery/github-discovery-auth.js", () => ({
+vi.mock("../src/core/discovery/github-discovery-auth.ts", () => ({
   ensureGithubDiscoveryAuthAvailable: mocks.ensureGithubDiscoveryAuthAvailable
 }));
 
-vi.mock("../src/core/config/config-paths.js", () => ({
+vi.mock("../src/core/config/config-paths.ts", () => ({
   getConfigPath: mocks.getConfigPath
 }));
 
-vi.mock("../src/core/discovery/github-catalog.js", () => ({
+vi.mock("../src/core/discovery/github-catalog.ts", () => ({
   buildAppliedGithubDiscoveryEntries: mocks.buildAppliedGithubDiscoveryEntries,
   discoverGithubOwnerRepos: mocks.discoverGithubOwnerRepos,
   getGithubDiscoveryRepoKey: mocks.getGithubDiscoveryRepoKey,
@@ -72,16 +72,16 @@ vi.mock("../src/core/discovery/github-catalog.js", () => ({
   refineDiscoveredGithubRepos: mocks.refineDiscoveredGithubRepos
 }));
 
-vi.mock("../src/cli/setup/discovery-selection.js", () => ({
+vi.mock("../src/cli/setup/discovery-selection.ts", () => ({
   promptGithubDiscoverySelection: mocks.promptGithubDiscoverySelection,
   selectGithubDiscoveryRepos: mocks.selectGithubDiscoveryRepos
 }));
 
-vi.mock("../src/core/answer/question-answering.js", () => ({
+vi.mock("../src/core/answer/question-answering.ts", () => ({
   answerQuestion: mocks.answerQuestion
 }));
 
-vi.mock("../src/core/repos/repo-sync.js", () => ({
+vi.mock("../src/core/repos/repo-sync.ts", () => ({
   syncRepos: mocks.syncRepos
 }));
 

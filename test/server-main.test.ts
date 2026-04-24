@@ -18,33 +18,33 @@ const mocks = vi.hoisted(() => ({
   renderGithubDiscovery: vi.fn()
 }));
 
-vi.mock("../src/server/api/http-server.js", () => ({
+vi.mock("../src/server/api/http-server.ts", () => ({
   startHttpServer: mocks.startHttpServer
 }));
 
-vi.mock("../src/cli/setup/bootstrap.js", () => ({
+vi.mock("../src/cli/setup/bootstrap.ts", () => ({
   ensureInteractiveConfigSetup: mocks.ensureInteractiveConfigSetup
 }));
 
-vi.mock("../src/core/config/config.js", () => ({
+vi.mock("../src/core/config/config.ts", () => ({
   loadConfig: mocks.loadConfig,
   initializeConfig: vi.fn(),
   applyGithubDiscoveryToConfig: mocks.applyGithubDiscoveryToConfig
 }));
 
-vi.mock("../src/core/codex/codex-installation.js", () => ({
+vi.mock("../src/core/codex/codex-installation.ts", () => ({
   ensureCodexInstalled: mocks.ensureCodexInstalled
 }));
 
-vi.mock("../src/core/git/git-installation.js", () => ({
+vi.mock("../src/core/git/git-installation.ts", () => ({
   ensureGitInstalled: mocks.ensureGitInstalled
 }));
 
-vi.mock("../src/core/discovery/github-discovery-auth.js", () => ({
+vi.mock("../src/core/discovery/github-discovery-auth.ts", () => ({
   ensureGithubDiscoveryAuthAvailable: mocks.ensureGithubDiscoveryAuthAvailable
 }));
 
-vi.mock("../src/core/discovery/github-catalog.js", () => ({
+vi.mock("../src/core/discovery/github-catalog.ts", () => ({
   buildAppliedGithubDiscoveryEntries: mocks.buildAppliedGithubDiscoveryEntries,
   discoverGithubOwnerRepos: mocks.discoverGithubOwnerRepos,
   getGithubDiscoveryRepoKey: mocks.getGithubDiscoveryRepoKey,
@@ -52,11 +52,11 @@ vi.mock("../src/core/discovery/github-catalog.js", () => ({
   refineDiscoveredGithubRepos: mocks.refineDiscoveredGithubRepos
 }));
 
-vi.mock("../src/cli/setup/discovery-selection.js", () => ({
+vi.mock("../src/cli/setup/discovery-selection.ts", () => ({
   promptGithubDiscoverySelection: mocks.promptGithubDiscoverySelection
 }));
 
-vi.mock("../src/cli/render.js", () => ({
+vi.mock("../src/cli/render.ts", () => ({
   renderGithubDiscovery: mocks.renderGithubDiscovery
 }));
 
