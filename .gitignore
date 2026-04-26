@@ -1,0 +1,14 @@
+node_modules/
+coverage/
+dist/
+*.tsbuildinfo
+.husky/_
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
+
+# Other
+.claude/

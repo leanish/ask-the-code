@@ -1,0 +1,42 @@
+{
+  "name": "ask-the-code",
+  "version": "0.1.0",
+  "description": "Ask your codebase how it behaves.",
+  "type": "module",
+  "bin": {
+    "atc": "./dist/bin/atc.js",
+    "atc-server": "./dist/bin/atc-server.js"
+  },
+  "exports": {},
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
+    "postbuild": "node ./scripts/ensure-bin-executable.mjs && node ./scripts/copy-ui-assets.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "check": "npm run typecheck && npm test && npm run build",
+    "prepack": "npm run build",
+    "cli": "node --import tsx src/bin/atc.ts",
+    "server": "node --import tsx src/bin/atc-server.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.0",
+    "hono": "^4.12.15"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@vitest/coverage-v8": "^4.1.2",
+    "husky": "^9.1.7",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
