@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   renderGithubDiscovery: vi.fn()
 }));
 
-vi.mock("../src/server/api/http-server.ts", () => ({
+vi.mock("../src/server/http-server.ts", () => ({
   startHttpServer: mocks.startHttpServer
 }));
 

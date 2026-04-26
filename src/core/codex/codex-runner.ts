@@ -17,11 +17,12 @@ import {
 } from "./constants.ts";
 import { parseEnvPositiveInteger } from "../env/parse-env.ts";
 import { formatDuration } from "../time/duration-format.ts";
-import type { CodexScopeRepo, CodexSynthesis, Environment, RunCodexQuestionInput } from "../types.ts";
+import type { AskAttachment, CodexScopeRepo, CodexSynthesis, Environment, RunCodexQuestionInput } from "../types.ts";
 
 const DEFAULT_CODEX_TIMEOUT_MS = 300_000;
 const FORCE_KILL_GRACE_PERIOD_MS = 5_000;
 const HEARTBEAT_INTERVAL_MS = 5_000;
+const MAX_ATTACHMENT_PROMPT_CHARS = 20_000;
 
 type StatusCallback = ((message: string) => void) | null | undefined;
 
@@ -47,6 +48,7 @@ type RunCodexExecInput = {
 
 export async function runCodexQuestion({
   question,
+  attachments = [],
   audience,
   model,
   reasoningEffort,
@@ -57,6 +59,7 @@ export async function runCodexQuestion({
 }: RunCodexQuestionInput): Promise<CodexSynthesis> {
   const executionContext = getCodexExecutionContext({
     question,
+    attachments,
     ...(audience === undefined ? {} : { audience }),
     selectedRepos,
     workspaceRoot
@@ -125,10 +128,11 @@ export function getCodexTimeoutMs(env: Environment = process.env): number {
 
 export function getCodexExecutionContext({
   question,
+  attachments = [],
   audience,
   selectedRepos,
   workspaceRoot
-}: Pick<RunCodexQuestionInput, "question" | "audience" | "selectedRepos" | "workspaceRoot">): {
+}: Pick<RunCodexQuestionInput, "question" | "attachments" | "audience" | "selectedRepos" | "workspaceRoot">): {
   workingDirectory: string;
   prompt: string;
 } {
@@ -139,14 +143,15 @@ export function getCodexExecutionContext({
 
   return {
     workingDirectory,
-    prompt: buildPrompt(question, selectedRepos, audience)
+    prompt: buildPrompt(question, selectedRepos, audience, attachments)
   };
 }
 
 function buildPrompt(
   question: string,
   selectedRepos: CodexScopeRepo[],
-  audience: AnswerAudience | null | undefined
+  audience: AnswerAudience | null | undefined,
+  attachments: AskAttachment[]
 ): string {
   const resolvedAudience = resolveAnswerAudience(audience);
   const repoNames = selectedRepos.map(repo => repo.name).join(", ");
@@ -160,8 +165,55 @@ function buildPrompt(
     "I got the question:",
     '"""',
     question,
-    '"""'
+    '"""',
+    ...formatAttachmentPromptLines(attachments)
   ].join("\n");
+}
+
+function formatAttachmentPromptLines(attachments: AskAttachment[]): string[] {
+  if (attachments.length === 0) {
+    return [];
+  }
+
+  return [
+    "",
+    "Attachments supplied with the question:",
+    ...attachments.flatMap((attachment, index) => formatAttachmentPromptBlock(attachment, index))
+  ];
+}
+
+function formatAttachmentPromptBlock(attachment: AskAttachment, index: number): string[] {
+  const decoded = Buffer.from(attachment.contentBase64, "base64");
+  const sizeLabel = `${decoded.byteLength} byte${decoded.byteLength === 1 ? "" : "s"}`;
+  const content = isTextAttachment(attachment)
+    ? decoded.toString("utf8")
+    : attachment.contentBase64;
+  const truncated = truncatePromptContent(content);
+  const contentLabel = isTextAttachment(attachment) ? "Text content" : "Base64 content";
+
+  return [
+    `${index + 1}. ${attachment.name} (${attachment.mediaType}, ${sizeLabel})`,
+    `${contentLabel}:`,
+    '"""',
+    truncated,
+    '"""'
+  ];
+}
+
+function truncatePromptContent(content: string): string {
+  if (content.length <= MAX_ATTACHMENT_PROMPT_CHARS) {
+    return content;
+  }
+
+  return `${content.slice(0, MAX_ATTACHMENT_PROMPT_CHARS)}\n[Attachment content truncated to ${MAX_ATTACHMENT_PROMPT_CHARS} characters.]`;
+}
+
+function isTextAttachment(attachment: AskAttachment): boolean {
+  if (attachment.mediaType.startsWith("text/")) {
+    return true;
+  }
+
+  return /\.(csv|css|html|java|js|json|jsx|log|md|py|scss|ts|tsx|txt|xml|ya?ml)$/iu.test(attachment.name);
 }
 
 function getAudiencePromptLines(audience: AnswerAudience): string[] {

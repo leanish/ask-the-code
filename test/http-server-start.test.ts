@@ -12,7 +12,7 @@ vi.mock("node:http", () => ({
   }
 }));
 
-import { startHttpServer } from "../src/server/api/http-server.ts";
+import { startHttpServer } from "../src/server/http-server.ts";
 import type { AskJobManager } from "../src/core/types.ts";
 import { createLoadedConfig } from "./test-helpers.ts";
 

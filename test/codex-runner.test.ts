@@ -130,6 +130,31 @@ describe("codex-runner", () => {
     expect(context.prompt).toContain("These repos are in scope for answering the question: sqs-codec, java-conventions.");
   });
 
+  it("includes uploaded text attachments in the Codex prompt", () => {
+    const context = getCodexExecutionContext({
+      question: "Use the attached requirements.",
+      audience: "codebase",
+      workspaceRoot: "/workspace/atc/repos",
+      selectedRepos: [
+        {
+          name: "ask-the-code",
+          directory: "/workspace/atc/repos/ask-the-code"
+        }
+      ],
+      attachments: [
+        {
+          name: "requirements.txt",
+          mediaType: "text/plain",
+          contentBase64: Buffer.from("Need GitHub SSO and uploaded files.").toString("base64")
+        }
+      ]
+    });
+
+    expect(context.prompt).toContain("Attachments supplied with the question:");
+    expect(context.prompt).toContain("requirements.txt (text/plain");
+    expect(context.prompt).toContain("Need GitHub SSO and uploaded files.");
+  });
+
   it("runs codex and returns the final answer text", async () => {
     const child = createChildProcess({ code: 0 });
     const onStatus = vi.fn();

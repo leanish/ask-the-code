@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 132 60" role="img" aria-label="ATC">
+  <defs>
+    <linearGradient id="atc-stripes" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1f6feb"/>
+      <stop offset="20%" stop-color="#2ea043"/>
+      <stop offset="40%" stop-color="#bf8700"/>
+      <stop offset="60%" stop-color="#cf222e"/>
+      <stop offset="80%" stop-color="#8250df"/>
+      <stop offset="100%" stop-color="#fb8500"/>
+    </linearGradient>
+  </defs>
+  <text x="0" y="48" fill="url(#atc-stripes)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="56" font-weight="800">ATC</text>
+</svg>

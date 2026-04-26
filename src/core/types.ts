@@ -102,6 +102,7 @@ export interface ConfigMutationResult {
 
 export interface AskRequest {
   question: string;
+  attachments?: AskAttachment[];
   repoNames: string[] | null;
   audience?: AnswerAudience | null;
   model: string | null;
@@ -202,8 +203,15 @@ export interface CodexScopeRepo {
   branch?: string;
 }
 
+export interface AskAttachment {
+  name: string;
+  mediaType: string;
+  contentBase64: string;
+}
+
 export interface RunCodexQuestionInput {
   question: string;
+  attachments?: AskAttachment[];
   audience?: AnswerAudience | null;
   model: string | null;
   reasoningEffort: string | null;
