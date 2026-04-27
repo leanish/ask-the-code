@@ -146,7 +146,7 @@ Rules:
 - omitted `selectionMode` defaults to `single`
 - `selectionShadowCompare` is an optional boolean; when `true`, the server keeps background `none`, `low`, and `high` repo-selector runs for comparison diagnostics while the main ask continues
 - `attachments` is optional and must be an array of `{ "name", "mediaType", "contentBase64" }` objects
-- uploaded attachments are included in the Codex prompt; text-like files are decoded as UTF-8, and binary files are passed as base64 text
+- uploaded attachments are included in the Codex prompt as untrusted data; text-like files are decoded as UTF-8, and binary files are passed as base64 text
 - attachment limits are 8 files, 1 MiB decoded per file, and 3 MiB decoded total
 - when GitHub SSO is configured, clients must have a valid signed local session cookie; otherwise the endpoint returns `401`
 - `noSync` and `noSynthesis` are optional booleans
