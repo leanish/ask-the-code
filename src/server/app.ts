@@ -37,7 +37,7 @@ export function createApp(
   validateAuthConfig(env);
   const app = new Hono<ServerAppBindings>();
 
-  app.use("*", cors({
+  app.use("/api/*", cors({
     allowHeaders: [
       "Content-Type",
       "Accept",

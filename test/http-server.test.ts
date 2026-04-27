@@ -150,6 +150,10 @@ describe("http-server", () => {
     });
     const optionsResponse = await performRequest(handler, {
       method: "OPTIONS",
+      path: "/api/v1/ask"
+    });
+    const cookieAskOptionsResponse = await performRequest(handler, {
+      method: "OPTIONS",
       path: "/ask"
     });
 
@@ -163,6 +167,7 @@ describe("http-server", () => {
     });
     expect(optionsResponse.statusCode).toBe(204);
     expect(optionsResponse.headers["access-control-allow-methods"]).toContain("POST");
+    expect(cookieAskOptionsResponse.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
   it("rejects malformed ask attachments before creating a job", async () => {
