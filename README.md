@@ -421,7 +421,7 @@ API-only integrations should use `POST /api/v1/ask` instead of `POST /ask`. The 
 - `X-ATC-Interaction-Timestamp`
 - `X-ATC-Interaction-Signature`
 
-The signature is a hex HMAC-SHA256 using `ATC_API_SIGNING_SECRET` over `timestamp + "\n" + interactionUser + "\n" + conversationKey + "\n" + rawRequestBody`. The timestamp must be within five minutes of the server clock. API asks are recorded in a local JSON history file at `~/.local/share/atc/history.json`, or `ATC_HISTORY_PATH` when set. History keeps 24 items per conversation plus one limit-reached status, and keeps the newest 500 conversations. Attachment contents are not stored in history.
+The signature is a hex HMAC-SHA256 using `ATC_API_SIGNING_SECRET` over `timestamp + "\n" + interactionUser + "\n" + conversationKey + "\n" + rawRequestBody`. The timestamp must be within five minutes of the server clock. API asks are recorded in a local JSON history file at `~/.local/share/atc/history.json`, or `ATC_HISTORY_PATH` when set. History keeps 24 items per conversation plus one limit-reached status, and keeps the newest 500 conversations. Once a conversation reaches the limit, the next API ask returns `409` and records the limit status instead of starting another job. Attachment contents are not stored in history.
 
 Poll job state:
 

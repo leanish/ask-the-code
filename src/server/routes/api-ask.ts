@@ -26,6 +26,14 @@ export function registerApiAskRoutes<E extends Env>(app: Hono<E>, deps: ApiAskRo
       headers: c.req.raw.headers
     });
     const payload = normalizeApiAskRequest(parseJsonBody(bodyText));
+    const capacity = await historyStore.ensureQuestionCapacity({
+      conversationKey: interaction.conversationKey,
+      interactionUser: interaction.interactionUser
+    });
+    if (!capacity.accepted) {
+      throw new HttpError(409, capacity.message);
+    }
+
     const job = deps.jobManager.createJob(payload);
 
     await historyStore.recordQuestion({

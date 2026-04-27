@@ -9,7 +9,7 @@ import type { AskAttachment, AskJobSnapshot } from "../core/types.ts";
 const HISTORY_VERSION = 1;
 const DEFAULT_MAX_CONVERSATIONS = 500;
 const DEFAULT_MAX_ITEMS_PER_CONVERSATION = 24;
-const LIMIT_REACHED_MESSAGE = "Conversation history limit reached. Start a new conversation to keep asking questions.";
+export const API_HISTORY_LIMIT_REACHED_MESSAGE = "Conversation history limit reached. Start a new conversation to keep asking questions.";
 
 export type ApiHistoryAttachment = {
   name: string;
@@ -62,8 +62,18 @@ export type ApiHistoryDocument = {
 
 export type ApiHistoryStore = {
   getConversation(conversationKey: string): Promise<ApiHistoryConversation | null>;
+  ensureQuestionCapacity(entry: ApiHistoryCapacityEntry): Promise<ApiHistoryCapacityResult>;
   recordQuestion(entry: ApiHistoryQuestionEntry): Promise<void>;
   recordJobSnapshot(entry: ApiHistoryJobSnapshotEntry): Promise<void>;
+};
+
+export type ApiHistoryCapacityResult =
+  | { accepted: true }
+  | { accepted: false; message: string };
+
+export type ApiHistoryCapacityEntry = {
+  conversationKey: string;
+  interactionUser: string;
 };
 
 export type ApiHistoryQuestionEntry = {
@@ -97,7 +107,7 @@ export function createApiHistoryStore({
   validatePositiveInteger(maxItemsPerConversation, "maxItemsPerConversation");
 
   const resolvedHistoryPath = resolveHistoryPath(historyPath);
-  let writeQueue = Promise.resolve();
+  let writeQueue: Promise<unknown> = Promise.resolve();
 
   return {
     async getConversation(conversationKey) {
@@ -105,6 +115,40 @@ export function createApiHistoryStore({
       const document = await readHistoryDocument(resolvedHistoryPath);
       const conversation = document.conversations.find(item => item.conversationKey === conversationKey);
       return conversation ? structuredClone(conversation) : null;
+    },
+    ensureQuestionCapacity(entry) {
+      return enqueueMutation(document => {
+        const conversation = getOrCreateConversation(document, {
+          conversationKey: entry.conversationKey,
+          interactionUser: entry.interactionUser,
+          now
+        });
+        const timestamp = toTimestamp(now());
+        if (hasLimitReached(conversation)) {
+          conversation.updatedAt = timestamp;
+          return {
+            accepted: false,
+            message: API_HISTORY_LIMIT_REACHED_MESSAGE
+          };
+        }
+        if (conversation.items.length >= maxItemsPerConversation) {
+          conversation.items.push({
+            type: "limit",
+            id: randomUUID(),
+            message: API_HISTORY_LIMIT_REACHED_MESSAGE,
+            createdAt: timestamp
+          });
+          conversation.updatedAt = timestamp;
+          return {
+            accepted: false,
+            message: API_HISTORY_LIMIT_REACHED_MESSAGE
+          };
+        }
+
+        return {
+          accepted: true
+        };
+      });
     },
     recordQuestion(entry) {
       return enqueueMutation(document => {
@@ -138,12 +182,13 @@ export function createApiHistoryStore({
     }
   };
 
-  function enqueueMutation(mutate: (document: ApiHistoryDocument) => void): Promise<void> {
+  function enqueueMutation<Result>(mutate: (document: ApiHistoryDocument) => Result): Promise<Result> {
     const nextWrite = writeQueue.then(async () => {
       const document = await readHistoryDocument(resolvedHistoryPath);
-      mutate(document);
+      const result = mutate(document);
       pruneConversations(document, maxConversations);
       await writeHistoryDocument(resolvedHistoryPath, document);
+      return result;
     });
 
     writeQueue = nextWrite.catch(() => {});
@@ -177,7 +222,7 @@ export function createApiHistoryStore({
       conversation.items.push({
         type: "limit",
         id: randomUUID(),
-        message: LIMIT_REACHED_MESSAGE,
+        message: API_HISTORY_LIMIT_REACHED_MESSAGE,
         createdAt: item.createdAt
       });
       conversation.updatedAt = item.createdAt;

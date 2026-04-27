@@ -219,6 +219,7 @@ Rules:
 - advanced fields such as `repoNames`, `audience`, `model`, `reasoningEffort`, `selectionMode`, `noSync`, and `noSynthesis` are rejected
 - server-side defaults are equivalent to Simple mode
 - successful asks are recorded in local API conversation history
+- when a conversation already has 24 history items, the next ask records a limit status and returns `409` without creating a job
 
 Request body:
 
@@ -313,4 +314,4 @@ Event types:
 - the built-in web UI uses `GET /repos` for the Expert mode repositories view
 - Expert mode serializes audience, model, reasoning, repo-selection, sync, synthesis, and selector comparison controls into `POST /ask`; Simple mode uses backend defaults
 - API-only integrations use `POST /api/v1/ask`, cannot set Expert-mode fields, and persist local JSON conversation history
-- API history defaults to `~/.local/share/atc/history.json`, can be overridden with `ATC_HISTORY_PATH`, keeps 24 items per conversation plus one limit-reached status, keeps the newest 500 conversations, and stores attachment metadata without attachment contents
+- API history defaults to `~/.local/share/atc/history.json`, can be overridden with `ATC_HISTORY_PATH`, keeps 24 items per conversation plus one limit-reached status, rejects the next ask for a full conversation with `409`, keeps the newest 500 conversations, and stores attachment metadata without attachment contents

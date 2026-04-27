@@ -191,6 +191,58 @@ describe("api ask route", () => {
       }
     });
   });
+
+  it("rejects API asks after the conversation history limit is reached", async () => {
+    const historyPath = await createTempHistoryPath();
+    let jobIndex = 0;
+    const jobManager = createHttpJobManager({
+      createJob: vi.fn(() => {
+        jobIndex += 1;
+        return createJobSnapshot({ id: `api-job-${jobIndex}` });
+      })
+    });
+    const app = createTestApp({
+      env: createApiEnv({ ATC_HISTORY_PATH: historyPath }),
+      jobManager
+    });
+
+    for (let index = 1; index <= 24; index += 1) {
+      const response = await app.fetch(createApiAskRequest({
+        body: {
+          question: `Question ${index}`
+        }
+      }));
+      expect(response.status).toBe(202);
+    }
+
+    const limitResponse = await app.fetch(createApiAskRequest({
+      body: {
+        question: "Question 25"
+      }
+    }));
+
+    expect(limitResponse.status).toBe(409);
+    await expect(limitResponse.json()).resolves.toEqual({
+      error: "Conversation history limit reached. Start a new conversation to keep asking questions."
+    });
+    expect(jobManager.createJob).toHaveBeenCalledTimes(24);
+    await expect(readHistoryJson(historyPath)).resolves.toMatchObject({
+      conversations: [
+        {
+          items: [
+            ...Array.from({ length: 24 }, (_, index) => ({
+              type: "question",
+              text: `Question ${index + 1}`
+            })),
+            {
+              type: "limit",
+              message: "Conversation history limit reached. Start a new conversation to keep asking questions."
+            }
+          ]
+        }
+      ]
+    });
+  });
 });
 
 async function createTempHistoryPath(): Promise<string> {
