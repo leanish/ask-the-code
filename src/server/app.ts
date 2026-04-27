@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { loadConfig } from "../core/config/config.ts";
-import { registerApiAskRoutes } from "./routes/api-ask.ts";
+import { createApiAskRoutes } from "./routes/api-ask.ts";
 import { registerAskRoutes } from "./routes/ask.ts";
 import { DEFAULT_BODY_LIMIT_BYTES, HttpError, type ApiRouteDeps } from "./routes/api-helpers.ts";
 import { registerAuthRoutes, validateAuthConfig, type AuthFetchFn } from "./routes/auth.ts";
@@ -55,7 +55,7 @@ export function createApp(
     rewriteRequestPath: pathName => pathName.replace(/^\/ui\/assets\/?/u, "")
   }));
   registerUiRoutes(app);
-  registerApiAskRoutes(app, { bodyLimitBytes, env, jobManager });
+  app.route("/", createApiAskRoutes({ bodyLimitBytes, env, jobManager }));
   registerAskRoutes(app, { bodyLimitBytes, env, jobManager });
   registerAuthRoutes(app, {
     env,

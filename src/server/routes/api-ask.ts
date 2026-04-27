@@ -1,4 +1,4 @@
-import type { Env, Hono } from "hono";
+import { Hono, type Env } from "hono";
 
 import { createApiHistoryStore, type ApiHistoryStore } from "../api-history-store.ts";
 import {
@@ -14,6 +14,11 @@ export type ApiAskRouteDeps = Pick<ApiRouteDeps, "bodyLimitBytes" | "env" | "job
 };
 
 export function registerApiAskRoutes<E extends Env>(app: Hono<E>, deps: ApiAskRouteDeps): void {
+  app.route("/", createApiAskRoutes<E>(deps));
+}
+
+export function createApiAskRoutes<E extends Env>(deps: ApiAskRouteDeps): Hono<E> {
+  const app = new Hono<E>();
   const historyStore = deps.historyStore ?? createApiHistoryStore({
     historyPath: deps.env.ATC_HISTORY_PATH ?? null
   });
@@ -76,6 +81,8 @@ export function registerApiAskRoutes<E extends Env>(app: Hono<E>, deps: ApiAskRo
       conversation: await historyStore.getConversation(conversationKey)
     });
   });
+
+  return app;
 }
 
 function parseJsonBody(bodyText: string): unknown {
