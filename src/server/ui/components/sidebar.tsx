@@ -17,10 +17,10 @@ export function Sidebar({ version }: SidebarProps) {
       <nav class="sidebar-nav" aria-label="Expert navigation">
         <SidebarSection title="ASK" items={[
           ["#new-ask", "New Ask", null, true],
-          ["#history", "History", "0", false]
+          ["#history", "History", null, false]
         ]} />
         <SidebarSection title="REPOSITORIES" items={[
-          ["#repos", "All Repositories", "12", false],
+          ["#repos", "All Repositories", null, false],
           ["#sync-status", "Sync Status", null, false]
         ]} />
         <SidebarSection title="CONFIG" items={[

@@ -41,6 +41,7 @@ describe("UI route", () => {
     expect(html).toContain("Simple");
     expect(html).toContain("Expert");
     expect(html).toContain("All Repositories");
+    expect(html).not.toContain("sidebar-count");
     expect(html).toContain("Options");
     expect(html).toContain("Reasoning effort");
     expect(html).toContain("<input type=\"radio\" name=\"audience\" value=\"general\" checked");
