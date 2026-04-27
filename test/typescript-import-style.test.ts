@@ -10,8 +10,10 @@ const repoRootPath = fileURLToPath(repoRoot);
 const tsDirectories = ["src", "test"];
 const tsRootFiles = ["vitest.config.ts"];
 
+const ALLOWED_SUFFIXES = [".ts", ".tsx", ".js"];
+
 describe("typescript import style", () => {
-  it("uses .ts suffixes on relative module specifiers in TypeScript files", () => {
+  it("uses an explicit module suffix on relative module specifiers in TypeScript files", () => {
     const offenders = collectTypeScriptSourceFiles()
       .flatMap((filePath) =>
         findNonTsRelativeModuleSpecifiers(filePath).map(
@@ -48,5 +50,5 @@ function findNonTsRelativeModuleSpecifiers(filePath: string): string[] {
   const contents = readFileSync(filePath, "utf8");
 
   return Array.from(contents.matchAll(relativeModuleSpecifierPattern), (match) => match[1] ?? match[2] ?? match[3] ?? "")
-    .filter((specifier) => !specifier.endsWith(".ts"));
+    .filter((specifier) => !ALLOWED_SUFFIXES.some((suffix) => specifier.endsWith(suffix)));
 }

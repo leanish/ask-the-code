@@ -9,10 +9,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock("node:http", () => ({
   default: {
     createServer: mocks.createServer
-  }
+  },
+  createServer: mocks.createServer
 }));
 
-import { startHttpServer } from "../src/server/api/http-server.ts";
+import { startHttpServer } from "../src/server/http-server.ts";
 import type { AskJobManager } from "../src/core/types.ts";
 import { createLoadedConfig } from "./test-helpers.ts";
 
