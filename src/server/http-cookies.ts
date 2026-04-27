@@ -15,7 +15,11 @@ export function parseCookies(header: string | undefined): Record<string, string>
     if (!name || valueParts.length === 0) {
       continue;
     }
-    cookies[name] = decodeURIComponent(valueParts.join("="));
+    try {
+      cookies[name] = decodeURIComponent(valueParts.join("="));
+    } catch {
+      continue;
+    }
   }
   return cookies;
 }
