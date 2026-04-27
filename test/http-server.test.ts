@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { createHmac } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAskJobManager } from "../src/core/jobs/ask-job-manager.ts";
@@ -346,6 +347,51 @@ describe("http-server", () => {
         name: "User Example",
         picture: "https://example.com/user.png"
       }
+    });
+  });
+
+  it("rejects legacy signed GitHub SSO session cookies without an expiry", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+    const payload = Buffer.from(JSON.stringify({
+      email: "user@example.com",
+      name: "User Example",
+      picture: "https://example.com/user.png"
+    }), "utf8").toString("base64url");
+    const signature = createHmac("sha256", "test-secret").update(payload).digest("base64url");
+
+    const sessionResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/session",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(`${payload}.${signature}`)}`
+      }
+    });
+
+    expect(sessionResponse.statusCode).toBe(200);
+    expect(JSON.parse(sessionResponse.body)).toEqual({
+      authenticated: false,
+      githubConfigured: true,
+      user: null
     });
   });
 

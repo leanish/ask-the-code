@@ -26,6 +26,10 @@ type AuthUser = {
   name: string | null;
   picture: string | null;
 };
+type SessionCookiePayload = AuthUser & {
+  iat: number;
+  exp: number;
+};
 export type AuthSession = {
   authenticated: boolean;
   githubConfigured: boolean;
@@ -139,7 +143,12 @@ export function getAuthSession(cookieHeader: string | undefined, env: Environmen
 }
 
 export function createSessionCookieValue(user: AuthUser, secret: string): string {
-  const payload = Buffer.from(JSON.stringify(user), "utf8").toString("base64url");
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(JSON.stringify({
+    ...user,
+    iat: issuedAt,
+    exp: issuedAt + SESSION_MAX_AGE_SECONDS
+  } satisfies SessionCookiePayload), "utf8").toString("base64url");
   const signature = signSessionPayload(payload, secret);
   return `${payload}.${signature}`;
 }
@@ -159,8 +168,14 @@ function verifySessionCookie(value: string | undefined, secret: string): AuthUse
   }
 
   try {
-    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Partial<AuthUser>;
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Partial<SessionCookiePayload>;
     if (typeof parsed.email !== "string" || parsed.email.trim() === "") {
+      return null;
+    }
+    if (typeof parsed.iat !== "number" || typeof parsed.exp !== "number") {
+      return null;
+    }
+    if (parsed.exp <= Math.floor(Date.now() / 1000)) {
       return null;
     }
 
