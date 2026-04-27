@@ -439,11 +439,28 @@ When the HTTP server shuts down through its returned handle, queued jobs fail fa
 
 ### Web UI
 
-Open `http://127.0.0.1:8787` in a browser to use the built-in web UI. The UI streams job status updates in real time using server-sent events and loads the configured repo catalog so the repo filter can be selected from a searchable multi-select instead of typed manually.
+Open `http://127.0.0.1:8787` in a browser to use the built-in web UI. The UI streams job status updates in real time over server-sent events and renders the answer as sanitized markdown.
 
-Advanced web UI controls are hidden by default and only shown when the page is opened with `?admin=true`, for example `http://127.0.0.1:8787/?admin=true`. In admin mode, you can choose the answer audience, model, reasoning effort, repo selection mode, and optional background shadow comparison. The default audience is `general`.
+The page has two layouts:
 
-Programmatic clients that do not send `Accept: text/html` continue to receive the JSON endpoint listing at `GET /`.
+- **Simple** (default): question, file drop zone, progress, and answer. No backend options exposed.
+- **Expert**: adds a left sidebar (history, repositories, sync status, config, tools) and a right-side options panel where you can choose audience, model, reasoning effort, repo selection mode, optional skip-sync and no-synthesis toggles, and an optional background shadow-comparison run. The default audience is `general`.
+
+Switch layouts via the Simple/Expert toggle at the top of the page or by visiting `?mode=expert`. The chosen mode persists in the `atc_mode` cookie (one year, `SameSite=Lax`) and survives browser restarts. The light/dark theme toggle in the header persists in `localStorage` and defaults to the operating-system preference.
+
+`GET /` always returns the HTML page. Programmatic clients should use the dedicated JSON endpoints (`GET /repos`, `GET /health`, `GET /history`, `GET /auth/me`, `POST /ask`, `GET /jobs/:id`, `GET /jobs/:id/events`).
+
+### File attachments
+
+The Ask card accepts files via drag-and-drop or the Attach files button (PDF, PNG, JPG, MP4, MOV, TXT — up to 100 MB each, max 10 per question). When attachments are present, the browser submits `POST /ask` as `multipart/form-data` with a `payload` JSON field plus `file_<i>` parts. The server stores each file under the OS temp directory, lists them in the Codex prompt with their on-disk paths so Codex's tools can read them, and removes the temp directory after the job reaches a terminal status.
+
+### GitHub sign-in
+
+Optional. When the server has `ATC_GITHUB_CLIENT_ID`, `ATC_GITHUB_CLIENT_SECRET`, and `ATC_SESSION_SECRET` set, the header shows a "Sign in with GitHub" button that runs the OAuth flow against `github.com/login/oauth`. The session is stored in a signed `atc_session` cookie (`HttpOnly; SameSite=Lax`, 7 days). Without those env vars the button still appears but explains that sign-in is not configured. Endpoints: `GET /auth/github/login`, `GET /auth/github/callback`, `GET /auth/me`, `POST /auth/logout`. Set the OAuth app's redirect URI to `http://127.0.0.1:8787/auth/github/callback` (override with `ATC_GITHUB_REDIRECT_URI`).
+
+### History
+
+The sidebar's History badge reflects the number of in-memory recent jobs (default 50). Clicking it opens a list of past questions with status, timestamps, and the repos used. State is process-local and resets when the server stops; `GET /history` returns the same data as JSON.
 
 ## Configuration overrides
 
@@ -456,6 +473,9 @@ Programmatic clients that do not send `Accept: text/html` continue to receive th
 - `ATC_SERVER_BODY_LIMIT_BYTES`: overrides the max HTTP request body size (`65536`)
 - `ATC_SERVER_MAX_CONCURRENT_JOBS`: overrides the max concurrent HTTP jobs (`3`)
 - `ATC_SERVER_JOB_RETENTION_MS`: overrides how long completed HTTP jobs stay in memory (`3600000`)
+- `ATC_GITHUB_CLIENT_ID`, `ATC_GITHUB_CLIENT_SECRET`: enables GitHub sign-in in the web UI
+- `ATC_GITHUB_REDIRECT_URI`: defaults to `http://127.0.0.1:8787/auth/github/callback`
+- `ATC_SESSION_SECRET`: at least 16 characters; required for GitHub sign-in (signs the session cookie)
 
 You can also override ask settings on the command line:
 

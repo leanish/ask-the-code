@@ -124,10 +124,18 @@ Within one `atc-server` process, concurrent jobs share repo sync work by repo di
   Checks whether the local `codex` CLI is installed and logged in, and formats user-facing installation/login guidance when it is not ready.
 - `src/core/jobs/ask-job-manager.ts`
   Maintains in-memory async jobs, per-job event history, and bounded execution concurrency.
-- `src/server/api/http-server.ts`
-  Exposes the HTTP API, request validation, repo catalog responses, polling responses, and SSE streams.
-- `src/server/ui/html.ts`
-  Self-contained HTML, CSS, and JavaScript for the browser-based question UI, including the config-backed repo picker, exported as a string constant.
+- `src/server/http-server.ts`
+  Builds the Hono application via `createApp` and serves it through `@hono/node-server`'s `serve()`. Owns host/port resolution, body-limit and concurrency env-var parsing, and the graceful-shutdown handle.
+- `src/server/app.ts`
+  Assembles the Hono app: CORS middleware, static asset serving for `/ui/assets/*`, the UI route, the health/repos/ask route modules, and global `onError` / `notFound` JSON envelopes.
+- `src/server/routes/ask.ts`, `routes/health.ts`, `routes/repos.ts`, `routes/ui.ts`
+  Route registrars. `ask.ts` covers `POST /ask`, `GET /jobs/:id`, and the SSE stream at `GET /jobs/:id/events` via `streamSSE`. `ui.ts` resolves Simple/Expert mode from `?mode=` and the `atc_mode` cookie, then renders the JSX page.
+- `src/server/routes/api-helpers.ts`
+  Shared helpers for HTTP routing: `HttpError`, `readJsonBody` (chunk-by-chunk size enforcement), `withJobLinks`, and the `normalizeAskRequest` family.
+- `src/server/ui/pages/app-page.tsx`, `src/server/ui/components/*.tsx`
+  Server-rendered Hono JSX components for the redesigned UI. The page emits one canonical DOM tree that covers both Simple and Expert modes; CSS toggles visibility through `data-mode` and `data-view` attributes.
+- `src/server/ui/assets/`
+  Browser-side stylesheet, vendored markdown libraries (`marked`, `DOMPurify`), the rainbow `logo.svg`, a pure `stage-mapping.js` reducer, pure `client-helpers.js` (markdown rendering, payload building, repo list rendering, view routing), and the `app.js` controller that wires the DOM to those helpers.
 - `src/cli/render.ts`
   Converts results into simple CLI output.
 - `src/core/status/status-reporter.ts`

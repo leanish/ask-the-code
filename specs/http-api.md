@@ -6,10 +6,7 @@ The optional `atc-server` adapter exposes the repo-aware question-answering flow
 
 ### `GET /`
 
-Content-negotiated:
-
-- Browsers (`Accept` includes `text/html`): serves the built-in web UI
-- API clients: returns the JSON endpoint listing
+Always serves the built-in web UI HTML page. Mode is selected from the `?mode=` query (highest priority — also writes the `atc_mode` cookie) and falls back to the `atc_mode` cookie, defaulting to `simple`. Programmatic clients should use the dedicated JSON endpoints below.
 
 ### `GET /health`
 
@@ -176,4 +173,6 @@ Event types:
 - completed jobs expire after a retention timeout
 - job execution concurrency is bounded per process and defaults to 3 concurrent jobs
 - repo sync coordination is per process and deduplicates overlapping syncs for the same repo directory
-- the built-in web UI loads repo choices from `GET /repos`, exposes audience/model/reasoning and repo-selection controls only in admin mode, and falls back to automatic repo selection if the repo catalog is unavailable
+- the built-in web UI lists configured repos via `GET /repos` for the All Repositories view, and exposes audience/model/reasoning/selection controls only in Expert mode (`?mode=expert` or via the in-page toggle, persisted in the `atc_mode` cookie); Simple mode submits only the question and lets the server pick defaults
+- `GET /` always returns HTML; the JSON endpoints listed above are the programmatic API
+- both `GET` and `POST /jobs` are removed; `POST /ask` replaces them and `POST /jobs` returns 410 Gone with an explanatory body
