@@ -208,7 +208,7 @@ Right column:
 
 | Element | Stub behavior |
 |---|---|
-| Sign in with GitHub | Functional when `ATC_GITHUB_CLIENT_ID`, `ATC_GITHUB_CLIENT_SECRET`, and `ATC_AUTH_SECRET` are configured; the Ask button is disabled until the user is signed in. Otherwise click reports that GitHub SSO is not configured. |
+| Sign in with GitHub | Functional when `ATC_GITHUB_CLIENT_ID`, `ATC_GITHUB_CLIENT_SECRET`, and `ATC_AUTH_SECRET` are configured; the Ask button is disabled until the user is signed in. Signed sessions use a 30-day sliding expiry. Otherwise click reports that GitHub SSO is not configured. |
 | File drop + file list | Accepts drops and click-to-browse; reads file content in the browser; sends attachments in `/ask`. |
 | History (sidebar, count=0) | Empty state: "No previous questions yet." No persistence. |
 | Previous-question strip | Same empty state. Hidden when no history. |

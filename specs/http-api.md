@@ -63,7 +63,7 @@ Notes:
 
 ### `GET /auth/session`
 
-Returns the current GitHub SSO session state for the built-in web UI.
+Returns the current GitHub SSO session state for the built-in web UI. Valid signed sessions use a 30-day sliding expiry; authenticated `/auth/session` responses refresh the session cookie.
 
 Response without a signed-in user:
 
@@ -103,7 +103,7 @@ Clears the signed local session cookie.
 
 ### `POST /ask`
 
-Creates a new async job for the built-in web UI and browser-like clients.
+Creates a new async job for the built-in web UI and browser-like clients. When GitHub SSO is configured, authenticated `POST /ask` responses refresh the signed session cookie.
 
 Legacy note:
 

@@ -10,16 +10,20 @@ import {
   type ApiRouteDeps,
   withJobLinks
 } from "./api-helpers.ts";
-import { getAuthSession } from "./auth.ts";
+import { getAuthSessionResult, serializeRefreshedSessionCookie } from "./auth.ts";
 
 const KEEP_ALIVE_INTERVAL_MS = 15_000;
 const SSE_RETRY_MS = 1000;
 
 export function registerAskRoutes<E extends Env>(app: Hono<E>, deps: Pick<ApiRouteDeps, "bodyLimitBytes" | "env" | "jobManager">): void {
   app.post("/ask", async c => {
-    requireAuthenticatedAsk(c.req.header("cookie"), deps.env);
+    const refreshedSessionCookie = requireAuthenticatedAsk(c.req.header("cookie"), deps.env);
     const payload = normalizeAskRequest(await readJsonBody(c.req.raw, deps.bodyLimitBytes));
-    return c.json(withJobLinks(deps.jobManager.createJob(payload)), 202);
+    const response = c.json(withJobLinks(deps.jobManager.createJob(payload)), 202);
+    if (refreshedSessionCookie) {
+      response.headers.append("Set-Cookie", serializeRefreshedSessionCookie(refreshedSessionCookie, deps.env, c.req.url));
+    }
+    return response;
   });
 
   app.post("/jobs", () => {
@@ -41,11 +45,12 @@ export function registerAskRoutes<E extends Env>(app: Hono<E>, deps: Pick<ApiRou
   });
 }
 
-function requireAuthenticatedAsk(cookieHeader: string | undefined, env: ApiRouteDeps["env"]): void {
-  const session = getAuthSession(cookieHeader, env);
+function requireAuthenticatedAsk(cookieHeader: string | undefined, env: ApiRouteDeps["env"]): string | null {
+  const { session, refreshedCookie } = getAuthSessionResult(cookieHeader, env);
   if (session.githubConfigured && !session.authenticated) {
     throw new HttpError(401, "Sign in with GitHub before asking a question.");
   }
+  return refreshedCookie;
 }
 
 function decodeJobId(jobId: string): string {

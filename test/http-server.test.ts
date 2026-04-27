@@ -33,6 +33,7 @@ const managers: Array<ReturnType<typeof createAskJobManager>> = [];
 
 describe("http-server", () => {
   afterEach(async () => {
+    vi.useRealTimers();
     while (managers.length > 0) {
       managers.pop()?.close();
     }
@@ -385,6 +386,99 @@ describe("http-server", () => {
         picture: "https://example.com/user.png"
       }
     });
+  });
+
+  it("refreshes signed GitHub SSO sessions on session reads", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-01T00:00:00.000Z"));
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+    const sessionCookie = createSessionCookieValue({
+      email: "user@example.com",
+      name: "User Example",
+      picture: "https://example.com/user.png"
+    }, "test-secret");
+    vi.setSystemTime(new Date("2026-04-02T00:00:00.000Z"));
+
+    const sessionResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/session",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(sessionCookie)}`
+      }
+    });
+
+    expect(sessionResponse.statusCode).toBe(200);
+    expect(sessionResponse.headers["set-cookie"]).toContain("atc_session=");
+    const refreshedCookie = readSetCookieValue(sessionResponse.headers["set-cookie"], "atc_session");
+    expect(readSessionExpiry(refreshedCookie)).toBe(Math.floor(new Date("2026-05-02T00:00:00.000Z").getTime() / 1000));
+  });
+
+  it("refreshes signed GitHub SSO sessions when creating ask jobs", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-01T00:00:00.000Z"));
+    const jobManager = createHttpJobManager({
+      createJob: vi.fn(() => createJobSnapshot({
+        id: "job-authenticated",
+        request: {
+          question: "How does auth work?",
+          repoNames: null,
+          model: null,
+          reasoningEffort: null,
+          noSync: false,
+          noSynthesis: false
+        }
+      }))
+    });
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager
+    });
+    const sessionCookie = createSessionCookieValue({
+      email: "user@example.com",
+      name: "User Example",
+      picture: null
+    }, "test-secret");
+    vi.setSystemTime(new Date("2026-04-02T00:00:00.000Z"));
+
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(sessionCookie)}`
+      },
+      body: {
+        question: "How does auth work?"
+      }
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.headers["set-cookie"]).toContain("atc_session=");
+    const refreshedCookie = readSetCookieValue(response.headers["set-cookie"], "atc_session");
+    expect(readSessionExpiry(refreshedCookie)).toBe(Math.floor(new Date("2026-05-02T00:00:00.000Z").getTime() / 1000));
   });
 
   it("rejects legacy signed GitHub SSO session cookies without an expiry", async () => {
@@ -1504,6 +1598,33 @@ async function pumpFetchResponse(handler: HttpApp, request: Request, target: Moc
 function getSetCookies(headers: Headers): string[] {
   const extendedHeaders = headers as Headers & { getSetCookie?: () => string[] };
   return extendedHeaders.getSetCookie?.() ?? [];
+}
+
+function readSetCookieValue(setCookieHeader: string | undefined, name: string): string {
+  const prefix = `${name}=`;
+  const encodedValue = setCookieHeader
+    ?.split("\n")
+    .map(cookie => cookie.split(";")[0] ?? "")
+    .find(cookie => cookie.startsWith(prefix))
+    ?.slice(prefix.length);
+  if (!encodedValue) {
+    throw new Error(`Missing ${name} Set-Cookie value.`);
+  }
+
+  return decodeURIComponent(encodedValue);
+}
+
+function readSessionExpiry(sessionCookie: string): number {
+  const [payload] = sessionCookie.split(".");
+  if (!payload) {
+    throw new Error("Missing session payload.");
+  }
+  const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: unknown };
+  if (typeof parsed.exp !== "number") {
+    throw new Error("Missing session expiry.");
+  }
+
+  return parsed.exp;
 }
 
 function createHttpJobManager(overrides: Partial<HttpJobManager> = {}): HttpJobManager {

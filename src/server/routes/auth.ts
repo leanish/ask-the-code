@@ -31,6 +31,10 @@ type SessionCookiePayload = AuthUser & {
   iat: number;
   exp: number;
 };
+type AuthSessionResult = {
+  session: AuthSession;
+  refreshedCookie: string | null;
+};
 export type AuthSession = {
   authenticated: boolean;
   githubConfigured: boolean;
@@ -41,7 +45,13 @@ export function registerAuthRoutes<E extends Env>(app: Hono<E>, deps: AuthRouteD
   const fetchFn = deps.fetchFn ?? fetch;
 
   app.get("/auth/session", c => {
-    return c.json(getAuthSession(c.req.header("cookie"), deps.env));
+    const result = getAuthSessionResult(c.req.header("cookie"), deps.env);
+    const response = c.json(result.session);
+    if (result.refreshedCookie) {
+      const config = readGithubConfig(deps.env);
+      response.headers.append("Set-Cookie", serializeSessionCookie(result.refreshedCookie, config, c.req.url));
+    }
+    return response;
   });
 
   app.get("/auth/github/start", c => {
@@ -111,11 +121,7 @@ export function registerAuthRoutes<E extends Env>(app: Hono<E>, deps: AuthRouteD
     };
 
     return redirectWithCookies("/", [
-      serializeCookie(SESSION_COOKIE, createSessionCookieValue(user, config.authSecret), {
-        httpOnly: true,
-        maxAge: SESSION_MAX_AGE_SECONDS,
-        secure: shouldUseSecureCookies(config, c.req.url)
-      }),
+      serializeSessionCookie(createSessionCookieValue(user, config.authSecret), config, c.req.url),
       clearCookie(OAUTH_STATE_COOKIE, {
         httpOnly: true,
         secure: shouldUseSecureCookies(config, c.req.url)
@@ -140,15 +146,23 @@ export function registerAuthRoutes<E extends Env>(app: Hono<E>, deps: AuthRouteD
 }
 
 export function getAuthSession(cookieHeader: string | undefined, env: Environment): AuthSession {
+  return getAuthSessionResult(cookieHeader, env).session;
+}
+
+export function getAuthSessionResult(cookieHeader: string | undefined, env: Environment): AuthSessionResult {
   const config = readGithubConfig(env);
   const user = config.authSecret
     ? verifySessionCookie(parseCookies(cookieHeader)[SESSION_COOKIE], config.authSecret)
     : null;
-
-  return {
+  const session = {
     authenticated: user !== null,
     githubConfigured: isGithubConfigured(config),
     user
+  };
+
+  return {
+    session,
+    refreshedCookie: user && config.authSecret ? createSessionCookieValue(user, config.authSecret) : null
   };
 }
 
@@ -171,6 +185,18 @@ export function createSessionCookieValue(user: AuthUser, secret: string): string
   } satisfies SessionCookiePayload), "utf8").toString("base64url");
   const signature = signSessionPayload(payload, secret);
   return `${payload}.${signature}`;
+}
+
+export function serializeRefreshedSessionCookie(cookieValue: string, env: Environment, requestUrl: string): string {
+  return serializeSessionCookie(cookieValue, readGithubConfig(env), requestUrl);
+}
+
+function serializeSessionCookie(cookieValue: string, config: GithubConfig, requestUrl: string): string {
+  return serializeCookie(SESSION_COOKIE, cookieValue, {
+    httpOnly: true,
+    maxAge: SESSION_MAX_AGE_SECONDS,
+    secure: shouldUseSecureCookies(config, requestUrl)
+  });
 }
 
 function verifySessionCookie(value: string | undefined, secret: string): AuthUser | null {

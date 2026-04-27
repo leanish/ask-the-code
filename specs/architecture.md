@@ -138,7 +138,7 @@ Within one `atc-server` process, concurrent jobs share repo sync work by repo di
 - `src/server/api-history-store.ts`
   Persists API conversation history to a local JSON file with an in-process write queue and temp-file-plus-rename writes.
 - `src/server/routes/auth.ts`
-  Exposes GitHub SSO session, login, callback, and logout endpoints for the built-in web UI. Sessions are local signed cookies; GitHub OAuth credentials come from environment variables.
+  Exposes GitHub SSO session, login, callback, and logout endpoints for the built-in web UI. Sessions are local signed cookies with a 30-day sliding expiry; GitHub OAuth credentials come from environment variables.
 - `src/server/routes/repos.ts`
   Exposes the configured repo catalog consumed by the Expert mode repositories view.
 - `src/server/routes/health.ts`
