@@ -184,8 +184,8 @@ function createOauthState(secret: string): string {
 }
 
 function isValidOauthState(actualState: string, expectedCookieState: string | undefined, secret: string): boolean {
-  if (expectedCookieState && safeEqual(actualState, expectedCookieState)) {
-    return true;
+  if (!expectedCookieState || !safeEqual(actualState, expectedCookieState)) {
+    return false;
   }
 
   const [nonce, signature] = actualState.split(".");

@@ -349,7 +349,7 @@ describe("http-server", () => {
     });
   });
 
-  it("accepts a signed GitHub SSO callback state even when the browser drops the state cookie", async () => {
+  it("rejects a signed GitHub SSO callback state when the state cookie is missing", async () => {
     const manager = createAskJobManager({
       answerQuestionFn: async () => ({
         mode: "answer",
@@ -408,6 +408,77 @@ describe("http-server", () => {
     const callbackResponse = await performRequest(handler, {
       method: "GET",
       path: `/auth/github/callback?code=code-123&state=${encodeURIComponent(state ?? "")}`
+    });
+
+    expect(callbackResponse.statusCode).toBe(400);
+    expect(JSON.parse(callbackResponse.body)).toEqual({
+      error: "Invalid GitHub SSO state."
+    });
+    expect(authFetchFn).not.toHaveBeenCalled();
+  });
+
+  it("accepts a GitHub SSO callback state when it matches the state cookie", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const authFetchFn = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url === "https://github.com/login/oauth/access_token") {
+        return Response.json({ access_token: "access-token" });
+      }
+      if (url === "https://api.github.com/user") {
+        return Response.json({
+          login: "octocat",
+          name: "Octo Cat",
+          avatar_url: "https://github.com/images/error/octocat_happy.gif"
+        });
+      }
+      if (url === "https://api.github.com/user/emails") {
+        return Response.json([
+          {
+            email: "octocat@example.com",
+            primary: true,
+            verified: true
+          }
+        ]);
+      }
+      return Response.json({ error: "unexpected URL" }, { status: 500 });
+    });
+    const handler = createHttpApp({
+      authFetchFn,
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+    const startResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/github/start"
+    });
+    const location = startResponse.headers.location;
+    if (!location) {
+      throw new Error("GitHub SSO start response did not include a redirect location.");
+    }
+    const state = new URL(location).searchParams.get("state");
+
+    const callbackResponse = await performRequest(handler, {
+      method: "GET",
+      path: `/auth/github/callback?code=code-123&state=${encodeURIComponent(state ?? "")}`,
+      headers: {
+        cookie: String(startResponse.headers["set-cookie"]).split(";")[0] ?? ""
+      }
     });
 
     expect(callbackResponse.statusCode).toBe(302);
