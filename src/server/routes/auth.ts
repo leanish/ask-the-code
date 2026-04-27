@@ -191,7 +191,7 @@ export function createSessionCookieValue(user: AuthUser, secret: string): string
   return `${payload}.${signature}`;
 }
 
-export function serializeRefreshedSessionCookie(cookieValue: string, _env: Environment, requestUrl: string): string {
+export function serializeRefreshedSessionCookie(cookieValue: string, requestUrl: string): string {
   return serializeSessionCookie(cookieValue, requestUrl);
 }
 
@@ -338,12 +338,19 @@ async function resolveGithubEmail(
 
   const emailsResponse = await fetchGithubApi(fetchFn, "https://api.github.com/user/emails", accessToken);
   const emails = await readJsonArray(emailsResponse);
-  const primaryEmail = emails
-    .map(toGithubEmail)
-    .find(email => email.primary && email.verified);
-  const verifiedEmail = emails
-    .map(toGithubEmail)
-    .find(email => email.verified);
+  let primaryEmail: { email: string; primary: boolean; verified: boolean } | undefined;
+  let verifiedEmail: { email: string; primary: boolean; verified: boolean } | undefined;
+  for (const value of emails) {
+    const candidate = toGithubEmail(value);
+    if (!candidate.verified) {
+      continue;
+    }
+    if (candidate.primary) {
+      primaryEmail = candidate;
+      break;
+    }
+    verifiedEmail ??= candidate;
+  }
   const selectedEmail = primaryEmail ?? verifiedEmail;
   if (emailsResponse.ok && selectedEmail) {
     return selectedEmail.email;

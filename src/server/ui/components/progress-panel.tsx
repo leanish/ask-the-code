@@ -1,10 +1,4 @@
-const STAGES = [
-  ["job-created", "Job Created"],
-  ["repo-selection", "Repo Selection"],
-  ["repository-sync", "Repository Sync"],
-  ["codex-execution", "Codex Execution"],
-  ["synthesis", "Synthesis"]
-] as const;
+import { STAGE_LABELS, STAGE_ORDER } from "../assets/stage-mapping.js";
 
 export function ProgressPanel() {
   return (
@@ -25,11 +19,11 @@ export function ProgressPanel() {
       </div>
       <div id="progress-panel-body" data-collapsible-body="progress" hidden>
         <ol class="stage-list" data-stage-list>
-          {STAGES.map(([id, label]) => (
+          {STAGE_ORDER.map(id => (
             <li class="stage-row" data-stage={id} data-state="waiting">
               <span class="stage-dot"></span>
               <div>
-                <div class="stage-title">{label}</div>
+                <div class="stage-title">{STAGE_LABELS[id]}</div>
                 <div class="stage-detail" data-stage-detail={id}>Waiting</div>
               </div>
               <time data-stage-time={id}></time>

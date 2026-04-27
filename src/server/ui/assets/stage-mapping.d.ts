@@ -20,7 +20,7 @@ export type PipelineEvent = {
   timestamp?: string;
 };
 export const STAGE_ORDER: StageId[];
-export const STAGE_IDS: StageId[];
+export const STAGE_LABELS: Record<StageId, string>;
 export function createInitialPipeline(): Pipeline;
 export function mapStatusToStage(message: string): StageId | null;
 export function mapStatusMessageToStage(message: string, fallbackStage?: StageId | null): StageId;

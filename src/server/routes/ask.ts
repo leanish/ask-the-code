@@ -39,7 +39,7 @@ export function registerAskRoutes<E extends Env>(app: Hono<E>, deps: Pick<ApiRou
     }
     const response = c.json(withJobLinks(job), 202);
     if (refreshedSessionCookie) {
-      response.headers.append("Set-Cookie", serializeRefreshedSessionCookie(refreshedSessionCookie, deps.env, c.req.url));
+      response.headers.append("Set-Cookie", serializeRefreshedSessionCookie(refreshedSessionCookie, c.req.url));
     }
     return response;
   });

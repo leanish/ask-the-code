@@ -10,7 +10,7 @@ import {
   renderMarkdownHtml,
   renderRepositoryListHtml
 } from "./client-helpers.js";
-import { createInitialPipeline, reducePipelineEvent, STAGE_IDS } from "./stage-mapping.js";
+import { createInitialPipeline, reducePipelineEvent, STAGE_ORDER } from "./stage-mapping.js";
 
 const THEME_STORAGE_KEY = "atc:theme";
 const MAX_CLIENT_ATTACHMENTS = 8;
@@ -24,7 +24,6 @@ function initApp() {
   const elements = getElements();
   let pipeline = createInitialPipeline();
   let currentAnswer = "";
-  let askBlockedByAuth = false;
   /** @type {File[]} */
   let attachedFiles = [];
   /** @type {EventSource | null} */
@@ -35,8 +34,7 @@ function initApp() {
   bindModeSwitch(elements);
   bindAdvancedViews(elements);
   elements.onAuthSession = session => {
-    askBlockedByAuth = session.githubConfigured && !session.authenticated;
-    setAskAuthState(elements, askBlockedByAuth);
+    setAskAuthState(elements, session.githubConfigured && !session.authenticated);
   };
   void initAuth(elements);
   renderPipeline(elements, pipeline);
@@ -113,7 +111,7 @@ function initApp() {
 
   elements.form?.addEventListener("submit", async event => {
     event.preventDefault();
-    if (askBlockedByAuth) {
+    if (elements.askBlockedByAuth === true) {
       showToast(elements, "Sign in with GitHub before asking a question.");
       return;
     }
@@ -553,7 +551,7 @@ function setSubmitting(elements, isSubmitting) {
 }
 
 function renderPipeline(elements, pipeline) {
-  for (const id of STAGE_IDS) {
+  for (const id of STAGE_ORDER) {
     const stage = pipeline.stages[id];
     const row = document.querySelector(`[data-stage="${id}"]`);
     const detail = document.querySelector(`[data-stage-detail="${id}"]`);

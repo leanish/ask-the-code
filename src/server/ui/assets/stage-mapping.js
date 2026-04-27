@@ -7,9 +7,8 @@ export const STAGE_ORDER = [
   "codex-execution",
   "synthesis"
 ];
-export const STAGE_IDS = STAGE_ORDER;
 
-const STAGE_LABELS = {
+export const STAGE_LABELS = {
   "job-created": "Job Created",
   "repo-selection": "Repo Selection",
   "repository-sync": "Repository Sync",

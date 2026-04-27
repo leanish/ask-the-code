@@ -4,6 +4,7 @@ import type { Env, Hono as HonoApp } from "hono";
 import { createApiHistoryStore, type ApiHistoryStore } from "../api-history-store.ts";
 import {
   HttpError,
+  isTerminalStatus,
   normalizeApiAskRequest,
   readLimitedRequestBodyText,
   type ApiRouteDeps
@@ -129,7 +130,7 @@ function subscribeHistorySnapshot(
     }
   };
   unsubscribe = jobManager.subscribe(jobId, event => {
-    if (event.type !== "completed" && event.type !== "failed") {
+    if (!isTerminalStatus(event.type)) {
       return;
     }
 
@@ -138,7 +139,7 @@ function subscribeHistorySnapshot(
   });
 
   const currentJob = jobManager.getJob(jobId);
-  if (currentJob?.status === "completed" || currentJob?.status === "failed") {
+  if (currentJob && isTerminalStatus(currentJob.status)) {
     recordCurrentSnapshot();
     unsubscribe?.();
   }
