@@ -5,7 +5,6 @@ import { Header, HeaderActions } from "../components/header.tsx";
 import { AdvancedViewPanels } from "../components/advanced-view-panels.tsx";
 import { ModeSwitch } from "../components/mode-switch.tsx";
 import { OptionsPanel } from "../components/options-panel.tsx";
-import { PreviousQuestionStrip } from "../components/previous-question-strip.tsx";
 import { ProgressPanel } from "../components/progress-panel.tsx";
 import { Sidebar } from "../components/sidebar.tsx";
 import { resolvePackageVersion } from "../package-version.ts";
@@ -46,7 +45,6 @@ export function AppPage({ mode }: AppPageProps) {
               <section class="workbench" aria-label="Ask the code">
                 <AskCard />
                 <AnswerCard />
-                <PreviousQuestionStrip />
                 <AdvancedViewPanels />
               </section>
               <aside class="run-column" aria-label="Run details">

@@ -57,6 +57,8 @@ describe("UI route", () => {
     expect(html).toContain("data-collapsible-summary=\"run-summary\"");
     expect(html).toContain("data-collapsible-body=\"options\" hidden");
     expect(html).toContain("No previous questions yet.");
+    expect(html).not.toContain("Your previous question");
+    expect(html).not.toContain("Today");
     expect(html).toContain("Sync status view is coming soon.");
     expect(html).toContain("data-view-panel=\"repos\"");
   });
