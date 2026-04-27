@@ -1,4 +1,5 @@
-import { Hono, type Env } from "hono";
+import { Hono } from "hono";
+import type { Env, Hono as HonoApp } from "hono";
 
 import { createApiHistoryStore, type ApiHistoryStore } from "../api-history-store.ts";
 import {
@@ -13,17 +14,17 @@ export type ApiAskRouteDeps = Pick<ApiRouteDeps, "bodyLimitBytes" | "env" | "job
   historyStore?: ApiHistoryStore;
 };
 
-export function registerApiAskRoutes<E extends Env>(app: Hono<E>, deps: ApiAskRouteDeps): void {
-  app.route("/", createApiAskRoutes<E>(deps));
+export function registerApiAskRoutes<E extends Env>(app: HonoApp<E>, deps: ApiAskRouteDeps): void {
+  app.route("/api/v1", createApiAskRoutes<E>(deps));
 }
 
-export function createApiAskRoutes<E extends Env>(deps: ApiAskRouteDeps): Hono<E> {
+export function createApiAskRoutes<E extends Env>(deps: ApiAskRouteDeps): HonoApp<E> {
   const app = new Hono<E>();
   const historyStore = deps.historyStore ?? createApiHistoryStore({
     historyPath: deps.env.ATC_HISTORY_PATH ?? null
   });
 
-  app.post("/api/v1/ask", async c => {
+  app.post("/ask", async c => {
     const bodyText = await readLimitedRequestBodyText(c.req.raw, deps.bodyLimitBytes);
     const interaction = authenticateApiInteraction({
       bodyText,
@@ -31,7 +32,7 @@ export function createApiAskRoutes<E extends Env>(deps: ApiAskRouteDeps): Hono<E
       headers: c.req.raw.headers
     });
     const payload = normalizeApiAskRequest(parseJsonBody(bodyText));
-    const capacity = await historyStore.ensureQuestionCapacity({
+    const capacity = await historyStore.reserveQuestionSlot({
       conversationKey: interaction.conversationKey,
       interactionUser: interaction.interactionUser
     });
@@ -62,7 +63,7 @@ export function createApiAskRoutes<E extends Env>(deps: ApiAskRouteDeps): Hono<E
     }, 202);
   });
 
-  app.get("/api/v1/history", async c => {
+  app.get("/history", async c => {
     const conversationKey = c.req.query("conversationKey");
     if (!conversationKey) {
       throw new HttpError(400, 'Query parameter "conversationKey" is required.');

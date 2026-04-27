@@ -62,7 +62,7 @@ export type ApiHistoryDocument = {
 
 export type ApiHistoryStore = {
   getConversation(conversationKey: string): Promise<ApiHistoryConversation | null>;
-  ensureQuestionCapacity(entry: ApiHistoryCapacityEntry): Promise<ApiHistoryCapacityResult>;
+  reserveQuestionSlot(entry: ApiHistoryCapacityEntry): Promise<ApiHistoryCapacityResult>;
   recordQuestion(entry: ApiHistoryQuestionEntry): Promise<void>;
   recordJobSnapshot(entry: ApiHistoryJobSnapshotEntry): Promise<void>;
 };
@@ -116,7 +116,7 @@ export function createApiHistoryStore({
       const conversation = document.conversations.find(item => item.conversationKey === conversationKey);
       return conversation ? structuredClone(conversation) : null;
     },
-    ensureQuestionCapacity(entry) {
+    reserveQuestionSlot(entry) {
       return enqueueMutation(document => {
         const conversation = getOrCreateConversation(document, {
           conversationKey: entry.conversationKey,

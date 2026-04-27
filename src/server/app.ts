@@ -55,7 +55,7 @@ export function createApp(
     rewriteRequestPath: pathName => pathName.replace(/^\/ui\/assets\/?/u, "")
   }));
   registerUiRoutes(app);
-  app.route("/", createApiAskRoutes({ bodyLimitBytes, env, jobManager }));
+  app.route("/api/v1", createApiAskRoutes({ bodyLimitBytes, env, jobManager }));
   registerAskRoutes(app, { bodyLimitBytes, env, jobManager });
   registerAuthRoutes(app, {
     env,

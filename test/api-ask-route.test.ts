@@ -47,6 +47,31 @@ describe("api ask route", () => {
     expect(jobManager.createJob).not.toHaveBeenCalled();
   });
 
+  it("returns parent JSON errors for API ask sub-app validation failures", async () => {
+    const jobManager = createHttpJobManager();
+    const app = createTestApp({
+      env: {
+        ATC_API_TOKEN: "api-token",
+        ATC_API_SIGNING_SECRET: "signing-secret"
+      },
+      jobManager
+    });
+
+    const response = await app.fetch(createApiAskRequest({
+      body: {
+        question: "Summarize this repo",
+        attachments: "not-an-array"
+      }
+    }));
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    await expect(response.json()).resolves.toEqual({
+      error: '"attachments" must be an array when provided.'
+    });
+    expect(jobManager.createJob).not.toHaveBeenCalled();
+  });
+
   it("rejects API ask requests with an invalid interaction signature", async () => {
     const jobManager = createHttpJobManager();
     const app = createTestApp({
