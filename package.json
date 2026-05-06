@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "build": "node ./scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
-    "postbuild": "node ./scripts/ensure-bin-executable.mjs",
+    "postbuild": "node ./scripts/ensure-bin-executable.mjs && node ./scripts/copy-ui-assets.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "check": "npm run typecheck && npm test && npm run build",
     "prepack": "npm run build",
@@ -23,6 +23,10 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "prepare": "husky"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.0",
+    "hono": "^4.12.15"
   },
   "devDependencies": {
     "@types/node": "^25.5.2",

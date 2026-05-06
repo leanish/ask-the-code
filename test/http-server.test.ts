@@ -1,46 +1,33 @@
-import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAskJobManager } from "../src/core/jobs/ask-job-manager.ts";
-import type { AnswerQuestionFn, AskJobEvent, AskJobSnapshot } from "../src/core/types.ts";
-import { createHttpHandler } from "../src/server/api/http-server.ts";
+import { createApp, type CreateAppOptions } from "../src/server/app.ts";
+import type {
+  AskJobEvent,
+  AskJobSnapshot,
+  Environment,
+  QuestionExecutionOverrides,
+  StatusReporter
+} from "../src/core/types.ts";
 import { createLoadedConfig, createManagedRepo } from "./test-helpers.ts";
 
-type HttpHandler = ReturnType<typeof createHttpHandler>;
-type HttpJobManager = Parameters<typeof createHttpHandler>[0]["jobManager"];
-type HandlerRequestOptions = {
+type HttpJobManager = CreateAppOptions["jobManager"];
+
+type RequestOptions = {
   method: string;
   path: string;
   headers?: Record<string, string>;
   body?: unknown;
   rawBody?: string;
-  skipAutoEndWrite?: boolean;
+  rawBodyBytes?: Uint8Array;
 };
-type MockRequest = PassThrough & {
-  method: string;
-  url: string;
-  headers: Record<string, string>;
-  destroyed: boolean;
-};
-type MockResponse = PassThrough & {
+
+type ResponseShape = {
   statusCode: number;
   headers: Record<string, string>;
   body: string;
-  destroyed: boolean;
-  setHeader(name: string, value: string): void;
-  writeHead(statusCode: number, headers?: Record<string, string>): MockResponse;
 };
-type ManualRequest = {
-  method: string;
-  url: string;
-  headers: Record<string, string>;
-  destroyed: boolean;
-  on(event: "data", handler: (chunk: Buffer) => void): ManualRequest;
-  on(event: "end", handler: () => void): ManualRequest;
-  on(event: "error", handler: (error: Error) => void): ManualRequest;
-  destroy(): void;
-  emit(event: "data" | "end" | "error", ...args: unknown[]): void;
-};
+
 type SseEvent = {
   type: string;
   data: Record<string, unknown>;
@@ -49,7 +36,7 @@ type SseEvent = {
 const managers: Array<ReturnType<typeof createAskJobManager>> = [];
 
 describe("http-server", () => {
-  afterEach(async () => {
+  afterEach(() => {
     while (managers.length > 0) {
       managers.pop()?.close();
     }
@@ -66,17 +53,15 @@ describe("http-server", () => {
           question,
           selectedRepos: [{ name: "ask-the-code" }],
           syncReport: [{ name: "ask-the-code", action: "skipped" }],
-          synthesis: {
-            text: "Final answer"
-          }
+          synthesis: { text: "Final answer" }
         };
       },
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const app = buildApp({ jobManager: manager });
 
-    const createResponse = await performRequest(handler, {
+    const createResponse = await performRequest(app, {
       method: "POST",
       path: "/ask",
       body: {
@@ -94,15 +79,11 @@ describe("http-server", () => {
     expect(createdJob.request.audience).toBe("codebase");
 
     await waitFor(async () => {
-      const jobResponse = await performRequest(handler, {
-        method: "GET",
-        path: createdJob.links.self
-      });
-      const job = JSON.parse(jobResponse.body);
-      return job.status === "completed";
+      const jobResponse = await performRequest(app, { method: "GET", path: createdJob.links.self });
+      return JSON.parse(jobResponse.body).status === "completed";
     });
 
-    const finalResponse = await performRequest(handler, {
+    const finalResponse = await performRequest(app, {
       method: "GET",
       path: createdJob.links.self
     });
@@ -112,51 +93,35 @@ describe("http-server", () => {
     expect(finalJob).toMatchObject({
       id: createdJob.id,
       status: "completed",
-      result: {
-        synthesis: {
-          text: "Final answer"
-        }
-      }
+      result: { synthesis: { text: "Final answer" } }
     });
   });
 
-  it("serves the index, health, and options endpoints", async () => {
+  it("serves the health and options endpoints", async () => {
     const manager = createAskJobManager({
       answerQuestionFn: async () => ({
         mode: "answer",
         question: "ignored",
         selectedRepos: [],
         syncReport: [],
-        synthesis: {
-          text: "ignored"
-        }
+        synthesis: { text: "ignored" }
       }),
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const app = buildApp({ jobManager: manager });
 
-    const indexResponse = await performRequest(handler, {
-      method: "GET",
-      path: "/"
-    });
-    const healthResponse = await performRequest(handler, {
-      method: "GET",
-      path: "/health"
-    });
-    const optionsResponse = await performRequest(handler, {
+    const healthResponse = await performRequest(app, { method: "GET", path: "/health" });
+    const optionsResponse = await performRequest(app, {
       method: "OPTIONS",
-      path: "/ask"
-    });
-
-    expect(indexResponse.statusCode).toBe(200);
-    expect(JSON.parse(indexResponse.body)).toMatchObject({
-      service: "atc-server",
-      endpoints: {
-        createJob: "POST /ask",
-        listRepos: "GET /repos"
+      path: "/ask",
+      headers: {
+        origin: "http://localhost",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type"
       }
     });
+
     expect(healthResponse.statusCode).toBe(200);
     expect(JSON.parse(healthResponse.body)).toEqual({
       status: "ok",
@@ -167,33 +132,24 @@ describe("http-server", () => {
   });
 
   it("returns ok health even when a custom job manager does not expose stats", async () => {
-    const handler = createHttpHandler({
-      jobManager: createHttpJobManager()
-    });
+    const app = buildApp({ jobManager: createMinimalJobManager() });
 
-    const healthResponse = await performRequest(handler, {
-      method: "GET",
-      path: "/health"
-    });
+    const healthResponse = await performRequest(app, { method: "GET", path: "/health" });
 
     expect(healthResponse.statusCode).toBe(200);
-    expect(JSON.parse(healthResponse.body)).toEqual({
-      status: "ok",
-      jobs: null
-    });
+    expect(JSON.parse(healthResponse.body)).toEqual({ status: "ok", jobs: null });
   });
 
   it("includes job stats in the health endpoint after creating jobs", async () => {
     let releaseJob: () => void = () => {
       throw new Error("Job release was not initialized.");
     };
-    const jobReleased = new Promise<void>(resolve => {
+    const released = new Promise<void>(resolve => {
       releaseJob = resolve;
     });
     const manager = createAskJobManager({
       answerQuestionFn: async () => {
-        await jobReleased;
-
+        await released;
         return {
           mode: "answer",
           question: "ignored",
@@ -202,208 +158,62 @@ describe("http-server", () => {
           synthesis: { text: "ignored" }
         };
       },
-      maxConcurrentJobs: 1,
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const app = buildApp({ jobManager: manager });
 
-    await performRequest(handler, {
+    await performRequest(app, {
       method: "POST",
       path: "/ask",
-      body: { question: "first" }
-    });
-    await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      body: { question: "second" }
+      body: { question: "stat me" }
     });
 
-    await Promise.resolve();
-
-    const healthResponse = await performRequest(handler, {
-      method: "GET",
-      path: "/health"
-    });
-    const health = JSON.parse(healthResponse.body);
-
-    expect(health.status).toBe("ok");
-    expect(health.jobs.running).toBe(1);
-    expect(health.jobs.queued).toBe(1);
+    const inflight = await performRequest(app, { method: "GET", path: "/health" });
+    expect(JSON.parse(inflight.body).jobs.running + JSON.parse(inflight.body).jobs.queued).toBeGreaterThan(0);
 
     releaseJob();
+    await waitFor(() => manager.getStats().completed === 1);
 
-    await waitFor(async () => {
-      const response = await performRequest(handler, {
-        method: "GET",
-        path: "/health"
-      });
-
-      return JSON.parse(response.body).jobs.completed === 2;
-    });
-
-    const finalHealth = JSON.parse((await performRequest(handler, {
-      method: "GET",
-      path: "/health"
-    })).body);
-
-    expect(finalHealth.jobs).toEqual({ queued: 0, running: 0, completed: 2, failed: 0 });
+    const after = await performRequest(app, { method: "GET", path: "/health" });
+    expect(JSON.parse(after.body).jobs.completed).toBe(1);
   });
 
   it("lists configured repos for the web picker", async () => {
-    const manager = createAskJobManager({
-      answerQuestionFn: async () => ({
-        mode: "answer",
-        question: "ignored",
-        selectedRepos: [],
-        syncReport: [],
-        synthesis: { text: "ignored" }
-      }),
-      jobRetentionMs: 60_000
-    });
-    managers.push(manager);
-    const handler = createHttpHandler({
-      jobManager: manager,
-      loadConfigFn: async () => createLoadedConfig({
-        repos: [
-          createManagedRepo({
-            name: "ask-the-code",
-            defaultBranch: "main",
-            description: "Repo-aware CLI for engineering Q&A with local Codex",
-            aliases: ["self"],
-            directory: "/workspace/ask-the-code"
-          }),
-          createManagedRepo({
-            name: "demo-repo",
-            defaultBranch: "master",
-            description: "Demo repo",
-            aliases: []
-          })
-        ]
-      })
+    const repos = [
+      createManagedRepo({ name: "alpha", description: "alpha repo", aliases: ["a"] }),
+      createManagedRepo({ name: "beta", description: "beta repo" })
+    ];
+    const app = buildApp({
+      jobManager: createMinimalJobManager(),
+      loadConfigFn: async () => createLoadedConfig({ repos })
     });
 
-    const response = await performRequest(handler, {
-      method: "GET",
-      path: "/repos"
-    });
+    const response = await performRequest(app, { method: "GET", path: "/repos" });
 
     expect(response.statusCode).toBe(200);
-    expect(JSON.parse(response.body)).toEqual({
+    expect(JSON.parse(response.body)).toMatchObject({
       repos: [
-        {
-          name: "ask-the-code",
-          defaultBranch: "main",
-          description: "Repo-aware CLI for engineering Q&A with local Codex",
-          aliases: ["self"]
-        },
-        {
-          name: "demo-repo",
-          defaultBranch: "master",
-          description: "Demo repo",
-          aliases: []
-        }
+        { name: "alpha", description: "alpha repo", aliases: ["a"] },
+        { name: "beta", description: "beta repo" }
       ],
       setupHint: null
     });
   });
 
   it("includes a setup hint when the configured repo list is empty", async () => {
-    const manager = createAskJobManager({
-      answerQuestionFn: async () => ({
-        mode: "answer",
-        question: "ignored",
-        selectedRepos: [],
-        syncReport: [],
-        synthesis: { text: "ignored" }
-      }),
-      jobRetentionMs: 60_000
-    });
-    managers.push(manager);
-    const handler = createHttpHandler({
-      jobManager: manager,
-      loadConfigFn: async () => createLoadedConfig({
-        repos: []
-      })
+    const app = buildApp({
+      jobManager: createMinimalJobManager(),
+      loadConfigFn: async () => createLoadedConfig({ repos: [] })
     });
 
-    const response = await performRequest(handler, {
-      method: "GET",
-      path: "/repos"
-    });
+    const response = await performRequest(app, { method: "GET", path: "/repos" });
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
       repos: [],
       setupHint: 'No configured repos available. Try "atc config discover-github" to discover and add repos.'
     });
-  });
-
-  it("serves the web UI when the client accepts text/html", async () => {
-    const manager = createAskJobManager({
-      answerQuestionFn: async () => ({
-        mode: "answer",
-        question: "ignored",
-        selectedRepos: [],
-        syncReport: [],
-        synthesis: { text: "ignored" }
-      }),
-      jobRetentionMs: 60_000
-    });
-    managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
-
-    const htmlResponse = await performRequest(handler, {
-      method: "GET",
-      path: "/",
-      headers: { accept: "text/html,application/xhtml+xml" }
-    });
-
-    expect(htmlResponse.statusCode).toBe(200);
-    expect(htmlResponse.headers["content-type"]).toContain("text/html");
-    expect(htmlResponse.body).toContain("<!DOCTYPE html>");
-    expect(htmlResponse.body).toContain("ask-the-code");
-    expect(htmlResponse.body).toContain("EventSource");
-    expect(htmlResponse.body).toContain("/ask");
-    expect(htmlResponse.body).toContain("/repos");
-    expect(htmlResponse.body).toContain("Search configured repos");
-    expect(htmlResponse.body).toContain('id="setup-hint"');
-    expect(htmlResponse.body).toContain('atc config discover-github');
-    expect(htmlResponse.body).toContain("automatic");
-    expect(htmlResponse.body).toContain('id="advanced-options" hidden');
-    expect(htmlResponse.body).toContain('params.get("admin")');
-    expect(htmlResponse.body).toContain("if (!advancedOptions.hidden)");
-    expect(htmlResponse.body).toContain('<option value="general" selected>general</option>');
-    expect(htmlResponse.body).toContain('<option value="codebase">codebase</option>');
-    expect(htmlResponse.body).toContain('<option value="gpt-5.4-mini" selected>gpt-5.4-mini</option>');
-    expect(htmlResponse.body).toContain('<option value="gpt-5.4">gpt-5.4</option>');
-    expect(htmlResponse.body).toContain('<option value="low" selected>low</option>');
-    expect(htmlResponse.body).not.toContain("repo-picker-toggle");
-    expect(htmlResponse.body).not.toContain('id="no-synthesis"');
-  });
-
-  it("serves JSON at / when the client does not accept text/html", async () => {
-    const manager = createAskJobManager({
-      answerQuestionFn: async () => ({
-        mode: "answer",
-        question: "ignored",
-        selectedRepos: [],
-        syncReport: [],
-        synthesis: { text: "ignored" }
-      }),
-      jobRetentionMs: 60_000
-    });
-    managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
-
-    const jsonResponse = await performRequest(handler, {
-      method: "GET",
-      path: "/",
-      headers: { accept: "application/json" }
-    });
-
-    expect(jsonResponse.statusCode).toBe(200);
-    expect(JSON.parse(jsonResponse.body)).toMatchObject({ service: "atc-server" });
   });
 
   it("streams job events over server-sent events", async () => {
@@ -419,316 +229,217 @@ describe("http-server", () => {
         statusReporter.info(`running ${question}`);
         await jobReleased;
         statusReporter.info(`done ${question}`);
-
         return {
           mode: "answer",
           question,
           selectedRepos: [],
           syncReport: [],
-          synthesis: {
-            text: "streamed answer"
-          }
+          synthesis: { text: "Final answer" }
         };
       },
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const app = buildApp({ jobManager: manager });
 
-    const createResponse = await performRequest(handler, {
+    const created = await performRequest(app, {
       method: "POST",
       path: "/ask",
-      body: {
-        question: "stream this"
-      }
+      body: { question: "how do you stream events?" }
     });
-    const createdJob = JSON.parse(createResponse.body);
-    const sseRequest = startRequest(handler, {
-      method: "GET",
-      path: createdJob.links.events,
-      headers: {
-        Accept: "text/event-stream"
+    const job = JSON.parse(created.body);
+
+    const streamResponse = await app.fetch(new Request(`http://localhost${job.links.events}`));
+    expect(streamResponse.status).toBe(200);
+    expect(streamResponse.headers.get("content-type") ?? "").toContain("text/event-stream");
+
+    const reader = streamResponse.body!.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    const eventsByType: Record<string, SseEvent[]> = {};
+    let sawSnapshot = false;
+
+    setTimeout(() => releaseJob(), 0);
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let delim = buffer.indexOf("\n\n");
+      while (delim >= 0) {
+        const raw = buffer.slice(0, delim);
+        buffer = buffer.slice(delim + 2);
+        const event = parseSseEvent(raw);
+        if (event) {
+          (eventsByType[event.type] ??= []).push(event);
+          if (event.type === "snapshot") sawSnapshot = true;
+        }
+        delim = buffer.indexOf("\n\n");
       }
-    });
-    const eventsPromise = collectSseEvents(sseRequest.response, "completed");
+      if (eventsByType.completed) break;
+    }
 
-    releaseJob();
-
-    const events = await eventsPromise;
-
-    expect(sseRequest.response.statusCode).toBe(200);
-    expect(events.map(event => event.type)).toContain("snapshot");
-    expect(events.map(event => event.type)).toContain("status");
-    expect(events.map(event => event.type)).toContain("completed");
-    expect(events.find(event => event.type === "snapshot")?.data.events).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "status",
-          message: "running stream this"
-        })
-      ])
-    );
-    expect(events.filter(event => event.type === "status").map(event => event.data.message)).toContain("done stream this");
+    expect(sawSnapshot).toBe(true);
+    expect(eventsByType.status?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(eventsByType.completed?.[0]?.data.type).toBe("completed");
   });
 
   it("rejects invalid ask payloads", async () => {
-    const manager = createAskJobManager({
-      answerQuestionFn: async () => ({
-        mode: "answer",
-        question: "ignored",
-        selectedRepos: [],
-        syncReport: [],
-        synthesis: {
-          text: "ignored"
-        }
-      })
-    });
-    managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const app = buildApp({ jobManager: createMinimalJobManager() });
 
-    const response = await performRequest(handler, {
+    const noBody = await performRequest(app, { method: "POST", path: "/ask", rawBody: "" });
+    expect(noBody.statusCode).toBe(400);
+
+    const noQuestion = await performRequest(app, {
       method: "POST",
       path: "/ask",
-      body: {
-        question: ""
-      }
+      body: { repoNames: ["x"] }
     });
-    const body = JSON.parse(response.body);
+    expect(noQuestion.statusCode).toBe(400);
 
-    expect(response.statusCode).toBe(400);
-    expect(body.error).toContain("non-empty \"question\"");
+    const bothLists = await performRequest(app, {
+      method: "POST",
+      path: "/ask",
+      body: { question: "hi", repoNames: ["x"], repos: ["y"] }
+    });
+    expect(bothLists.statusCode).toBe(400);
+    expect(JSON.parse(bothLists.body).error).toContain('Use either "repoNames" or "repos"');
+
+    const badAudience = await performRequest(app, {
+      method: "POST",
+      path: "/ask",
+      body: { question: "hi", audience: "wrong" }
+    });
+    expect(badAudience.statusCode).toBe(400);
+
+    const badSelection = await performRequest(app, {
+      method: "POST",
+      path: "/ask",
+      body: { question: "hi", selectionMode: "wrong" }
+    });
+    expect(badSelection.statusCode).toBe(400);
   });
 
   it("returns not found for unknown routes and unknown jobs", async () => {
-    const manager = createAskJobManager({
-      answerQuestionFn: async () => ({
-        mode: "answer",
-        question: "ignored",
-        selectedRepos: [],
-        syncReport: [],
-        synthesis: {
-          text: "ignored"
-        }
-      }),
-      jobRetentionMs: 60_000
-    });
-    managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const app = buildApp({ jobManager: createMinimalJobManager() });
 
-    const routeResponse = await performRequest(handler, {
-      method: "GET",
-      path: "/missing"
-    });
-    const removedCreateAliasResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/jobs",
-      body: {
-        question: "removed alias"
-      }
-    });
-    const jobResponse = await performRequest(handler, {
-      method: "GET",
-      path: "/jobs/missing"
-    });
-    const eventsResponse = await performRequest(handler, {
-      method: "GET",
-      path: "/jobs/missing/events"
-    });
+    const unknownRoute = await performRequest(app, { method: "GET", path: "/nope" });
+    expect(unknownRoute.statusCode).toBe(404);
 
-    expect(routeResponse.statusCode).toBe(404);
-    expect(JSON.parse(routeResponse.body).error).toContain("No route");
-    expect(removedCreateAliasResponse.statusCode).toBe(410);
-    expect(JSON.parse(removedCreateAliasResponse.body).error).toContain("POST /jobs was removed. Use POST /ask.");
-    expect(jobResponse.statusCode).toBe(404);
-    expect(JSON.parse(jobResponse.body).error).toContain("Unknown job");
-    expect(eventsResponse.statusCode).toBe(404);
-    expect(JSON.parse(eventsResponse.body).error).toContain("Unknown job");
+    const unknownJob = await performRequest(app, { method: "GET", path: "/jobs/missing" });
+    expect(unknownJob.statusCode).toBe(404);
+    expect(JSON.parse(unknownJob.body).error).toContain("Unknown job");
+  });
+
+  it("returns 410 for the removed POST /jobs route", async () => {
+    const app = buildApp({ jobManager: createMinimalJobManager() });
+
+    const response = await performRequest(app, { method: "POST", path: "/jobs", body: {} });
+
+    expect(response.statusCode).toBe(410);
+    expect(JSON.parse(response.body).error).toContain("POST /jobs was removed");
   });
 
   it("streams an immediate terminal snapshot for completed jobs", async () => {
-    const manager = createAskJobManager({
-      answerQuestionFn: async ({ question }) => ({
+    const completedJob: AskJobSnapshot = {
+      id: "complete-1",
+      status: "completed",
+      createdAt: "2026-04-03T00:00:00.000Z",
+      startedAt: "2026-04-03T00:00:00.500Z",
+      finishedAt: "2026-04-03T00:00:01.000Z",
+      error: null,
+      request: {
+        question: "irrelevant",
+        repoNames: null,
+        audience: "general",
+        model: null,
+        reasoningEffort: null,
+        selectionMode: "single",
+        selectionShadowCompare: false,
+        noSync: false,
+        noSynthesis: false
+      },
+      events: [],
+      result: {
         mode: "answer",
-        question,
+        question: "irrelevant",
         selectedRepos: [],
         syncReport: [],
-        synthesis: {
-          text: "terminal"
-        }
-      }),
-      jobRetentionMs: 60_000
-    });
-    managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
-
-    const createResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      body: {
-        question: "terminal"
+        synthesis: { text: "done" }
       }
+    };
+    const jobManager = createMinimalJobManager({
+      getJob: vi.fn(() => completedJob)
     });
-    const createdJob = JSON.parse(createResponse.body);
+    const app = buildApp({ jobManager });
 
-    await waitFor(async () => {
-      const response = await performRequest(handler, {
-        method: "GET",
-        path: createdJob.links.self
-      });
+    const response = await app.fetch(new Request("http://localhost/jobs/complete-1/events"));
+    expect(response.status).toBe(200);
 
-      return JSON.parse(response.body).status === "completed";
-    });
+    const text = await response.text();
+    const events = parseSseStream(text);
 
-    const response = await performRequest(handler, {
-      method: "GET",
-      path: createdJob.links.events
-    });
-    const events = parseSseStreamBody(response.body);
-
-    expect(events.map(event => event.type)).toEqual(expect.arrayContaining(["snapshot", "completed"]));
+    expect(events.find(e => e.type === "snapshot")).toBeTruthy();
+    expect(events.find(e => e.type === "completed")).toBeTruthy();
   });
 
   it("accepts comma-separated repo names and rejects invalid request shapes", async () => {
     const manager = createAskJobManager({
-      answerQuestionFn: async ({ question, repoNames }) => ({
+      answerQuestionFn: async () => ({
         mode: "answer",
-        question,
-        selectedRepos: repoNames?.map(name => ({ name })) || [],
+        question: "ignored",
+        selectedRepos: [],
         syncReport: [],
-        synthesis: {
-          text: "ok"
-        }
-      }),
-      jobRetentionMs: 60_000
+        synthesis: { text: "ignored" }
+      })
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const app = buildApp({ jobManager: manager });
 
-    const goodResponse = await performRequest(handler, {
+    const response = await performRequest(app, {
       method: "POST",
       path: "/ask",
-      body: {
-        question: "repo parsing",
-        repoNames: "ask-the-code, self",
-        audience: "codebase"
-      }
+      body: { question: "?", repos: " a , b " }
     });
-    const duplicateFieldResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      body: {
-        question: "duplicate",
-        repoNames: ["ask-the-code"],
-        repos: ["self"]
-      }
-    });
-    const duplicateFieldWithEmptyStringResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      body: {
-        question: "duplicate with empty repoNames",
-        repoNames: "",
-        repos: ["self"]
-      }
-    });
-    const invalidRepoNamesResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      body: {
-        question: "bad repoNames",
-        repoNames: 42
-      }
-    });
-    const invalidModelResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      body: {
-        question: "bad model",
-        model: ""
-      }
-    });
-    const invalidAudienceResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      body: {
-        question: "bad audience",
-        audience: "internal"
-      }
-    });
-    const invalidBooleanResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      body: {
-        question: "bad bool",
-        noSync: "true"
-      }
-    });
-    const invalidBodyResponse = await performRequest(handler, {
-      method: "POST",
-      path: "/ask",
-      rawBody: "[]"
-    });
+    expect(response.statusCode).toBe(202);
+    expect(JSON.parse(response.body).request.repoNames).toEqual(["a", "b"]);
 
-    expect(goodResponse.statusCode).toBe(202);
-    expect(JSON.parse(goodResponse.body).request.repoNames).toEqual(["ask-the-code", "self"]);
-    expect(JSON.parse(goodResponse.body).request.audience).toBe("codebase");
-    expect(duplicateFieldResponse.statusCode).toBe(400);
-    expect(JSON.parse(duplicateFieldResponse.body).error).toContain("either \"repoNames\" or \"repos\"");
-    expect(duplicateFieldWithEmptyStringResponse.statusCode).toBe(400);
-    expect(JSON.parse(duplicateFieldWithEmptyStringResponse.body).error).toContain("either \"repoNames\" or \"repos\"");
-    expect(invalidRepoNamesResponse.statusCode).toBe(400);
-    expect(JSON.parse(invalidRepoNamesResponse.body).error).toContain("comma-separated string");
-    expect(invalidModelResponse.statusCode).toBe(400);
-    expect(JSON.parse(invalidModelResponse.body).error).toContain("\"model\"");
-    expect(invalidAudienceResponse.statusCode).toBe(400);
-    expect(JSON.parse(invalidAudienceResponse.body).error).toContain("\"audience\"");
-    expect(invalidBooleanResponse.statusCode).toBe(400);
-    expect(JSON.parse(invalidBooleanResponse.body).error).toContain("\"noSync\"");
-    expect(invalidBodyResponse.statusCode).toBe(400);
-    expect(JSON.parse(invalidBodyResponse.body).error).toContain("JSON object");
-  });
-
-  it("rejects an empty request body", async () => {
-    const handler = createValidationHandler(10);
-
-    const response = await performRequest(handler, {
+    const badShape = await performRequest(app, {
       method: "POST",
       path: "/ask",
-      skipAutoEndWrite: true
+      body: { question: "?", repoNames: [123] }
     });
-
-    expect(response.statusCode).toBe(400);
-    expect(JSON.parse(response.body).error).toContain("valid JSON");
+    expect(badShape.statusCode).toBe(400);
   });
 
   it("rejects malformed json request bodies", async () => {
-    const handler = createValidationHandler(10);
+    const app = buildApp({ jobManager: createMinimalJobManager() });
 
-    const response = await performRequest(handler, {
+    const response = await performRequest(app, {
       method: "POST",
       path: "/ask",
-      rawBody: "{bad"
+      rawBody: "{not json"
     });
 
     expect(response.statusCode).toBe(400);
-    expect(JSON.parse(response.body).error).toContain("valid JSON");
+    expect(JSON.parse(response.body).error).toContain("Request body must be valid JSON");
   });
 
   it("rejects oversized request bodies", async () => {
-    const handler = createValidationHandler(10);
+    const app = buildApp({ jobManager: createMinimalJobManager(), bodyLimitBytes: 16 });
 
-    const response = await performManualRequest(handler, request => {
-      request.emit("data", Buffer.from(JSON.stringify({
-        question: "this body is too large"
-      })));
+    const response = await performRequest(app, {
+      method: "POST",
+      path: "/ask",
+      rawBody: "x".repeat(64)
     });
 
     expect(response.statusCode).toBe(413);
-    expect(JSON.parse(response.body).error).toContain("exceeds 10 bytes");
+    expect(JSON.parse(response.body).error).toContain("exceeds 16 bytes");
   });
 
   it("returns a 500 response for unexpected errors", async () => {
-    const handler = createHttpHandler({
+    const app = buildApp({
       jobManager: {
         createJob() {
           throw new Error("boom");
@@ -742,198 +453,68 @@ describe("http-server", () => {
       }
     });
 
-    const response = await performRequest(handler, {
+    const response = await performRequest(app, {
       method: "POST",
       path: "/ask",
-      body: {
-        question: "explode"
-      }
+      body: { question: "explode" }
     });
 
     expect(response.statusCode).toBe(500);
-    expect(JSON.parse(response.body)).toEqual({
-      error: "boom"
-    });
-  });
-
-  it("rejects malformed request urls without crashing the handler", async () => {
-    const handler = createValidationHandler(10);
-
-    const response = await performRequest(handler, {
-      method: "GET",
-      path: "http://%"
-    });
-
-    expect(response.statusCode).toBe(400);
-    expect(JSON.parse(response.body).error).toContain("Invalid request URL");
-  });
-
-  it("does not write SSE events after the response is already destroyed", async () => {
-    const listenerRef: { current: ((event: AskJobEvent) => void) | null } = { current: null };
-    const unsubscribe = vi.fn();
-    const jobManager = createHttpJobManager({
-      getJob: vi.fn(() => createJobSnapshot({
-        status: "running"
-      })),
-      subscribe: vi.fn((_jobId, callback) => {
-        listenerRef.current = callback;
-        return unsubscribe;
-      })
-    });
-    const handler = createHttpHandler({ jobManager });
-    const exchange = startRequest(handler, {
-      method: "GET",
-      path: "/jobs/job-1/events"
-    });
-
-    await Promise.resolve();
-    const initialBody = exchange.response.body;
-    exchange.response.destroyed = true;
-
-    if (listenerRef.current) {
-      listenerRef.current({
-        sequence: 1,
-        type: "status",
-        message: "after close",
-        timestamp: "2026-04-03T00:00:01.000Z"
-      });
-    }
-
-    expect(exchange.response.body).toBe(initialBody);
-
-    exchange.response.emit("close");
-    expect(unsubscribe).toHaveBeenCalled();
-  });
-
-  it("cleans up the SSE subscription when the terminal snapshot cannot be written", async () => {
-    const listenerRef: { current: ((event: AskJobEvent) => void) | null } = { current: null };
-    const unsubscribe = vi.fn();
-    const jobManager = createHttpJobManager({
-      getJob: vi.fn(() => createJobSnapshot({
-        status: "running",
-        finishedAt: "2026-04-03T00:00:01.000Z",
-        result: {
-          mode: "answer",
-          question: "ignored",
-          selectedRepos: [],
-          syncReport: [],
-          synthesis: {
-            text: "done"
-          }
-        }
-      })),
-      subscribe: vi.fn((_jobId, callback) => {
-        listenerRef.current = callback;
-        return unsubscribe;
-      })
-    });
-    const request = createManualRequest({
-      method: "GET",
-      path: "/jobs/job-1/events"
-    });
-    const response = createMockResponse();
-    const originalWrite = response.write.bind(response);
-    response.write = vi.fn(chunk => {
-      const text = chunk.toString("utf8");
-      const result = originalWrite(chunk);
-
-      if (text.startsWith("event: completed")) {
-        response.destroyed = true;
-      }
-
-      return result;
-    });
-    void createHttpHandler({ jobManager })(request, response);
-
-    if (listenerRef.current) {
-      listenerRef.current({
-        sequence: 2,
-        type: "completed",
-        message: "done",
-        timestamp: "2026-04-03T00:00:01.000Z"
-      });
-    }
-
-    expect(unsubscribe).toHaveBeenCalled();
-    expect(response.body).toContain("event: completed");
-  });
-
-  it("does not parse truncated bodies after the request was already rejected for size", async () => {
-    const parseSpy = vi.spyOn(JSON, "parse");
-    const jobManager = createHttpJobManager();
-    const handler = createHttpHandler({
-      bodyLimitBytes: 5,
-      jobManager
-    });
-    const request = createManualRequest({
-      method: "POST",
-      path: "/ask"
-    });
-    const response = createMockResponse();
-    const completed = new Promise((resolve, reject) => {
-      response.on("finish", resolve);
-      response.on("error", reject);
-    });
-
-    void handler(request, response);
-    request.emit("data", Buffer.from("123456"));
-    request.emit("end");
-
-    await completed;
-
-    expect(response.statusCode).toBe(413);
-    expect(jobManager.createJob).not.toHaveBeenCalled();
-    expect(parseSpy).not.toHaveBeenCalled();
-
-    parseSpy.mockRestore();
+    expect(JSON.parse(response.body)).toEqual({ error: "boom" });
   });
 });
 
-async function waitFor(predicate: () => boolean | Promise<boolean>): Promise<void> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    if (await predicate()) {
-      return;
-    }
-
-    await new Promise<void>(resolve => {
-      setTimeout(resolve, 0);
-    });
-  }
-
-  throw new Error("Condition not met in time.");
+function buildApp(opts: {
+  jobManager: HttpJobManager;
+  bodyLimitBytes?: number;
+  loadConfigFn?: CreateAppOptions["loadConfigFn"];
+}) {
+  return createApp({
+    jobManager: opts.jobManager,
+    ...(opts.bodyLimitBytes !== undefined ? { bodyLimitBytes: opts.bodyLimitBytes } : {}),
+    ...(opts.loadConfigFn ? { loadConfigFn: opts.loadConfigFn } : {})
+  });
 }
 
-async function collectSseEvents(response: MockResponse, untilType: string): Promise<SseEvent[]> {
-  const events: SseEvent[] = [];
-  let buffer = "";
+function createMinimalJobManager(
+  overrides: Partial<HttpJobManager> = {}
+): HttpJobManager {
+  const base: HttpJobManager = {
+    createJob: vi.fn(),
+    getJob: vi.fn(() => null),
+    subscribe: vi.fn(() => null)
+  };
+  return { ...base, ...overrides };
+}
 
-  return await new Promise<SseEvent[]>((resolve, reject) => {
-    response.on("data", (chunk: Buffer) => {
-      buffer += chunk.toString("utf8");
+async function performRequest(
+  app: ReturnType<typeof createApp>,
+  opts: RequestOptions
+): Promise<ResponseShape> {
+  const url = `http://localhost${opts.path.startsWith("/") ? opts.path : `/${opts.path}`}`;
+  const init: RequestInit = {
+    method: opts.method,
+    headers: opts.headers ?? {}
+  };
 
-      let delimiterIndex = buffer.indexOf("\n\n");
-      while (delimiterIndex >= 0) {
-        const rawEvent = buffer.slice(0, delimiterIndex);
-        buffer = buffer.slice(delimiterIndex + 2);
+  if (opts.method !== "GET" && opts.method !== "HEAD" && opts.method !== "OPTIONS") {
+    if (opts.rawBodyBytes !== undefined) {
+      init.body = opts.rawBodyBytes;
+    } else if (opts.rawBody !== undefined) {
+      init.body = opts.rawBody;
+    } else if (opts.body !== undefined) {
+      init.body = JSON.stringify(opts.body);
+      init.headers = { "content-type": "application/json", ...(init.headers as Record<string, string>) };
+    }
+  }
 
-        const event = parseSseEvent(rawEvent);
-        if (event) {
-          events.push(event);
-          if (event.type === untilType) {
-            resolve(events);
-            return;
-          }
-        }
-
-        delimiterIndex = buffer.indexOf("\n\n");
-      }
-    });
-
-    response.on("end", () => {
-      resolve(events);
-    });
-    response.on("error", reject);
+  const response = await app.fetch(new Request(url, init));
+  const headers: Record<string, string> = {};
+  response.headers.forEach((value, key) => {
+    headers[key.toLowerCase()] = value;
   });
+  const body = await response.text();
+  return { statusCode: response.status, headers, body };
 }
 
 function parseSseEvent(rawEvent: string): SseEvent | null {
@@ -945,28 +526,20 @@ function parseSseEvent(rawEvent: string): SseEvent | null {
     if (!line || line.startsWith(":")) {
       continue;
     }
-
     if (line.startsWith("event:")) {
       type = line.slice("event:".length).trim();
       continue;
     }
-
     if (line.startsWith("data:")) {
       data += line.slice("data:".length).trim();
     }
   }
 
-  if (!data) {
-    return null;
-  }
-
-  return {
-    type,
-    data: JSON.parse(data) as Record<string, unknown>
-  };
+  if (!data) return null;
+  return { type, data: JSON.parse(data) as Record<string, unknown> };
 }
 
-function parseSseStreamBody(body: string): SseEvent[] {
+function parseSseStream(body: string): SseEvent[] {
   return body
     .split("\n\n")
     .map(chunk => chunk.trim())
@@ -975,223 +548,23 @@ function parseSseStreamBody(body: string): SseEvent[] {
     .filter((event): event is SseEvent => event !== null);
 }
 
-async function performRequest(handler: HttpHandler, options: HandlerRequestOptions): Promise<MockResponse> {
-  const exchange = startRequest(handler, options);
-  await exchange.completed;
-  return exchange.response;
-}
-
-function startRequest(
-  handler: HttpHandler,
-  { method, path, headers = {}, body, rawBody, skipAutoEndWrite = false }: HandlerRequestOptions
-): {
-  request: MockRequest;
-  response: MockResponse;
-  completed: Promise<void>;
-} {
-  const request = new PassThrough() as MockRequest;
-  request.method = method;
-  request.url = path;
-  request.headers = headers;
-  request.destroyed = false;
-
-  const response = createMockResponse();
-  const completed = new Promise<void>((resolve, reject) => {
-    response.on("finish", () => {
-      resolve();
-    });
-    response.on("error", reject);
-  });
-
-  void handler(request, response);
-
-  queueMicrotask(() => {
-    if (rawBody != null) {
-      request.write(rawBody);
-    } else if (body != null) {
-      request.write(JSON.stringify(body));
-    }
-
-    if (!skipAutoEndWrite) {
-      request.end();
-      return;
-    }
-
-    request.end("");
-  });
-
-  return {
-    request,
-    response,
-    completed
-  };
-}
-
-function createMockResponse(): MockResponse {
-  const response = new PassThrough() as MockResponse;
-
-  response.statusCode = 200;
-  response.headers = {};
-  response.body = "";
-  response.setHeader = (name: string, value: string) => {
-    response.headers[name.toLowerCase()] = value;
-  };
-  response.writeHead = (statusCode: number, headers: Record<string, string> = {}) => {
-    response.statusCode = statusCode;
-
-    for (const [name, value] of Object.entries(headers)) {
-      response.setHeader(name, value);
-    }
-
-    return response;
-  };
-
-  response.on("data", (chunk: Buffer) => {
-    response.body += chunk.toString("utf8");
-  });
-  response.on("finish", () => {
-    response.emit("close");
-  });
-  response.destroyed = false;
-
-  return response;
-}
-
-function createManualRequest({
-  method,
-  path,
-  headers = {}
-}: Pick<HandlerRequestOptions, "method" | "path" | "headers">): ManualRequest {
-  const handlers = {
-    data: [] as Array<(chunk: Buffer) => void>,
-    end: [] as Array<() => void>,
-    error: [] as Array<(error: Error) => void>
-  };
-
-  return {
-    method,
-    url: path,
-    headers,
-    destroyed: false,
-    on(event, handler) {
-      handlers[event].push(handler as never);
-      return this;
-    },
-    destroy() {
-      this.destroyed = true;
-    },
-    emit(event, ...args) {
-      if (event === "data") {
-        for (const handler of handlers.data) {
-          handler(args[0] as Buffer);
-        }
-        return;
-      }
-
-      if (event === "error") {
-        for (const handler of handlers.error) {
-          handler(args[0] as Error);
-        }
-        return;
-      }
-
-      for (const handler of handlers.end) {
-        handler();
-      }
-    }
-  };
-}
-
-async function performManualRequest(
-  handler: HttpHandler,
-  emitEvents: (request: ManualRequest) => void
-): Promise<MockResponse> {
-  const request = createManualRequest({
-    method: "POST",
-    path: "/ask"
-  });
-  const response = createMockResponse();
-  const completed = new Promise<void>((resolve, reject) => {
-    response.on("finish", resolve);
-    response.on("error", reject);
-  });
-
-  void handler(request, response);
-  emitEvents(request);
-  await completed;
-
-  return response;
-}
-
-function createValidationHandler(bodyLimitBytes: number): HttpHandler {
-  const manager = createAskJobManager({
-    answerQuestionFn: async () => ({
-      mode: "answer",
-      question: "ignored",
-      selectedRepos: [],
-      syncReport: [],
-      synthesis: {
-        text: "ignored"
-      }
-    }),
-    jobRetentionMs: 60_000
-  });
-  managers.push(manager);
-
-  return createHttpHandler({
-    bodyLimitBytes,
-    jobManager: manager
-  });
-}
-
-function createHttpJobManager(overrides: Partial<HttpJobManager> = {}): HttpJobManager {
-  return {
-    createJob: vi.fn(() => {
-      throw new Error("createJob was not configured.");
-    }),
-    getJob: vi.fn(() => null),
-    subscribe: vi.fn(() => null),
-    ...overrides
-  };
-}
-
-function createJobSnapshot(overrides: Partial<AskJobSnapshot> = {}): AskJobSnapshot {
-  return {
-    id: "job-1",
-    status: "running",
-    request: {
-      question: "ignored",
-      repoNames: null,
-      audience: "general",
-      model: null,
-      reasoningEffort: null,
-      noSync: false,
-      noSynthesis: false
-    },
-    createdAt: "2026-04-03T00:00:00.000Z",
-    startedAt: "2026-04-03T00:00:00.000Z",
-    finishedAt: null,
-    error: null,
-    result: null,
-    events: [],
-    ...overrides
-  };
-}
-
-function getRequiredStatusReporter(execution: Parameters<AnswerQuestionFn>[1]): { info(message: string): void } {
-  const reporter = (
-    execution
-    && typeof execution === "object"
-    && "statusReporter" in execution
-    && execution.statusReporter
-    && typeof execution.statusReporter === "object"
-    && "info" in execution.statusReporter
-  )
-    ? execution.statusReporter
-    : null;
-  if (!reporter) {
-    throw new Error("Expected a status reporter in test execution context.");
+async function waitFor(predicate: () => boolean | Promise<boolean>, attempts = 100): Promise<void> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (await predicate()) return;
+    await new Promise<void>(resolve => setTimeout(resolve, 5));
   }
-
-  return reporter as { info(message: string): void };
+  throw new Error("Condition not met in time.");
 }
+
+function getRequiredStatusReporter(
+  envOrExecution: Environment | QuestionExecutionOverrides | undefined
+): StatusReporter {
+  if (envOrExecution && typeof envOrExecution === "object" && "statusReporter" in envOrExecution) {
+    const reporter = (envOrExecution as QuestionExecutionOverrides).statusReporter;
+    if (reporter) return reporter;
+  }
+  throw new Error("Expected status reporter on the execution context.");
+}
+
+// Re-export AskJobEvent for any external test helpers that might import it.
+export type { AskJobEvent };

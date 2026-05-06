@@ -100,6 +100,13 @@ export interface ConfigMutationResult {
   totalCount: number;
 }
 
+export interface AttachmentRef {
+  name: string;
+  path: string;
+  type: string;
+  size: number;
+}
+
 export interface AskRequest {
   question: string;
   repoNames: string[] | null;
@@ -110,6 +117,7 @@ export interface AskRequest {
   selectionShadowCompare?: boolean;
   noSync: boolean;
   noSynthesis: boolean;
+  attachments?: AttachmentRef[];
 }
 
 export interface AskCommandOptions extends AskRequest {
@@ -210,6 +218,7 @@ export interface RunCodexQuestionInput {
   selectedRepos: CodexScopeRepo[];
   workspaceRoot: string;
   timeoutMs?: number;
+  attachments?: AttachmentRef[];
   onStatus?: (message: string) => void;
 }
 

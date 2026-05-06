@@ -17,7 +17,13 @@ import {
 } from "./constants.ts";
 import { parseEnvPositiveInteger } from "../env/parse-env.ts";
 import { formatDuration } from "../time/duration-format.ts";
-import type { CodexScopeRepo, CodexSynthesis, Environment, RunCodexQuestionInput } from "../types.ts";
+import type {
+  AttachmentRef,
+  CodexScopeRepo,
+  CodexSynthesis,
+  Environment,
+  RunCodexQuestionInput
+} from "../types.ts";
 
 const DEFAULT_CODEX_TIMEOUT_MS = 300_000;
 const FORCE_KILL_GRACE_PERIOD_MS = 5_000;
@@ -52,6 +58,7 @@ export async function runCodexQuestion({
   reasoningEffort,
   selectedRepos,
   workspaceRoot,
+  attachments,
   onStatus,
   timeoutMs = DEFAULT_CODEX_TIMEOUT_MS
 }: RunCodexQuestionInput): Promise<CodexSynthesis> {
@@ -59,7 +66,8 @@ export async function runCodexQuestion({
     question,
     ...(audience === undefined ? {} : { audience }),
     selectedRepos,
-    workspaceRoot
+    workspaceRoot,
+    ...(attachments && attachments.length > 0 ? { attachments } : {})
   });
   const resolvedModel = model || DEFAULT_CODEX_MODEL;
   const resolvedReasoningEffort = reasoningEffort || DEFAULT_CODEX_REASONING_EFFORT;
@@ -127,8 +135,12 @@ export function getCodexExecutionContext({
   question,
   audience,
   selectedRepos,
-  workspaceRoot
-}: Pick<RunCodexQuestionInput, "question" | "audience" | "selectedRepos" | "workspaceRoot">): {
+  workspaceRoot,
+  attachments
+}: Pick<
+  RunCodexQuestionInput,
+  "question" | "audience" | "selectedRepos" | "workspaceRoot" | "attachments"
+>): {
   workingDirectory: string;
   prompt: string;
 } {
@@ -139,14 +151,15 @@ export function getCodexExecutionContext({
 
   return {
     workingDirectory,
-    prompt: buildPrompt(question, selectedRepos, audience)
+    prompt: buildPrompt(question, selectedRepos, audience, attachments ?? [])
   };
 }
 
 function buildPrompt(
   question: string,
   selectedRepos: CodexScopeRepo[],
-  audience: AnswerAudience | null | undefined
+  audience: AnswerAudience | null | undefined,
+  attachments: AttachmentRef[]
 ): string {
   const resolvedAudience = resolveAnswerAudience(audience);
   const repoNames = selectedRepos.map(repo => repo.name).join(", ");
@@ -156,12 +169,27 @@ function buildPrompt(
     ...getAudiencePromptLines(resolvedAudience),
     `These repos are in scope for answering the question: ${repoNames}.`,
     "Answer the question directly and stop. Do not offer follow-up help or ask whether you should rewrite the answer.",
+    ...buildAttachmentLines(attachments),
     "",
     "I got the question:",
     '"""',
     question,
     '"""'
   ].join("\n");
+}
+
+function buildAttachmentLines(attachments: AttachmentRef[]): string[] {
+  if (attachments.length === 0) return [];
+  const lines = [
+    "",
+    "The user attached the following files. Use your tools (cat, less, etc.) to read any of them you find relevant:"
+  ];
+  for (const attachment of attachments) {
+    lines.push(
+      `- ${attachment.name} (${attachment.type || "unknown"}, ${attachment.size} bytes) → ${attachment.path}`
+    );
+  }
+  return lines;
 }
 
 function getAudiencePromptLines(audience: AnswerAudience): string[] {

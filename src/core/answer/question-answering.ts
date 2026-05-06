@@ -88,6 +88,9 @@ export const answerQuestion: AnswerQuestionFn = async (
     selectedRepos,
     workspaceRoot: config.managedReposRoot,
     timeoutMs: execution.getCodexTimeoutMsFn(execution.env),
+    ...(options.attachments && options.attachments.length > 0
+      ? { attachments: options.attachments }
+      : {}),
     onStatus(message) {
       execution.statusReporter?.info(message);
     }
