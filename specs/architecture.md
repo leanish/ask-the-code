@@ -10,6 +10,7 @@ The repository is TypeScript-first: source lives in `src/` as ESM TypeScript, an
 flowchart LR
   CLI["atc CLI"] --> CLIAdapter["CLI adapter"]
   HTTP["atc-server HTTP API"] --> HttpAdapter["HTTP adapter"]
+  HTTP --> WebUI["Built-in web UI"]
   HttpAdapter --> Jobs["Ask job manager"]
   CLIAdapter --> Core["Question-answering core"]
   Jobs --> Core
@@ -25,6 +26,8 @@ flowchart LR
   CLIAdapter --> Render["CLI renderer"]
   HttpAdapter --> Polling["Job snapshots"]
   HttpAdapter --> SSE["SSE event stream"]
+  WebUI --> Polling
+  WebUI --> SSE
 
   Config --> UserConfig["User config file"]
   Sync --> ManagedRepos["Managed local repos"]
@@ -43,7 +46,7 @@ flowchart LR
 8. Codex runs against either the single selected repo or the managed repos root.
 9. The adapter renders the result:
    - CLI: text to stdout plus status to stderr
-   - HTTP: async job state plus SSE status events, with the web UI optionally loading the configured repo catalog for picker-style selection
+   - HTTP: async job state plus SSE status events, with the web UI rendering Simple and Advanced modes on top of the same endpoints
 
 ## HTTP ask flow
 
@@ -56,7 +59,7 @@ sequenceDiagram
   participant Sync as "Sync coordinator"
   participant Codex as "Codex runner"
 
-  Client->>Server: POST /ask
+  Client->>Server: POST /ask (+ optional JSON or multipart attachments)
   Server->>Jobs: create job
   Jobs-->>Client: 202 Accepted + job links
 
@@ -66,7 +69,7 @@ sequenceDiagram
   Jobs->>Core: run answerQuestion()
   Core->>Sync: sync selected repos
   Sync-->>Core: sync report
-  Core->>Codex: run codex exec or skip with noSynthesis
+  Core->>Codex: run codex exec with question + attachment content/paths or skip with noSynthesis
   Codex-->>Core: synthesis result
   Core-->>Jobs: final result + status messages
   Jobs-->>Server: completed job state
@@ -83,6 +86,10 @@ Within one `atc-server` process, concurrent jobs share repo sync work by repo di
   Dispatches commands, resolves question files, prints output, handles interactive CLI bootstrap when config is missing or freshly initialized without repos, and lets direct `config discover-github` prompt for an owner or default to `@accessible` when `--owner` is omitted.
 - `src/server/main.ts`
   Parses server startup arguments, reuses the same interactive config bootstrap flow as `atc`, and then boots the HTTP adapter.
+- `src/server/app.ts`
+  Builds the Hono application, installs shared CORS handling, serves static UI assets, mounts the web UI, mounts API routes, and returns JSON 404s for unknown routes.
+- `src/server/http-server.ts`
+  Creates the per-process job manager, serves the Hono app through the Node adapter, and coordinates graceful shutdown with queued/running jobs.
 - `src/cli/setup/bootstrap.ts`
   Hosts the shared interactive CLI prompts and bootstrap flow for missing-config initialization and optional GitHub discovery continuation, including the Enter-to-use-`@accessible` owner shortcut.
 - `src/core/config/config-paths.ts`
@@ -124,10 +131,24 @@ Within one `atc-server` process, concurrent jobs share repo sync work by repo di
   Checks whether the local `codex` CLI is installed and logged in, and formats user-facing installation/login guidance when it is not ready.
 - `src/core/jobs/ask-job-manager.ts`
   Maintains in-memory async jobs, per-job event history, and bounded execution concurrency.
-- `src/server/api/http-server.ts`
-  Exposes the HTTP API, request validation, repo catalog responses, polling responses, and SSE streams.
-- `src/server/ui/html.ts`
-  Self-contained HTML, CSS, and JavaScript for the browser-based question UI, including the config-backed repo picker, exported as a string constant.
+- `src/server/routes/ask.ts`
+  Exposes `POST /ask`, `GET /jobs/:id`, `GET /jobs/:id/events`, and the removed `POST /jobs` compatibility error using Hono route handlers. Browser multipart uploads are saved as temporary file attachments and cleaned up after terminal job events.
+- `src/server/routes/api-ask.ts`
+  Exposes API-only `POST /api/v1/ask` and `GET /api/v1/history`, enforcing bearer-token plus signed interaction headers and accepting only Simple-mode ask bodies.
+- `src/server/api-history-store.ts`
+  Persists API conversation history to a local JSON file with an in-process write queue and temp-file-plus-rename writes.
+- `src/server/routes/auth.ts`
+  Exposes GitHub SSO session, login, callback, and logout endpoints for the built-in web UI. Sessions are local signed cookies with a 30-day sliding expiry and no per-session server-side invalidation list; GitHub OAuth credentials come from environment variables.
+- `src/server/routes/repos.ts`
+  Exposes the configured repo catalog consumed by the Advanced mode repositories view.
+- `src/server/routes/health.ts`
+  Exposes the server health and in-memory job counts.
+- `src/server/routes/ui.tsx`
+  Renders the built-in web UI at `GET /`, resolving Simple or Advanced mode from `?mode=` and the `atc_mode` cookie.
+- `src/server/ui/pages/` and `src/server/ui/components/`
+  Contain the Hono JSX page and component tree for the built-in web UI.
+- `src/server/ui/assets/`
+  Contains the browser JavaScript, stylesheet, stage-mapping helper, and vendored markdown/sanitizer assets copied into `dist/` during `postbuild`.
 - `src/cli/render.ts`
   Converts results into simple CLI output.
 - `src/core/status/status-reporter.ts`

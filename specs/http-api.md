@@ -1,15 +1,18 @@
 # HTTP API
 
-The optional `atc-server` adapter exposes the repo-aware question-answering flow as async HTTP jobs. New jobs are created with `POST /ask`, then read back through `GET /jobs/:id` and `GET /jobs/:id/events`.
+The optional `atc-server` adapter exposes the repo-aware question-answering flow as async HTTP jobs. Browser/UI jobs are created with `POST /ask`, API-only integration jobs are created with `POST /api/v1/ask`, and jobs are read back through `GET /jobs/:id` and `GET /jobs/:id/events`.
 
 ## Endpoints
 
 ### `GET /`
 
-Content-negotiated:
+Serves the built-in web UI.
 
-- Browsers (`Accept` includes `text/html`): serves the built-in web UI
-- API clients: returns the JSON endpoint listing
+Mode resolution:
+
+- `?mode=simple` or `?mode=advanced` selects the first-byte render and writes the `atc_mode` cookie
+- `atc_mode` cookie is used when no query mode is present
+- default mode is `simple`
 
 ### `GET /health`
 
@@ -35,7 +38,7 @@ Notes:
 
 ### `GET /repos`
 
-Returns the configured repo catalog for the built-in web UI repo picker.
+Returns the configured repo catalog for the built-in web UI repositories view.
 
 Response:
 
@@ -58,15 +61,55 @@ Notes:
 - `setupHint` is `null` during normal operation
 - when the configured repo list is empty, `setupHint` contains a suggested `discover-github` command for bootstrapping config
 
+### `GET /auth/session`
+
+Returns the current GitHub SSO session state for the built-in web UI. Valid signed sessions use a 30-day sliding expiry; authenticated `/auth/session` responses refresh the session cookie.
+
+Response without a signed-in user:
+
+```json
+{
+  "authenticated": false,
+  "githubConfigured": true,
+  "user": null
+}
+```
+
+Response with a signed-in user:
+
+```json
+{
+  "authenticated": true,
+  "githubConfigured": true,
+  "user": {
+    "email": "user@example.com",
+    "name": "User Example",
+    "picture": "https://example.com/user.png"
+  }
+}
+```
+
+### `GET /auth/github/start`
+
+Starts the GitHub OAuth flow and redirects to GitHub. The endpoint requires `ATC_GITHUB_CLIENT_ID`, `ATC_GITHUB_CLIENT_SECRET`, and `ATC_AUTH_SECRET`.
+
+### `GET /auth/github/callback`
+
+Completes the GitHub OAuth flow, stores the signed local session cookie, clears the temporary OAuth state cookie, and redirects to `/`.
+
+### `POST /auth/logout`
+
+Clears the signed local session cookie in the browser response. The server does not keep a per-session invalidation list; rotating `ATC_AUTH_SECRET` invalidates all previously issued sessions.
+
 ### `POST /ask`
 
-Creates a new async job.
+Creates a new async job for the built-in web UI and browser-like clients. When GitHub SSO is configured, authenticated `POST /ask` responses refresh the signed session cookie.
 
 Legacy note:
 
 - `POST /jobs` is no longer accepted; clients must use `POST /ask`
 
-Request body:
+JSON request body:
 
 ```json
 {
@@ -77,6 +120,13 @@ Request body:
   "reasoningEffort": "low",
   "selectionMode": "single",
   "selectionShadowCompare": false,
+  "attachments": [
+    {
+      "name": "requirements.txt",
+      "mediaType": "text/plain",
+      "contentBase64": "VXNlIEdvb2dsZSBTU08u"
+    }
+  ],
   "noSync": false,
   "noSynthesis": false
 }
@@ -92,9 +142,15 @@ Rules:
 - omitted `audience` defaults to `general`
 - `model` and `reasoningEffort` are optional strings
 - omitted `model` and `reasoningEffort` use the same execution defaults as the CLI: `gpt-5.4-mini` and `low`
-- `selectionMode` is optional and must be one of `single` or `cascade`
+- `selectionMode` is optional and must be one of `single`, `cascade`, or `all`
 - omitted `selectionMode` defaults to `single`
 - `selectionShadowCompare` is an optional boolean; when `true`, the server keeps background `none`, `low`, and `high` repo-selector runs for comparison diagnostics while the main ask continues
+- `attachments` is optional and must be an array of `{ "name", "mediaType", "contentBase64" }` objects
+- uploaded attachments are included in the Codex prompt as untrusted data; text-like files are decoded as UTF-8, and binary files are passed as base64 text
+- attachment limits are 8 files, 1 MiB decoded per file, and 3 MiB decoded total
+- multipart requests are also accepted with a `payload` field containing the same ask JSON plus `file_<i>` file fields; multipart files are written to temporary files, exposed to Codex as file paths, and removed after the job reaches a terminal state
+- multipart upload limits are 8 files and 100 MiB per file
+- when GitHub SSO is configured, clients must have a valid signed local session cookie; otherwise the endpoint returns `401`
 - `noSync` and `noSynthesis` are optional booleans
 
 Response:
@@ -107,6 +163,7 @@ Response:
     "question": "How does ask-the-code choose the Codex working directory when one repo matches versus several?",
     "repoNames": ["ask-the-code"],
     "audience": "general",
+    "attachments": [],
     "model": null,
     "reasoningEffort": null,
     "selectionMode": "single",
@@ -130,6 +187,86 @@ Response:
   "links": {
     "self": "/jobs/job-id",
     "events": "/jobs/job-id/events"
+  }
+}
+```
+
+### `POST /api/v1/ask`
+
+Creates a new async job for API-only integrations such as a future Slack bot.
+
+Headers:
+
+- `Authorization: Bearer <ATC_API_TOKEN>`
+- `X-ATC-Interaction-User`: stable provider-scoped user id, for example `slack:T123:U123`
+- `X-ATC-Conversation-Key`: stable provider-scoped thread/conversation id, for example `slack:T123:C123:171234.000001`
+- `X-ATC-Interaction-Timestamp`: ISO timestamp, Unix seconds, or Unix milliseconds
+- `X-ATC-Interaction-Signature`: hex HMAC-SHA256
+
+Signature payload:
+
+```text
+<timestamp>
+<interaction-user>
+<conversation-key>
+<raw-request-body>
+```
+
+Rules:
+
+- the bearer token must match `ATC_API_TOKEN`
+- the HMAC secret is `ATC_API_SIGNING_SECRET`
+- timestamp skew must be five minutes or less
+- the request body accepts only `question` and JSON/base64 `attachments`
+- advanced fields such as `repoNames`, `audience`, `model`, `reasoningEffort`, `selectionMode`, `noSync`, and `noSynthesis` are rejected
+- server-side defaults are equivalent to Simple mode
+- successful asks are recorded in local API conversation history
+- when a conversation already has 24 history items, the next ask records a limit status and returns `409` without creating a job
+
+Request body:
+
+```json
+{
+  "question": "What changed in this repo?",
+  "attachments": []
+}
+```
+
+Response:
+
+```json
+{
+  "jobId": "job-id",
+  "status": "queued",
+  "interactionUser": "slack:T123:U123",
+  "conversationKey": "slack:T123:C123:171234.000001"
+}
+```
+
+### `GET /api/v1/history?conversationKey=...`
+
+Returns local API conversation history for the signed conversation key.
+
+The endpoint uses the same API auth headers as `POST /api/v1/ask`, but signs an empty body. The signed conversation key must match the `conversationKey` query parameter.
+
+Response:
+
+```json
+{
+  "conversation": {
+    "conversationKey": "slack:T123:C123:171234.000001",
+    "interactionUser": "slack:T123:U123",
+    "createdAt": "2026-04-26T12:00:00.000Z",
+    "updatedAt": "2026-04-26T12:01:00.000Z",
+    "items": [
+      {
+        "type": "question",
+        "jobId": "job-id",
+        "text": "What changed in this repo?",
+        "attachments": [],
+        "createdAt": "2026-04-26T12:00:00.000Z"
+      }
+    ]
   }
 }
 ```
@@ -176,4 +313,7 @@ Event types:
 - completed jobs expire after a retention timeout
 - job execution concurrency is bounded per process and defaults to 3 concurrent jobs
 - repo sync coordination is per process and deduplicates overlapping syncs for the same repo directory
-- the built-in web UI loads repo choices from `GET /repos`, exposes audience/model/reasoning and repo-selection controls only in admin mode, and falls back to automatic repo selection if the repo catalog is unavailable
+- the built-in web UI uses `GET /repos` for the Advanced mode repositories view
+- Advanced mode serializes audience, model, reasoning, repo-selection, sync, synthesis, and selector comparison controls into `POST /ask`; Simple mode uses backend defaults
+- API-only integrations use `POST /api/v1/ask`, cannot set Advanced-mode fields, and persist local JSON conversation history
+- API history defaults to `~/.local/share/atc/history.json`, can be overridden with `ATC_HISTORY_PATH`, keeps 24 items per conversation plus one limit-reached status, rejects the next ask for a full conversation with `409`, keeps the newest 500 conversations, and stores attachment metadata without attachment contents

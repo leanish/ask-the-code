@@ -381,7 +381,7 @@ ATC_SERVER_HOST=127.0.0.1 ATC_SERVER_PORT=8787 atc-server
 When both are provided, command-line flags override the environment values.
 Server startup validates the active config eagerly and fails before binding the port if `config.json` is invalid. It also checks that the local `codex` CLI is installed before the server starts listening.
 
-The server exposes async jobs over HTTP. Submit a new question with `POST /ask`, then use the returned `/jobs/:id` and `/jobs/:id/events` links to poll or stream progress. Legacy clients using `POST /jobs` must switch to `POST /ask`.
+The server exposes async jobs over HTTP. Submit a new browser/UI question with `POST /ask`, then use the returned `/jobs/:id` and `/jobs/:id/events` links to poll or stream progress. Legacy clients using `POST /jobs` must switch to `POST /ask`.
 
 Create a job:
 
@@ -410,7 +410,18 @@ The response includes a job id plus links:
 
 When `model` or `reasoningEffort` are omitted from the HTTP request, the server uses the same defaults as the CLI: `gpt-5.4-mini` and `low`.
 When `audience` is omitted, the server defaults to `general`, which assumes no knowledge of source code or implementation details and avoids unnecessary references to the analyzed workspace's files or symbols. Service and integration examples are still allowed when they help explain behavior. Use `codebase` when the reader can inspect the managed repos directly and wants file- and symbol-level detail.
-When `selectionMode` is omitted, the server defaults to `single`. Set `selectionMode` to `cascade` to escalate repo selection effort before falling back, and set `selectionShadowCompare` to `true` to keep background `none`/`low`/`high` selector runs for comparison diagnostics.
+When `selectionMode` is omitted, the server defaults to `single`. Set `selectionMode` to `cascade` to escalate repo selection effort before falling back, or to `all` to use every configured repo without running repo selection. Set `selectionShadowCompare` to `true` to keep background `none`/`low`/`high` selector runs for comparison diagnostics.
+`POST /ask` accepts JSON attachments as an optional `attachments` array of `{ "name", "mediaType", "contentBase64" }` objects. It also accepts browser uploads as `multipart/form-data` with a `payload` JSON field plus `file_<i>` file fields. JSON attachments are included in the Codex prompt as untrusted data; multipart files are written to temporary files and the prompt gives Codex their paths to inspect when relevant. JSON attachment limits are 8 files, 1 MiB decoded per file, and 3 MiB decoded total. Multipart upload limits are 8 files and 100 MiB per file.
+When GitHub SSO is configured, `POST /ask` requires a signed-in GitHub session and returns `401` otherwise. Signed sessions use a 30-day sliding expiry and are renewed on `/auth/session` and authenticated `/ask` requests. Without GitHub SSO env vars, local unauthenticated asks remain enabled.
+
+API-only integrations should use `POST /api/v1/ask` instead of `POST /ask`. The API route is intentionally Simple-mode only: the JSON body accepts only `question` and optional `attachments`, while repo selection, audience, model, sync, and synthesis settings stay server-controlled. It requires `Authorization: Bearer <ATC_API_TOKEN>` plus signed interaction headers:
+
+- `X-ATC-Interaction-User`
+- `X-ATC-Conversation-Key`
+- `X-ATC-Interaction-Timestamp`
+- `X-ATC-Interaction-Signature`
+
+The signature is a hex HMAC-SHA256 using `ATC_API_SIGNING_SECRET` over `timestamp + "\n" + interactionUser + "\n" + conversationKey + "\n" + rawRequestBody`. The timestamp must be within five minutes of the server clock. API asks are recorded in a local JSON history file at `~/.local/share/atc/history.json`, or `ATC_HISTORY_PATH` when set. History keeps 24 items per conversation plus one limit-reached status, and keeps the newest 500 conversations. Once a conversation reaches the limit, the next API ask returns `409` and records the limit status instead of starting another job. Attachment contents are not stored in history.
 
 Poll job state:
 
@@ -426,9 +437,16 @@ curl -sS -N http://127.0.0.1:8787/jobs/<job-id>/events
 
 Available endpoints:
 
+- `GET /`
 - `GET /health`
 - `GET /repos`
+- `GET /auth/session`
+- `GET /auth/github/start`
+- `GET /auth/github/callback`
+- `POST /auth/logout`
 - `POST /ask`
+- `POST /api/v1/ask`
+- `GET /api/v1/history?conversationKey=...`
 - `GET /jobs/:id`
 - `GET /jobs/:id/events`
 
@@ -439,11 +457,11 @@ When the HTTP server shuts down through its returned handle, queued jobs fail fa
 
 ### Web UI
 
-Open `http://127.0.0.1:8787` in a browser to use the built-in web UI. The UI streams job status updates in real time using server-sent events and loads the configured repo catalog so the repo filter can be selected from a searchable multi-select instead of typed manually.
+Open `http://127.0.0.1:8787` in a browser to use the built-in web UI. The UI streams job status updates in real time using server-sent events, renders answers from Markdown in the browser, and shows the configured repo catalog in Advanced mode.
 
-Advanced web UI controls are hidden by default and only shown when the page is opened with `?admin=true`, for example `http://127.0.0.1:8787/?admin=true`. In admin mode, you can choose the answer audience, model, reasoning effort, repo selection mode, and optional background shadow comparison. The default audience is `general`.
+The default Simple mode focuses on asking a question, watching progress, and reading the answer. Advanced mode is available with `?mode=advanced`, for example `http://127.0.0.1:8787/?mode=advanced`, or through the Simple/Advanced switch in the UI. Advanced mode adds the sidebar, repositories view, and controls for audience, model, reasoning effort, repo selection mode, sync, synthesis, and optional background shadow comparison. The selected mode is stored in the `atc_mode` cookie.
 
-Programmatic clients that do not send `Accept: text/html` continue to receive the JSON endpoint listing at `GET /`.
+File attachment controls send selected files to `/ask` as multipart uploads. The server stores them as temporary files for the job, passes file paths to Codex, and removes the temporary files after the job reaches a terminal state. GitHub sign-in uses local OAuth endpoints when `ATC_GITHUB_CLIENT_ID`, `ATC_GITHUB_CLIENT_SECRET`, and `ATC_AUTH_SECRET` are configured; otherwise the UI leaves the button visible but reports that SSO is not configured. Signed-in sessions use a 30-day sliding expiry. Logout clears the browser cookie but does not keep a server-side invalidation list; rotate `ATC_AUTH_SECRET` to invalidate all previously issued sessions. If any one of those GitHub SSO env vars is set, all three must be set or the server fails fast at startup.
 
 ## Configuration overrides
 
@@ -453,9 +471,16 @@ Programmatic clients that do not send `Accept: text/html` continue to receive th
 - `GH_TOKEN` / `GITHUB_TOKEN`: authenticates GitHub repo discovery; if they are unset, discovery can fall back to the current `gh` login instead
 - `ATC_SERVER_HOST`: overrides the HTTP bind host (`127.0.0.1`)
 - `ATC_SERVER_PORT`: overrides the HTTP bind port (`8787`)
-- `ATC_SERVER_BODY_LIMIT_BYTES`: overrides the max HTTP request body size (`65536`)
+- `ATC_SERVER_BODY_LIMIT_BYTES`: overrides the max HTTP request body size (`8388608`)
 - `ATC_SERVER_MAX_CONCURRENT_JOBS`: overrides the max concurrent HTTP jobs (`3`)
 - `ATC_SERVER_JOB_RETENTION_MS`: overrides how long completed HTTP jobs stay in memory (`3600000`)
+- `ATC_GITHUB_CLIENT_ID`: enables GitHub SSO for the web UI when paired with the client secret and auth secret
+- `ATC_GITHUB_CLIENT_SECRET`: GitHub OAuth client secret for web UI SSO
+- `ATC_GITHUB_REDIRECT_URI`: optional explicit GitHub OAuth redirect URI; defaults to `/auth/github/callback` on the current origin
+- `ATC_AUTH_SECRET`: local HMAC secret used to sign web UI session cookies
+- `ATC_API_TOKEN`: bearer token required by API-only ask/history endpoints
+- `ATC_API_SIGNING_SECRET`: HMAC secret used to verify API interaction headers
+- `ATC_HISTORY_PATH`: optional local JSON history path for API conversation history
 
 You can also override ask settings on the command line:
 

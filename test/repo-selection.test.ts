@@ -124,6 +124,25 @@ describe("selectRepos", () => {
     expect(result.selectionPromise).toBeUndefined();
   });
 
+  it("selects all repos without invoking codex when requested", async () => {
+    const result = await selectRepos(config, "What changed?", null, {
+      selectionMode: "all",
+      selectionShadowCompare: false
+    });
+
+    expect(result.repos).toEqual(config.repos);
+    expect(result.mode).toBe("all");
+    expect(result.selection).toEqual({
+      mode: "all",
+      shadowCompare: false,
+      source: "heuristic",
+      finalEffort: null,
+      finalRepoNames: ["sqs-codec", "ask-the-code", "java-conventions"],
+      runs: []
+    });
+    expect(mocks.runCodexPrompt).not.toHaveBeenCalled();
+  });
+
   it("merges alwaysSelect repos into the codex selection", async () => {
     mocks.runCodexPrompt.mockResolvedValue({
       text: JSON.stringify({

@@ -58,7 +58,8 @@
 - CLI entry: `src/cli/main.js`
 - Server entry: `src/server/main.js`
 - Ask flow: `src/core/answer/question-answering.js`
-- HTTP API: `src/server/api/http-server.js`
+- HTTP server entry: `src/server/http-server.ts`
+- Hono app + routes: `src/server/app.ts`, `src/server/routes/*.ts`
 - Repo selection: `src/core/repos/repo-selection.js`
 - Repo sync: `src/core/repos/repo-sync.js`
 - Codex runner: `src/core/codex/codex-runner.js`

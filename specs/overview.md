@@ -33,8 +33,8 @@ The source tree is organized by adapter and shared logic:
 - repo names and aliases are validated eagerly and must be unique case-insensitively
 - `repos list` shows configured repos and whether they are cloned locally
 - `repos sync` clones missing managed repos, syncs existing ones against their configured tracked branch, and first unshallows any previously shallow managed checkout
-- asking a question uses automatic repo selection by default, or an explicit repo subset when provided; automatic selection now routes on structured repo metadata, uses `selectionMode: "single"` by default for one `none`-effort selector pass with heuristic fallback, can escalate through `cascade` mode when requested, and can optionally keep a background `none`/`low`/`high` shadow comparison for diagnostics while syncing the final repo set and running Codex for the answer; that shadow mode is intended for benchmarking rather than routine use because it starts 3 parallel selector runs
-- the HTTP adapter exposes the same ask flow as async jobs plus status streams
+- asking a question uses automatic repo selection by default, or an explicit repo subset when provided; automatic selection now routes on structured repo metadata, uses `selectionMode: "single"` by default for one `none`-effort selector pass with heuristic fallback, can escalate through `cascade` mode when requested, can use every configured repo with `selectionMode: "all"`, and can optionally keep a background `none`/`low`/`high` shadow comparison for diagnostics while syncing the final repo set and running Codex for the answer; that shadow mode is intended for benchmarking rather than routine use because it starts 3 parallel selector runs
+- the HTTP adapter exposes the same ask flow as async jobs plus status streams, optional JSON or multipart uploaded attachments, built-in web UI GitHub SSO endpoints with signed 30-day sliding session cookies, and a signed Simple-mode API ask endpoint for integrations
 - the built-in web UI can load the configured repo catalog and present it as a picker instead of raw comma-separated input
 - repos can be pinned into automatic selection with `alwaysSelect`, and automatic selection still falls back to all configured repos when neither the Codex selector nor the heuristic fallback can narrow the repo set usefully
 - repo metadata is stored as a routing card with `role`, `reach`, `responsibilities`, `owns`, `exposes`, `consumes`, `workflows`, `boundaries`, `selectWhen`, and `selectWithOtherReposWhen`, so selection can prefer owned behavior and exposed surfaces over generic ecosystem overlap
@@ -44,4 +44,4 @@ The source tree is organized by adapter and shared logic:
 
 - no bundled vector index or semantic retrieval layer
 - no source-controlled organization catalog
-- no durable shared state or multi-node coordination for HTTP jobs yet
+- no durable shared state or multi-node coordination for HTTP jobs yet; API conversation history is local JSON intended for one server process

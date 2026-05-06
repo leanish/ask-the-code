@@ -15,7 +15,7 @@ export const REPO_CLASSIFICATIONS = [
 
 export type RepoClassification = typeof REPO_CLASSIFICATIONS[number];
 
-export type RepoSelectionStrategy = "single" | "cascade";
+export type RepoSelectionStrategy = "single" | "cascade" | "all";
 export type RepoSelectionCodexEffort = "none" | "minimal" | "low" | "medium" | "high";
 export type RepoSelectionSource = "requested" | "codex" | "heuristic";
 
@@ -102,6 +102,7 @@ export interface ConfigMutationResult {
 
 export interface AskRequest {
   question: string;
+  attachments?: AskAttachment[];
   repoNames: string[] | null;
   audience?: AnswerAudience | null;
   model: string | null;
@@ -202,8 +203,24 @@ export interface CodexScopeRepo {
   branch?: string;
 }
 
+export type AskAttachment = InlineAskAttachment | FileAskAttachment;
+
+export interface InlineAskAttachment {
+  name: string;
+  mediaType: string;
+  contentBase64: string;
+}
+
+export interface FileAskAttachment {
+  name: string;
+  mediaType: string;
+  path: string;
+  size: number;
+}
+
 export interface RunCodexQuestionInput {
   question: string;
+  attachments?: AskAttachment[];
   audience?: AnswerAudience | null;
   model: string | null;
   reasoningEffort: string | null;

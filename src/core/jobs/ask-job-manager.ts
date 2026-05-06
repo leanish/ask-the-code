@@ -324,6 +324,7 @@ export function createAskJobManager({
 function normalizeRequest(request: AskJobCreateRequest): AskRequest {
   return {
     question: request.question,
+    attachments: request.attachments ? request.attachments.map(attachment => ({ ...attachment })) : [],
     repoNames: request.repoNames ? [...request.repoNames] : null,
     audience: request.audience ?? DEFAULT_ANSWER_AUDIENCE,
     model: request.model || null,

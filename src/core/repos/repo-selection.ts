@@ -88,6 +88,21 @@ export async function selectRepos(
     };
   }
 
+  if (resolvedSelectionMode === "all") {
+    return {
+      repos: [...config.repos],
+      mode: "all",
+      selection: {
+        mode: resolvedSelectionMode,
+        shadowCompare: selectionShadowCompare,
+        source: "heuristic",
+        finalEffort: null,
+        finalRepoNames: config.repos.map(repo => repo.name),
+        runs: []
+      }
+    };
+  }
+
   const automaticSelection = await selectAutomaticRepos(config, question, {
     selectionMode: resolvedSelectionMode,
     selectionShadowCompare,

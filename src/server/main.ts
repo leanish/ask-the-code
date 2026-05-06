@@ -9,7 +9,7 @@ import { ensureInteractiveConfigSetup } from "../cli/setup/bootstrap.ts";
 import { runGithubDiscoveryPipeline } from "../core/discovery/discovery-pipeline.ts";
 import { createGithubDiscoveryProgressReporter } from "../cli/setup/discovery-progress.ts";
 import { promptGithubDiscoverySelection } from "../cli/setup/discovery-selection.ts";
-import { startHttpServer, type HttpServerHandle } from "./api/http-server.ts";
+import { startHttpServer, type HttpServerHandle } from "./http-server.ts";
 import { renderGithubDiscovery } from "../cli/render.ts";
 import { HelpError, parseServerArgs } from "./args.ts";
 import type { ConfigDiscoverGithubCommandOptions } from "../core/types.ts";

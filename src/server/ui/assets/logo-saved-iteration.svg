@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 300" role="img" aria-label="ATC">
+  <defs>
+    <clipPath id="atc-letters">
+      <text
+        x="24"
+        y="214"
+        transform="skewX(-12)"
+        font-family="Arial Black, Impact, Haettenschweiler, sans-serif"
+        font-size="214"
+        font-style="italic"
+        font-weight="900"
+        letter-spacing="-20"
+      >ATC</text>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#atc-letters)">
+    <rect x="-30" y="35" width="650" height="42" fill="#ffd41f" transform="rotate(-24 280 150)" />
+    <rect x="-30" y="77" width="650" height="42" fill="#ff9b35" transform="rotate(-24 280 150)" />
+    <rect x="-30" y="119" width="650" height="42" fill="#ff3217" transform="rotate(-24 280 150)" />
+    <rect x="-30" y="161" width="650" height="42" fill="#8a00ff" transform="rotate(-24 280 150)" />
+    <rect x="-30" y="203" width="650" height="42" fill="#001cff" transform="rotate(-24 280 150)" />
+    <rect x="-30" y="245" width="650" height="42" fill="#12df24" transform="rotate(-24 280 150)" />
+    <path d="M-20 107 L600 -170" stroke="#000" stroke-width="7" />
+    <path d="M-20 151 L600 -126" stroke="#000" stroke-width="7" />
+    <path d="M-20 195 L600 -82" stroke="#000" stroke-width="7" />
+    <path d="M-20 239 L600 -38" stroke="#000" stroke-width="7" />
+    <path d="M-20 283 L600 6" stroke="#000" stroke-width="7" />
+  </g>
+</svg>

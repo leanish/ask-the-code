@@ -6,6 +6,6 @@
     "sourceMap": true,
     "noEmit": false
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["coverage", "dist", "node_modules", "test/**/*.ts", "vitest.config.ts"]
 }

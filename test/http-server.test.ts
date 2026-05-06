@@ -1,45 +1,30 @@
-import { PassThrough } from "node:stream";
+import { EventEmitter } from "node:events";
+import { createHmac } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAskJobManager } from "../src/core/jobs/ask-job-manager.ts";
 import type { AnswerQuestionFn, AskJobEvent, AskJobSnapshot } from "../src/core/types.ts";
-import { createHttpHandler } from "../src/server/api/http-server.ts";
+import { createApp } from "../src/server/app.ts";
+import { readJsonBody, type ServerJobManager } from "../src/server/routes/api-helpers.ts";
+import { createSessionCookieValue } from "../src/server/routes/auth.ts";
 import { createLoadedConfig, createManagedRepo } from "./test-helpers.ts";
 
-type HttpHandler = ReturnType<typeof createHttpHandler>;
-type HttpJobManager = Parameters<typeof createHttpHandler>[0]["jobManager"];
+type HttpApp = ReturnType<typeof createHttpApp>;
+type HttpJobManager = ServerJobManager;
 type HandlerRequestOptions = {
   method: string;
   path: string;
+  url?: string;
   headers?: Record<string, string>;
   body?: unknown;
   rawBody?: string;
   skipAutoEndWrite?: boolean;
 };
-type MockRequest = PassThrough & {
-  method: string;
-  url: string;
-  headers: Record<string, string>;
-  destroyed: boolean;
-};
-type MockResponse = PassThrough & {
+type MockResponse = EventEmitter & {
   statusCode: number;
   headers: Record<string, string>;
   body: string;
-  destroyed: boolean;
-  setHeader(name: string, value: string): void;
-  writeHead(statusCode: number, headers?: Record<string, string>): MockResponse;
-};
-type ManualRequest = {
-  method: string;
-  url: string;
-  headers: Record<string, string>;
-  destroyed: boolean;
-  on(event: "data", handler: (chunk: Buffer) => void): ManualRequest;
-  on(event: "end", handler: () => void): ManualRequest;
-  on(event: "error", handler: (error: Error) => void): ManualRequest;
-  destroy(): void;
-  emit(event: "data" | "end" | "error", ...args: unknown[]): void;
 };
 type SseEvent = {
   type: string;
@@ -50,6 +35,7 @@ const managers: Array<ReturnType<typeof createAskJobManager>> = [];
 
 describe("http-server", () => {
   afterEach(async () => {
+    vi.useRealTimers();
     while (managers.length > 0) {
       managers.pop()?.close();
     }
@@ -57,9 +43,16 @@ describe("http-server", () => {
 
   it("creates async ask jobs and exposes them over HTTP", async () => {
     const manager = createAskJobManager({
-      answerQuestionFn: async ({ question }, execution) => {
+      answerQuestionFn: async ({ question, attachments }, execution) => {
         const statusReporter = getRequiredStatusReporter(execution);
         statusReporter.info("selected repos");
+        expect(attachments).toEqual([
+          {
+            name: "requirements.txt",
+            mediaType: "text/plain",
+            contentBase64: "aGVsbG8="
+          }
+        ]);
 
         return {
           mode: "answer",
@@ -74,7 +67,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     const createResponse = await performRequest(handler, {
       method: "POST",
@@ -83,6 +76,13 @@ describe("http-server", () => {
         question: "How does ask-the-code work?",
         repoNames: ["ask-the-code"],
         audience: "codebase",
+        attachments: [
+          {
+            name: "requirements.txt",
+            mediaType: "text/plain",
+            contentBase64: "aGVsbG8="
+          }
+        ],
         noSync: true
       }
     });
@@ -92,6 +92,13 @@ describe("http-server", () => {
     expect(["queued", "running"]).toContain(createdJob.status);
     expect(createdJob.links.self).toBe(`/jobs/${createdJob.id}`);
     expect(createdJob.request.audience).toBe("codebase");
+    expect(createdJob.request.attachments).toEqual([
+      {
+        name: "requirements.txt",
+        mediaType: "text/plain",
+        contentBase64: "aGVsbG8="
+      }
+    ]);
 
     await waitFor(async () => {
       const jobResponse = await performRequest(handler, {
@@ -120,6 +127,67 @@ describe("http-server", () => {
     });
   });
 
+  it("stores multipart ask attachments as temporary files for the job", async () => {
+    let attachmentPath = "";
+    const manager = createAskJobManager({
+      answerQuestionFn: async ({ attachments = [] }) => {
+        expect(attachments).toHaveLength(1);
+        const [attachment] = attachments;
+        expect(attachment).toMatchObject({
+          name: "requirements.txt",
+          mediaType: "text/plain",
+          size: 23
+        });
+        if (!attachment || !("path" in attachment)) {
+          throw new Error("Expected multipart upload to create an attachment file reference.");
+        }
+        attachmentPath = attachment.path;
+        expect(await readFile(attachment.path, "utf8")).toBe("Need temp file uploads.");
+
+        return {
+          mode: "answer",
+          question: "Use the uploaded file.",
+          selectedRepos: [{ name: "ask-the-code" }],
+          syncReport: [{ name: "ask-the-code", action: "skipped" }],
+          synthesis: {
+            text: "Final answer"
+          }
+        };
+      },
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({ jobManager: manager });
+    const form = new FormData();
+    form.set("payload", JSON.stringify({
+      question: "Use the uploaded file.",
+      repoNames: ["ask-the-code"],
+      noSync: true
+    }));
+    form.set("file_0", new File(["Need temp file uploads."], "requirements.txt", { type: "text/plain" }));
+
+    const createResponse = await handler.fetch(new Request("http://atc.local/ask", {
+      body: form,
+      method: "POST"
+    }));
+    const createdJob = await createResponse.json() as { links: { self: string } };
+
+    expect(createResponse.status).toBe(202);
+    await waitFor(async () => {
+      const jobResponse = await handler.fetch(new Request(`http://atc.local${createdJob.links.self}`));
+      const job = await jobResponse.json() as { status: string };
+      return job.status === "completed";
+    });
+    await waitFor(async () => {
+      try {
+        await readFile(attachmentPath, "utf8");
+        return false;
+      } catch {
+        return true;
+      }
+    });
+  });
+
   it("serves the index, health, and options endpoints", async () => {
     const manager = createAskJobManager({
       answerQuestionFn: async () => ({
@@ -134,7 +202,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     const indexResponse = await performRequest(handler, {
       method: "GET",
@@ -146,17 +214,16 @@ describe("http-server", () => {
     });
     const optionsResponse = await performRequest(handler, {
       method: "OPTIONS",
+      path: "/api/v1/ask"
+    });
+    const cookieAskOptionsResponse = await performRequest(handler, {
+      method: "OPTIONS",
       path: "/ask"
     });
 
     expect(indexResponse.statusCode).toBe(200);
-    expect(JSON.parse(indexResponse.body)).toMatchObject({
-      service: "atc-server",
-      endpoints: {
-        createJob: "POST /ask",
-        listRepos: "GET /repos"
-      }
-    });
+    expect(indexResponse.headers["content-type"]).toContain("text/html");
+    expect(indexResponse.body).toContain("ask-the-code");
     expect(healthResponse.statusCode).toBe(200);
     expect(JSON.parse(healthResponse.body)).toEqual({
       status: "ok",
@@ -164,10 +231,633 @@ describe("http-server", () => {
     });
     expect(optionsResponse.statusCode).toBe(204);
     expect(optionsResponse.headers["access-control-allow-methods"]).toContain("POST");
+    expect(cookieAskOptionsResponse.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("rejects malformed ask attachments before creating a job", async () => {
+    const handler = createValidationHandler(1_000_000);
+
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "Use this file",
+        attachments: [
+          {
+            name: "empty.txt",
+            mediaType: "text/plain",
+            contentBase64: ""
+          }
+        ]
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).error).toContain('"attachments[0].contentBase64" must be a non-empty base64 string.');
+  });
+
+  it("rejects ask jobs from unauthenticated users when GitHub SSO is configured", async () => {
+    const jobManager = createHttpJobManager();
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager
+    });
+
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      body: {
+        question: "How does auth work?"
+      }
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(JSON.parse(response.body)).toEqual({
+      error: "Sign in with GitHub before asking a question."
+    });
+    expect(jobManager.createJob).not.toHaveBeenCalled();
+  });
+
+  it("accepts ask jobs from authenticated users when GitHub SSO is configured", async () => {
+    const jobManager = createHttpJobManager({
+      createJob: vi.fn(() => createJobSnapshot({
+        id: "job-authenticated",
+        request: {
+          question: "How does auth work?",
+          repoNames: null,
+          model: null,
+          reasoningEffort: null,
+          noSync: false,
+          noSynthesis: false
+        }
+      }))
+    });
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager
+    });
+    const sessionCookie = createSessionCookieValue({
+      email: "user@example.com",
+      name: "User Example",
+      picture: null
+    }, "test-secret");
+
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(sessionCookie)}`
+      },
+      body: {
+        question: "How does auth work?"
+      }
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(jobManager.createJob).toHaveBeenCalledWith(expect.objectContaining({
+      question: "How does auth work?"
+    }));
+  });
+
+  it("exposes GitHub SSO session and start endpoints", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+
+    const sessionResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/session"
+    });
+    const startResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/github/start"
+    });
+
+    expect(sessionResponse.statusCode).toBe(200);
+    expect(JSON.parse(sessionResponse.body)).toEqual({
+      authenticated: false,
+      githubConfigured: true,
+      user: null
+    });
+    expect(startResponse.statusCode).toBe(302);
+    expect(startResponse.headers.location).toContain("https://github.com/login/oauth/authorize");
+    expect(startResponse.headers.location).toContain("client_id=client-id");
+    expect(startResponse.headers["set-cookie"]).toContain("atc_oauth_state=");
+  });
+
+  it("moves GitHub SSO start to the configured redirect origin before setting state", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret",
+        ATC_GITHUB_REDIRECT_URI: "http://localhost:8787/auth/github/callback"
+      },
+      jobManager: manager
+    });
+
+    const hostSwitchResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/github/start",
+      url: "http://127.0.0.1:8787/auth/github/start"
+    });
+    const canonicalStartResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/github/start",
+      url: "http://localhost:8787/auth/github/start"
+    });
+
+    expect(hostSwitchResponse.statusCode).toBe(302);
+    expect(hostSwitchResponse.headers.location).toBe("http://localhost:8787/auth/github/start");
+    expect(hostSwitchResponse.headers["set-cookie"]).toBeUndefined();
+    expect(canonicalStartResponse.statusCode).toBe(302);
+    expect(canonicalStartResponse.headers.location).toContain("https://github.com/login/oauth/authorize");
+    expect(canonicalStartResponse.headers.location).toContain(
+      `redirect_uri=${encodeURIComponent("http://localhost:8787/auth/github/callback")}`
+    );
+    expect(canonicalStartResponse.headers["set-cookie"]).toContain("atc_oauth_state=");
+  });
+
+  it("moves GitHub SSO start to HTTPS before setting state when the redirect URI is HTTPS", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret",
+        ATC_GITHUB_REDIRECT_URI: "https://atc.example/auth/github/callback"
+      },
+      jobManager: manager
+    });
+
+    const startResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/github/start"
+    });
+
+    expect(startResponse.headers.location).toBe("https://atc.example/auth/github/start");
+    expect(startResponse.headers["set-cookie"]).toBeUndefined();
+  });
+
+  it("marks GitHub SSO cookies secure when the current request is HTTPS", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+
+    const startResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/github/start",
+      url: "https://atc.example/auth/github/start"
+    });
+
+    expect(startResponse.headers["set-cookie"]).toContain("Secure");
+  });
+
+  it("returns the signed GitHub SSO session user", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+    const sessionCookie = createSessionCookieValue({
+      email: "user@example.com",
+      name: "User Example",
+      picture: "https://example.com/user.png"
+    }, "test-secret");
+
+    const sessionResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/session",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(sessionCookie)}`
+      }
+    });
+
+    expect(sessionResponse.statusCode).toBe(200);
+    expect(JSON.parse(sessionResponse.body)).toEqual({
+      authenticated: true,
+      githubConfigured: true,
+      user: {
+        email: "user@example.com",
+        name: "User Example",
+        picture: "https://example.com/user.png"
+      }
+    });
+  });
+
+  it("refreshes signed GitHub SSO sessions on session reads", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-01T00:00:00.000Z"));
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+    const sessionCookie = createSessionCookieValue({
+      email: "user@example.com",
+      name: "User Example",
+      picture: "https://example.com/user.png"
+    }, "test-secret");
+    vi.setSystemTime(new Date("2026-04-02T00:00:00.000Z"));
+
+    const sessionResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/session",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(sessionCookie)}`
+      }
+    });
+
+    expect(sessionResponse.statusCode).toBe(200);
+    expect(sessionResponse.headers["set-cookie"]).toContain("atc_session=");
+    const refreshedCookie = readSetCookieValue(sessionResponse.headers["set-cookie"], "atc_session");
+    expect(readSessionExpiry(refreshedCookie)).toBe(Math.floor(new Date("2026-05-02T00:00:00.000Z").getTime() / 1000));
+  });
+
+  it("matches refreshed session cookie security to the request URL", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-01T00:00:00.000Z"));
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+    const sessionCookie = createSessionCookieValue({
+      email: "user@example.com",
+      name: "User Example",
+      picture: null
+    }, "test-secret");
+
+    const httpResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/session",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(sessionCookie)}`
+      }
+    });
+    const httpsResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/session",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(sessionCookie)}`
+      },
+      url: "https://atc.example/auth/session"
+    });
+
+    expect(httpResponse.headers["set-cookie"]).not.toContain("Secure");
+    expect(httpsResponse.headers["set-cookie"]).toContain("Secure");
+  });
+
+  it("refreshes signed GitHub SSO sessions when creating ask jobs", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-01T00:00:00.000Z"));
+    const jobManager = createHttpJobManager({
+      createJob: vi.fn(() => createJobSnapshot({
+        id: "job-authenticated",
+        request: {
+          question: "How does auth work?",
+          repoNames: null,
+          model: null,
+          reasoningEffort: null,
+          noSync: false,
+          noSynthesis: false
+        }
+      }))
+    });
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager
+    });
+    const sessionCookie = createSessionCookieValue({
+      email: "user@example.com",
+      name: "User Example",
+      picture: null
+    }, "test-secret");
+    vi.setSystemTime(new Date("2026-04-02T00:00:00.000Z"));
+
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(sessionCookie)}`
+      },
+      body: {
+        question: "How does auth work?"
+      }
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.headers["set-cookie"]).toContain("atc_session=");
+    const refreshedCookie = readSetCookieValue(response.headers["set-cookie"], "atc_session");
+    expect(readSessionExpiry(refreshedCookie)).toBe(Math.floor(new Date("2026-05-02T00:00:00.000Z").getTime() / 1000));
+  });
+
+  it("rejects legacy signed GitHub SSO session cookies without an expiry", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const handler = createHttpApp({
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+    const payload = Buffer.from(JSON.stringify({
+      email: "user@example.com",
+      name: "User Example",
+      picture: "https://example.com/user.png"
+    }), "utf8").toString("base64url");
+    const signature = createHmac("sha256", "test-secret").update(payload).digest("base64url");
+
+    const sessionResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/session",
+      headers: {
+        cookie: `atc_session=${encodeURIComponent(`${payload}.${signature}`)}`
+      }
+    });
+
+    expect(sessionResponse.statusCode).toBe(200);
+    expect(JSON.parse(sessionResponse.body)).toEqual({
+      authenticated: false,
+      githubConfigured: true,
+      user: null
+    });
+  });
+
+  it("rejects a signed GitHub SSO callback state when the state cookie is missing", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const authFetchFn = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url === "https://github.com/login/oauth/access_token") {
+        return Response.json({ access_token: "access-token" });
+      }
+      if (url === "https://api.github.com/user") {
+        return Response.json({
+          login: "octocat",
+          name: "Octo Cat",
+          avatar_url: "https://github.com/images/error/octocat_happy.gif"
+        });
+      }
+      if (url === "https://api.github.com/user/emails") {
+        return Response.json([
+          {
+            email: "octocat@example.com",
+            primary: true,
+            verified: true
+          }
+        ]);
+      }
+      return Response.json({ error: "unexpected URL" }, { status: 500 });
+    });
+    const handler = createHttpApp({
+      authFetchFn,
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+    const startResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/github/start"
+    });
+    const location = startResponse.headers.location;
+    if (!location) {
+      throw new Error("GitHub SSO start response did not include a redirect location.");
+    }
+    const state = new URL(location).searchParams.get("state");
+
+    const callbackResponse = await performRequest(handler, {
+      method: "GET",
+      path: `/auth/github/callback?code=code-123&state=${encodeURIComponent(state ?? "")}`
+    });
+
+    expect(callbackResponse.statusCode).toBe(400);
+    expect(JSON.parse(callbackResponse.body)).toEqual({
+      error: "Invalid GitHub SSO state."
+    });
+    expect(authFetchFn).not.toHaveBeenCalled();
+  });
+
+  it("accepts a GitHub SSO callback state when it matches the state cookie", async () => {
+    const manager = createAskJobManager({
+      answerQuestionFn: async () => ({
+        mode: "answer",
+        question: "ignored",
+        selectedRepos: [],
+        syncReport: [],
+        synthesis: {
+          text: "ignored"
+        }
+      }),
+      jobRetentionMs: 60_000
+    });
+    managers.push(manager);
+    const authFetchFn = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url === "https://github.com/login/oauth/access_token") {
+        return Response.json({ access_token: "access-token" });
+      }
+      if (url === "https://api.github.com/user") {
+        return Response.json({
+          login: "octocat",
+          name: "Octo Cat",
+          avatar_url: "https://github.com/images/error/octocat_happy.gif"
+        });
+      }
+      if (url === "https://api.github.com/user/emails") {
+        return Response.json([
+          {
+            email: "octocat@example.com",
+            primary: true,
+            verified: true
+          }
+        ]);
+      }
+      return Response.json({ error: "unexpected URL" }, { status: 500 });
+    });
+    const handler = createHttpApp({
+      authFetchFn,
+      env: {
+        ATC_AUTH_SECRET: "test-secret",
+        ATC_GITHUB_CLIENT_ID: "client-id",
+        ATC_GITHUB_CLIENT_SECRET: "client-secret"
+      },
+      jobManager: manager
+    });
+    const startResponse = await performRequest(handler, {
+      method: "GET",
+      path: "/auth/github/start"
+    });
+    const location = startResponse.headers.location;
+    if (!location) {
+      throw new Error("GitHub SSO start response did not include a redirect location.");
+    }
+    const state = new URL(location).searchParams.get("state");
+
+    const callbackResponse = await performRequest(handler, {
+      method: "GET",
+      path: `/auth/github/callback?code=code-123&state=${encodeURIComponent(state ?? "")}`,
+      headers: {
+        cookie: String(startResponse.headers["set-cookie"]).split(";")[0] ?? ""
+      }
+    });
+
+    expect(callbackResponse.statusCode).toBe(302);
+    expect(callbackResponse.headers.location).toBe("/");
+    expect(callbackResponse.headers["set-cookie"]).toContain("atc_session=");
+    expect(authFetchFn).toHaveBeenCalledWith("https://github.com/login/oauth/access_token", expect.any(Object));
   });
 
   it("returns ok health even when a custom job manager does not expose stats", async () => {
-    const handler = createHttpHandler({
+    const handler = createHttpApp({
       jobManager: createHttpJobManager()
     });
 
@@ -206,7 +896,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     await performRequest(handler, {
       method: "POST",
@@ -262,7 +952,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({
+    const handler = createHttpApp({
       jobManager: manager,
       loadConfigFn: async () => createLoadedConfig({
         repos: [
@@ -320,7 +1010,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({
+    const handler = createHttpApp({
       jobManager: manager,
       loadConfigFn: async () => createLoadedConfig({
         repos: []
@@ -351,7 +1041,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     const htmlResponse = await performRequest(handler, {
       method: "GET",
@@ -363,26 +1053,13 @@ describe("http-server", () => {
     expect(htmlResponse.headers["content-type"]).toContain("text/html");
     expect(htmlResponse.body).toContain("<!DOCTYPE html>");
     expect(htmlResponse.body).toContain("ask-the-code");
-    expect(htmlResponse.body).toContain("EventSource");
-    expect(htmlResponse.body).toContain("/ask");
-    expect(htmlResponse.body).toContain("/repos");
-    expect(htmlResponse.body).toContain("Search configured repos");
-    expect(htmlResponse.body).toContain('id="setup-hint"');
-    expect(htmlResponse.body).toContain('atc config discover-github');
-    expect(htmlResponse.body).toContain("automatic");
-    expect(htmlResponse.body).toContain('id="advanced-options" hidden');
-    expect(htmlResponse.body).toContain('params.get("admin")');
-    expect(htmlResponse.body).toContain("if (!advancedOptions.hidden)");
-    expect(htmlResponse.body).toContain('<option value="general" selected>general</option>');
-    expect(htmlResponse.body).toContain('<option value="codebase">codebase</option>');
-    expect(htmlResponse.body).toContain('<option value="gpt-5.4-mini" selected>gpt-5.4-mini</option>');
-    expect(htmlResponse.body).toContain('<option value="gpt-5.4">gpt-5.4</option>');
-    expect(htmlResponse.body).toContain('<option value="low" selected>low</option>');
-    expect(htmlResponse.body).not.toContain("repo-picker-toggle");
-    expect(htmlResponse.body).not.toContain('id="no-synthesis"');
+    expect(htmlResponse.body).toContain("/ui/assets/app.js");
+    expect(htmlResponse.body).toContain("Ask a question");
+    expect(htmlResponse.body).toContain("Progress");
+    expect(htmlResponse.body).toContain("Drop files here or browse.");
   });
 
-  it("serves JSON at / when the client does not accept text/html", async () => {
+  it("serves the web UI at / when the client does not accept text/html", async () => {
     const manager = createAskJobManager({
       answerQuestionFn: async () => ({
         mode: "answer",
@@ -394,7 +1071,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     const jsonResponse = await performRequest(handler, {
       method: "GET",
@@ -403,7 +1080,8 @@ describe("http-server", () => {
     });
 
     expect(jsonResponse.statusCode).toBe(200);
-    expect(JSON.parse(jsonResponse.body)).toMatchObject({ service: "atc-server" });
+    expect(jsonResponse.headers["content-type"]).toContain("text/html");
+    expect(jsonResponse.body).toContain("ask-the-code");
   });
 
   it("streams job events over server-sent events", async () => {
@@ -433,7 +1111,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     const createResponse = await performRequest(handler, {
       method: "POST",
@@ -452,6 +1130,7 @@ describe("http-server", () => {
     });
     const eventsPromise = collectSseEvents(sseRequest.response, "completed");
 
+    await waitFor(() => sseRequest.response.body.includes("running stream this"));
     releaseJob();
 
     const events = await eventsPromise;
@@ -468,6 +1147,14 @@ describe("http-server", () => {
         })
       ])
     );
+    expect(events.find(event => event.type === "completed")?.data).toMatchObject({
+      status: "completed",
+      result: {
+        synthesis: {
+          text: "streamed answer"
+        }
+      }
+    });
     expect(events.filter(event => event.type === "status").map(event => event.data.message)).toContain("done stream this");
   });
 
@@ -484,7 +1171,7 @@ describe("http-server", () => {
       })
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     const response = await performRequest(handler, {
       method: "POST",
@@ -513,7 +1200,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     const routeResponse = await performRequest(handler, {
       method: "GET",
@@ -545,6 +1232,40 @@ describe("http-server", () => {
     expect(JSON.parse(eventsResponse.body).error).toContain("Unknown job");
   });
 
+  it("decodes encoded job ids in job routes", async () => {
+    const getJob = vi.fn((jobId: string) => jobId === "job/with space"
+      ? createJobSnapshot({ id: jobId, status: "completed" })
+      : null);
+    const handler = createHttpApp({
+      jobManager: createHttpJobManager({
+        getJob
+      })
+    });
+
+    const response = await performRequest(handler, {
+      method: "GET",
+      path: "/jobs/job%2Fwith%20space"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).id).toBe("job/with space");
+    expect(getJob).toHaveBeenCalledWith("job/with space");
+  });
+
+  it("returns bad request for malformed encoded job ids", async () => {
+    const handler = createHttpApp({
+      jobManager: createHttpJobManager()
+    });
+
+    const response = await performRequest(handler, {
+      method: "GET",
+      path: "/jobs/%E0%A4%A"
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(JSON.parse(response.body).error).toContain("Invalid job id");
+  });
+
   it("streams an immediate terminal snapshot for completed jobs", async () => {
     const manager = createAskJobManager({
       answerQuestionFn: async ({ question }) => ({
@@ -559,7 +1280,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     const createResponse = await performRequest(handler, {
       method: "POST",
@@ -602,7 +1323,7 @@ describe("http-server", () => {
       jobRetentionMs: 60_000
     });
     managers.push(manager);
-    const handler = createHttpHandler({ jobManager: manager });
+    const handler = createHttpApp({ jobManager: manager });
 
     const goodResponse = await performRequest(handler, {
       method: "POST",
@@ -717,18 +1438,56 @@ describe("http-server", () => {
   it("rejects oversized request bodies", async () => {
     const handler = createValidationHandler(10);
 
-    const response = await performManualRequest(handler, request => {
-      request.emit("data", Buffer.from(JSON.stringify({
+    const response = await performRequest(handler, {
+      method: "POST",
+      path: "/ask",
+      rawBody: JSON.stringify({
         question: "this body is too large"
-      })));
+      })
     });
 
     expect(response.statusCode).toBe(413);
     expect(JSON.parse(response.body).error).toContain("exceeds 10 bytes");
   });
 
+  it("stops reading the request stream once the body limit is exceeded", async () => {
+    const encoder = new TextEncoder();
+    const chunks = [
+      encoder.encode("1234"),
+      encoder.encode("5678"),
+      encoder.encode("9012")
+    ];
+    let pullCount = 0;
+    let canceled = false;
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        canceled = true;
+      },
+      pull(controller) {
+        const chunk = chunks[pullCount];
+        pullCount += 1;
+        if (chunk) {
+          controller.enqueue(chunk);
+          return;
+        }
+
+        controller.close();
+      }
+    });
+    const request = new Request("http://atc.local/ask", {
+      body,
+      duplex: "half",
+      method: "POST"
+    } as RequestInit & { duplex: "half" });
+
+    await expect(readJsonBody(request, 5)).rejects.toThrow("exceeds 5 bytes");
+
+    expect(pullCount).toBe(2);
+    expect(canceled).toBe(true);
+  });
+
   it("returns a 500 response for unexpected errors", async () => {
-    const handler = createHttpHandler({
+    const handler = createHttpApp({
       jobManager: {
         createJob() {
           throw new Error("boom");
@@ -756,56 +1515,7 @@ describe("http-server", () => {
     });
   });
 
-  it("rejects malformed request urls without crashing the handler", async () => {
-    const handler = createValidationHandler(10);
-
-    const response = await performRequest(handler, {
-      method: "GET",
-      path: "http://%"
-    });
-
-    expect(response.statusCode).toBe(400);
-    expect(JSON.parse(response.body).error).toContain("Invalid request URL");
-  });
-
-  it("does not write SSE events after the response is already destroyed", async () => {
-    const listenerRef: { current: ((event: AskJobEvent) => void) | null } = { current: null };
-    const unsubscribe = vi.fn();
-    const jobManager = createHttpJobManager({
-      getJob: vi.fn(() => createJobSnapshot({
-        status: "running"
-      })),
-      subscribe: vi.fn((_jobId, callback) => {
-        listenerRef.current = callback;
-        return unsubscribe;
-      })
-    });
-    const handler = createHttpHandler({ jobManager });
-    const exchange = startRequest(handler, {
-      method: "GET",
-      path: "/jobs/job-1/events"
-    });
-
-    await Promise.resolve();
-    const initialBody = exchange.response.body;
-    exchange.response.destroyed = true;
-
-    if (listenerRef.current) {
-      listenerRef.current({
-        sequence: 1,
-        type: "status",
-        message: "after close",
-        timestamp: "2026-04-03T00:00:01.000Z"
-      });
-    }
-
-    expect(exchange.response.body).toBe(initialBody);
-
-    exchange.response.emit("close");
-    expect(unsubscribe).toHaveBeenCalled();
-  });
-
-  it("cleans up the SSE subscription when the terminal snapshot cannot be written", async () => {
+  it("cleans up the SSE subscription after a terminal event", async () => {
     const listenerRef: { current: ((event: AskJobEvent) => void) | null } = { current: null };
     const unsubscribe = vi.fn();
     const jobManager = createHttpJobManager({
@@ -827,23 +1537,11 @@ describe("http-server", () => {
         return unsubscribe;
       })
     });
-    const request = createManualRequest({
+    const exchange = startRequest(createHttpApp({ jobManager }), {
       method: "GET",
       path: "/jobs/job-1/events"
     });
-    const response = createMockResponse();
-    const originalWrite = response.write.bind(response);
-    response.write = vi.fn(chunk => {
-      const text = chunk.toString("utf8");
-      const result = originalWrite(chunk);
-
-      if (text.startsWith("event: completed")) {
-        response.destroyed = true;
-      }
-
-      return result;
-    });
-    void createHttpHandler({ jobManager })(request, response);
+    await waitFor(() => listenerRef.current !== null);
 
     if (listenerRef.current) {
       listenerRef.current({
@@ -854,32 +1552,24 @@ describe("http-server", () => {
       });
     }
 
+    await exchange.completed;
+
     expect(unsubscribe).toHaveBeenCalled();
-    expect(response.body).toContain("event: completed");
+    expect(exchange.response.body).toContain("event: completed");
   });
 
   it("does not parse truncated bodies after the request was already rejected for size", async () => {
     const parseSpy = vi.spyOn(JSON, "parse");
     const jobManager = createHttpJobManager();
-    const handler = createHttpHandler({
+    const handler = createHttpApp({
       bodyLimitBytes: 5,
       jobManager
     });
-    const request = createManualRequest({
+    const response = await performRequest(handler, {
       method: "POST",
-      path: "/ask"
+      path: "/ask",
+      rawBody: "123456"
     });
-    const response = createMockResponse();
-    const completed = new Promise((resolve, reject) => {
-      response.on("finish", resolve);
-      response.on("error", reject);
-    });
-
-    void handler(request, response);
-    request.emit("data", Buffer.from("123456"));
-    request.emit("end");
-
-    await completed;
 
     expect(response.statusCode).toBe(413);
     expect(jobManager.createJob).not.toHaveBeenCalled();
@@ -975,155 +1665,47 @@ function parseSseStreamBody(body: string): SseEvent[] {
     .filter((event): event is SseEvent => event !== null);
 }
 
-async function performRequest(handler: HttpHandler, options: HandlerRequestOptions): Promise<MockResponse> {
+async function performRequest(handler: HttpApp, options: HandlerRequestOptions): Promise<MockResponse> {
   const exchange = startRequest(handler, options);
   await exchange.completed;
   return exchange.response;
 }
 
 function startRequest(
-  handler: HttpHandler,
-  { method, path, headers = {}, body, rawBody, skipAutoEndWrite = false }: HandlerRequestOptions
+  handler: HttpApp,
+  { method, path, url, headers = {}, body, rawBody, skipAutoEndWrite = false }: HandlerRequestOptions
 ): {
-  request: MockRequest;
   response: MockResponse;
   completed: Promise<void>;
 } {
-  const request = new PassThrough() as MockRequest;
-  request.method = method;
-  request.url = path;
-  request.headers = headers;
-  request.destroyed = false;
-
   const response = createMockResponse();
-  const completed = new Promise<void>((resolve, reject) => {
-    response.on("finish", () => {
-      resolve();
-    });
-    response.on("error", reject);
-  });
+  const requestBody = rawBody ?? (body == null ? (skipAutoEndWrite ? "" : undefined) : JSON.stringify(body));
+  const requestInit: RequestInit = {
+    headers,
+    method
+  };
+  if (method !== "GET" && method !== "HEAD" && requestBody !== undefined) {
+    requestInit.body = requestBody;
+  }
 
-  void handler(request, response);
-
-  queueMicrotask(() => {
-    if (rawBody != null) {
-      request.write(rawBody);
-    } else if (body != null) {
-      request.write(JSON.stringify(body));
-    }
-
-    if (!skipAutoEndWrite) {
-      request.end();
-      return;
-    }
-
-    request.end("");
-  });
+  const completed = pumpFetchResponse(handler, new Request(url ?? `http://atc.local${path}`, requestInit), response);
 
   return {
-    request,
     response,
     completed
   };
 }
 
 function createMockResponse(): MockResponse {
-  const response = new PassThrough() as MockResponse;
-
+  const response = new EventEmitter() as MockResponse;
   response.statusCode = 200;
   response.headers = {};
   response.body = "";
-  response.setHeader = (name: string, value: string) => {
-    response.headers[name.toLowerCase()] = value;
-  };
-  response.writeHead = (statusCode: number, headers: Record<string, string> = {}) => {
-    response.statusCode = statusCode;
-
-    for (const [name, value] of Object.entries(headers)) {
-      response.setHeader(name, value);
-    }
-
-    return response;
-  };
-
-  response.on("data", (chunk: Buffer) => {
-    response.body += chunk.toString("utf8");
-  });
-  response.on("finish", () => {
-    response.emit("close");
-  });
-  response.destroyed = false;
 
   return response;
 }
 
-function createManualRequest({
-  method,
-  path,
-  headers = {}
-}: Pick<HandlerRequestOptions, "method" | "path" | "headers">): ManualRequest {
-  const handlers = {
-    data: [] as Array<(chunk: Buffer) => void>,
-    end: [] as Array<() => void>,
-    error: [] as Array<(error: Error) => void>
-  };
-
-  return {
-    method,
-    url: path,
-    headers,
-    destroyed: false,
-    on(event, handler) {
-      handlers[event].push(handler as never);
-      return this;
-    },
-    destroy() {
-      this.destroyed = true;
-    },
-    emit(event, ...args) {
-      if (event === "data") {
-        for (const handler of handlers.data) {
-          handler(args[0] as Buffer);
-        }
-        return;
-      }
-
-      if (event === "error") {
-        for (const handler of handlers.error) {
-          handler(args[0] as Error);
-        }
-        return;
-      }
-
-      for (const handler of handlers.end) {
-        handler();
-      }
-    }
-  };
-}
-
-async function performManualRequest(
-  handler: HttpHandler,
-  emitEvents: (request: ManualRequest) => void
-): Promise<MockResponse> {
-  const request = createManualRequest({
-    method: "POST",
-    path: "/ask"
-  });
-  const response = createMockResponse();
-  const completed = new Promise<void>((resolve, reject) => {
-    response.on("finish", resolve);
-    response.on("error", reject);
-  });
-
-  void handler(request, response);
-  emitEvents(request);
-  await completed;
-
-  return response;
-}
-
-function createValidationHandler(bodyLimitBytes: number): HttpHandler {
+function createValidationHandler(bodyLimitBytes: number): HttpApp {
   const manager = createAskJobManager({
     answerQuestionFn: async () => ({
       mode: "answer",
@@ -1138,10 +1720,103 @@ function createValidationHandler(bodyLimitBytes: number): HttpHandler {
   });
   managers.push(manager);
 
-  return createHttpHandler({
+  return createHttpApp({
     bodyLimitBytes,
     jobManager: manager
   });
+}
+
+function createHttpApp({
+  authFetchFn,
+  bodyLimitBytes = 65_536,
+  env = {},
+  jobManager,
+  loadConfigFn = async () => createLoadedConfig({ repos: [] })
+}: {
+  authFetchFn?: Parameters<typeof createApp>[0]["authFetchFn"];
+  bodyLimitBytes?: number;
+  env?: Record<string, string | undefined>;
+  jobManager: HttpJobManager;
+  loadConfigFn?: Parameters<typeof createApp>[0]["loadConfigFn"];
+}): ReturnType<typeof createApp> {
+  return createApp({
+    bodyLimitBytes,
+    env,
+    jobManager,
+    loadConfigFn,
+    ...(authFetchFn === undefined ? {} : { authFetchFn })
+  });
+}
+
+async function pumpFetchResponse(handler: HttpApp, request: Request, target: MockResponse): Promise<void> {
+  const response = await handler.fetch(request);
+  target.statusCode = response.status;
+  response.headers.forEach((value, name) => {
+    target.headers[name.toLowerCase()] = value;
+  });
+  const setCookies = getSetCookies(response.headers);
+  if (setCookies.length > 0) {
+    target.headers["set-cookie"] = setCookies.join("\n");
+  }
+
+  if (!response.body) {
+    target.emit("finish");
+    target.emit("end");
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        target.emit("finish");
+        target.emit("end");
+        return;
+      }
+
+      const chunk = Buffer.from(value);
+      target.body += decoder.decode(value, { stream: true });
+      target.emit("data", chunk);
+    }
+  } catch (error) {
+    target.emit("error", error);
+    throw error;
+  }
+}
+
+function getSetCookies(headers: Headers): string[] {
+  const extendedHeaders = headers as Headers & { getSetCookie?: () => string[] };
+  return extendedHeaders.getSetCookie?.() ?? [];
+}
+
+function readSetCookieValue(setCookieHeader: string | undefined, name: string): string {
+  const prefix = `${name}=`;
+  const encodedValue = setCookieHeader
+    ?.split("\n")
+    .map(cookie => cookie.split(";")[0] ?? "")
+    .find(cookie => cookie.startsWith(prefix))
+    ?.slice(prefix.length);
+  if (!encodedValue) {
+    throw new Error(`Missing ${name} Set-Cookie value.`);
+  }
+
+  return decodeURIComponent(encodedValue);
+}
+
+function readSessionExpiry(sessionCookie: string): number {
+  const [payload] = sessionCookie.split(".");
+  if (!payload) {
+    throw new Error("Missing session payload.");
+  }
+  const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { exp?: unknown };
+  if (typeof parsed.exp !== "number") {
+    throw new Error("Missing session expiry.");
+  }
+
+  return parsed.exp;
 }
 
 function createHttpJobManager(overrides: Partial<HttpJobManager> = {}): HttpJobManager {

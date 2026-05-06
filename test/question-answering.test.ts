@@ -78,9 +78,17 @@ describe("answerQuestion", () => {
 
   it("runs codex after a successful sync", async () => {
     const statusReporter = { info: vi.fn() };
+    const attachments = [
+      {
+        name: "requirements.txt",
+        mediaType: "text/plain",
+        contentBase64: "aGVsbG8="
+      }
+    ];
 
     const result = await answerQuestion({
       question: "How does x-codec-meta work?",
+      attachments,
       audience: "codebase",
       model: "gpt-5.4",
       reasoningEffort: "low",
@@ -92,6 +100,7 @@ describe("answerQuestion", () => {
     expect(result.mode).toBe("answer");
     expect(mocks.runCodexQuestion).toHaveBeenCalledWith({
       question: "How does x-codec-meta work?",
+      attachments,
       audience: "codebase",
       model: "gpt-5.4",
       reasoningEffort: "low",

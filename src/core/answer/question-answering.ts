@@ -82,6 +82,7 @@ export const answerQuestion: AnswerQuestionFn = async (
 
   const synthesis = await execution.runCodexQuestionFn({
     question: options.question,
+    attachments: options.attachments ?? [],
     audience,
     model: options.model,
     reasoningEffort: options.reasoningEffort,
